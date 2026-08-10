@@ -4,6 +4,7 @@
 # empty-but-composable stubs — see Phases.md, each is filled in by its
 # owning phase. Do not add them to `defaults` until that phase lands.
 defaults:
+  - data: default
   - train: default
   - _self_
 

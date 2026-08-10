@@ -1,0 +1,21 @@
+# Raw corpus acquisition (ADR-001). Labelling and splitting are configured separately
+# once Phase 1 lands them; this group currently covers download only.
+name: default
+
+# Where raw corpora land. Gitignored (Architecture.md §5).
+raw_dir: "./artifacts/data/raw"
+
+# Empty means "every source in vulnloc.data.sources.SOURCES".
+# Override per-run, e.g. data.sources=[primevul,diversevul]
+sources: []
+
+# Re-download even when the artefact is already present and its digest verifies.
+force: false
+
+# Corpus audit (Phase 1 / E0). Produces the measured statistics and the Big-Vul
+# label-noise estimate that ADR-003 reports.
+audit:
+  splits: [bigvul_train, bigvul_val, bigvul_test]
+  report_path: "./artifacts/data/audit_report.json"
+  # Skip the PrimeVul cross-reference (Big-Vul statistics only).
+  skip_overlap: false

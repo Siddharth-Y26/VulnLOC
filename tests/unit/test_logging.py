@@ -137,6 +137,30 @@ def test_file_sink_without_log_dir_raises_config_error():
         setup_logging("INFO", log_dir=None, json_to_file=True)
 
 
+def test_reserved_extra_keys_are_renamed_not_fatal(tmp_path):
+    # The stdlib raises KeyError when `extra` contains a LogRecord attribute name.
+    # A corpus audit naturally wants fields called `name`, `module`, `filename` — a
+    # logging call must never crash the program that made it.
+    setup_logging("INFO", log_dir=tmp_path)
+
+    get_logger("phase1").info("stats", extra={"name": "bigvul_val", "rows": 3})
+
+    (record,) = _read_records(tmp_path / "vulnloc.log")
+    assert record["extra"]["extra_name"] == "bigvul_val"
+    assert record["extra"]["rows"] == 3
+    assert record["logger"] == "vulnloc.phase1"  # the real logger name is untouched
+
+
+@pytest.mark.parametrize("key", ["name", "module", "filename", "levelname", "args", "msg"])
+def test_every_reserved_key_survives_as_a_renamed_field(tmp_path, key):
+    setup_logging("INFO", log_dir=tmp_path)
+
+    get_logger("phase1").info("m", extra={key: "value"})
+
+    (record,) = _read_records(tmp_path / "vulnloc.log")
+    assert record["extra"][f"extra_{key}"] == "value"
+
+
 def test_get_logger_does_not_double_prefix():
     assert get_logger("vulnloc.models").name == "vulnloc.models"
     assert get_logger("vulnloc").name == "vulnloc"
