@@ -28,7 +28,7 @@
 | **Active phase** | Phase 0 — Foundation & Scaffolding |
 | **Phase status** | 🟨 3 / 4 exit criteria met — Docker unverified (no Docker on the dev machine) |
 | **Last updated** | 2026-08-10 |
-| **Last commit** | *(none — repo has no commits yet; `git_sha` therefore logs as `unknown`)* |
+| **Last commit** | `09d5c54` on branch `phase-0/foundation` (6 commits; `main` does not exist yet) |
 | **Best model run ID** | — *(no model exists; no claims permitted)* |
 | **Blocking issues** | Q1 (dataset), Q2 (language), Q3 (graph type), Q6 (CPG tooling) — all unresolved; block Phases 1–2 |
 
@@ -56,8 +56,8 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done · 🟥 blocked
 
 | Exit criterion | Status | Evidence |
 |---|---|---|
-| `make setup && make test && make lint` pass from a clean clone | ✅ *(via `make.ps1`; see §7 issue #2)* | 103 tests passed, 96% coverage; ruff/black/mypy clean; import-linter 3 contracts kept |
-| `python scripts/train.py train=debug` runs a no-op loop and logs to MLflow | ✅ | Run `a042076a7d7e45d391c9f94685d273e4`, metrics `noop/loss`, `noop/completed_steps` |
+| `make setup && make test && make lint` pass from a clean clone | ✅ *(via `make.ps1`; see §7 issue #2)* | 128 passed / 2 skipped, 95% coverage; ruff/black/mypy clean; import-linter 3 contracts kept |
+| `python scripts/train.py train=debug` runs a no-op loop and logs to MLflow | ✅ | Run `58c71014…` (CPU) and `f3f24d45…` (GPU); metrics `noop/loss`, `noop/completed_steps` |
 | Docker image builds and runs the same command | 🟥 **Unverified** | Docker is not installed on the dev machine — §7 issue #1 |
 | Import-linter enforces the L0→L6 layer rule | ✅ | 3 contracts kept; verified non-vacuous by a deliberate `data → models` import that broke the contract |
 
@@ -67,7 +67,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done · 🟥 blocked
 - MLflow's file store is dead (§7 #3). Any Phase 6/8 tooling assuming `mlruns/` directories on disk must instead query SQLite.
 - Provenance tagging is centralized in `training/tracking.py`, so Phase 6 checkpoint hygiene (`Rules.md` §5.8) is a small extension rather than new infrastructure.
 - `Architecture.md` §5 needs three amendments (`<layer>/registry.py`, `training/tracking.py`, `.github/`) — see ADR-000.
-- CUDA is unavailable in the current environment (§9 A2). If that reflects the real budget, Phase 3 should default to a **frozen** encoder and treat fine-tuning as the expensive variant.
+- The GPU is real and now usable (`torch 2.13.0+cu130`, run `f3f24d45…`), but it holds **4 GiB**. Phase 3 should treat a frozen encoder as the default and full fine-tuning as the expensive variant, and Phase 5 must watch memory when retaining attention matrices for evidence export.
 
 **3. What `PRD.md` §10 assumption has been confirmed or falsified?**
 None confirmed. A2 (single-GPU budget) moved from "Unverified" to "Unverified — at risk". A1, A3, A4 and A5 are untouchable until a dataset exists (Q1).
@@ -91,7 +91,7 @@ None confirmed. A2 (single-GPU budget) moved from "Unverified" to "Unverified �
 | MLflow tracking | ✅ | `src/vulnloc/training/tracking.py` |
 | Train entrypoint (no-op loop) | ✅ | `scripts/train.py` |
 | Quality gates | ✅ | ruff, black, mypy, import-linter, pre-commit, `.github/workflows/ci.yml` |
-| Tests | ✅ 103 passing, 96% cov | `tests/unit/`, `tests/integration/` |
+| Tests | ✅ 128 passing / 2 skipped, 95% cov | `tests/unit/`, `tests/integration/` |
 | Data pipeline | ⬜ | — |
 | Parser / graph builders | ⬜ | — |
 | LLM branch | ⬜ | — |
@@ -169,10 +169,10 @@ Files touched:
   - `src/vulnloc/**` (utils, data, representation, models, training, evaluation, explanation, serving)
   - `scripts/train.py`, `tests/**`
   - `docs/adr/000-phase-0-foundation.md`, `docs/Memory.md`
-Runs logged:
-  - `a042076a7d7e45d391c9f94685d273e4` — `train=debug`, `noop/loss=1.0`, `noop/completed_steps=1.0`.
-    Tags: `config_hash=d9378fa4d57e`, `vulnloc_version=0.1.0`, `git_sha=unknown`.
-    **Not a result** — it exists only to prove the tracking plumbing.
+Runs logged (none is a result; all exist only to prove plumbing):
+  - `a042076a…` — first tracked run. `git_sha=unknown` (no commits existed yet).
+  - `58c71014…` — first run with real provenance, `git_sha=09d5c54`.
+  - `f3f24d45…` — **first GPU run**: `device=cuda:0`, RTX 3050 Ti, 4.0 GiB, cc 8.6, `torch 2.13.0+cu130`.
   - **GPU enablement** (second half of the session): swapped the CPU-only wheel for `torch==2.13.0+cu130`,
     added `training/device.py` (config-driven `auto`/`cuda`/`cpu` with a real allocation probe),
     `device` config section, `make setup-cuda` / `gpu-check` / `train-gpu` targets, a `TORCH_INDEX_URL`
@@ -187,8 +187,13 @@ Learned:
     after the first commit — do not log a run intended to support a claim before then.
   - The layers contract was verified non-vacuous by temporarily importing `vulnloc.models`
     from `vulnloc.data` and confirming import-linter broke. Worth repeating whenever contracts change.
+  - Reinstalling torch while any process has it imported fails with `WinError 5` and leaves the venv
+    half-uninstalled (§7 #6b). Cost one wasted 1.9 GB download.
+  - The console log sink was dropping all structured context (§7 #8). Found only because `gpu-check`
+    printed a bare "Accelerator". Infrastructure needs its own smoke test, not just unit tests.
 Next:
-  - Commit this scaffolding on `phase-0/foundation` (see §6), then resolve Q1 → ADR-001.
+  - Docker exit criterion (§6 item 1) — the only thing standing between Phase 0 and done.
+  - Then resolve Q1 → ADR-001.
 
 ---
 
@@ -198,6 +203,8 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `f3f24d45…` | 2026-08-10 | `train=debug device.kind=cuda` | 42 | — | — | — | — | — | Phase 0 **GPU** plumbing check. RTX 3050 Ti, 4 GiB, cc 8.6, torch 2.13.0+cu130. **Never cite this.** |
+| `58c71014…` | 2026-08-10 | `train=debug` | 42 | — | — | — | — | — | First run with a real `git_sha` (`09d5c54`). CPU. **Never cite this.** |
 | `a042076a…` | 2026-08-10 | `train=debug` | 42 | — | — | — | — | — | Phase 0 plumbing check. No model, no data. Logs `noop/loss` only. **Never cite this.** |
 
 **Current best configuration:** —
@@ -224,16 +231,20 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 
 Ordered. Top item is what the next session starts with.
 
-1. **Commit the Phase 0 scaffolding.** The repo has zero commits, so every run currently logs
-   `git_sha=unknown` and nothing is reproducible. Branch `phase-0/foundation`, conventional commits.
-2. Close the last Phase 0 exit criterion: on a machine with Docker, run
-   `make docker-build && make docker-train` and record the result here (§7 issue #1).
+1. **Close the last Phase 0 exit criterion.** On a machine with Docker installed, run
+   `make docker-build && make docker-train`, then record the result here and tick the box in
+   `Phases.md` (§7 issue #1). This is the only thing between Phase 0 and done.
+2. **Decide the branching model.** `main` does not exist — the repo's only branch is
+   `phase-0/foundation`. `Rules.md` §8 assumes a `main` to open PRs against; create it.
 3. Resolve Q1 (dataset) → write ADR-001. **Everything else is downstream of this.**
 4. Resolve Q2 + Q3 + Q6 → write ADR-002.
 5. Begin Phase 1 only after ADR-001 is accepted.
+6. Before Phase 3, decide how to live within 4 GiB of VRAM (§7 issue #7) — this is a design
+   input, not a tuning detail.
 
-Done in this session: repo scaffolding, Hydra skeleton, logging/seeding/exceptions/registries, CI,
-MLflow hello-world run, and `make test` / `make lint` verified on the host.
+Done in this session: repo scaffolding, Hydra skeleton, logging/seeding/exceptions/registries,
+device selection, CUDA-enabled torch, CI, MLflow runs on both CPU and GPU, and
+`make test` / `make lint` verified on the host.
 
 ---
 
@@ -247,10 +258,13 @@ Things that cost time once and should not cost time twice.
 | 2 | **GNU `make` is not installed** on the dev machine | The literal `make setup / test / lint` commands in `Phases.md` cannot run on Windows | `make.ps1` mirrors every target; the `Makefile` is exercised by CI on Linux | 🟨 Mitigated |
 | 2b | PowerShell's default execution policy **blocks `make.ps1`** ("running scripts is disabled on this system") | Every new Windows teammate hits this on their first command | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or `powershell -ExecutionPolicy Bypass -File .\make.ps1 <target>`. Documented in `README.md` | ✅ Documented |
 | 3 | **MLflow 3.x refuses the filesystem tracking store** (`file:./mlruns`) — raises `MlflowException`, maintenance mode | Any doc or tutorial suggesting `file:./mlruns` will fail | Use `sqlite:///artifacts/mlflow.db` (ADR-000 §D0.7). Do **not** set `MLFLOW_ALLOW_FILE_STORE=true` | ✅ Fixed |
-| 4 | **`git_sha` logs as `unknown`** — the repo has no commits | Runs are not traceable to code; `Rules.md` §5.8 unsatisfiable | Commit before logging any run that supports a claim. `git_sha()` reports `unknown`/`-dirty` honestly rather than faking a SHA | 🟥 Open until first commit |
+| 4 | **`git_sha` logged as `unknown`** — the repo had no commits | Runs were not traceable to code; `Rules.md` §5.8 unsatisfiable | Fixed by the initial commits on `phase-0/foundation`; run `58c71014…` tags `git_sha=09d5c54`. `git_sha()` still reports `unknown`/`-dirty` honestly rather than faking a SHA — treat a `-dirty` tag on a results run as invalid | ✅ Resolved |
 | 5 | Hydra's `hydra.job.chdir` is **False** (default at `version_base="1.3"`) | Relative paths in `configs/config.yaml` resolve against the *launch* directory, not the run directory. Launching from a subdirectory silently creates a second `artifacts/` tree | Launch from the repo root, or make the paths absolute in Phase 6 when run directories start mattering | 🟨 Known |
-| 6 | **`pip install torch` yields a CPU-only wheel on Windows** — the GPU is silently unused | Every run would have been ~10-50× slower with no error and no warning from torch | `make setup-cuda` (channel `cu130`, the only one with a cp312 Windows wheel for torch 2.13.0). `device.kind=auto` now *warns* on CPU fallback; `device.kind=cuda` fails hard. Verify with `make gpu-check` | ✅ Fixed |
-| 7 | **4 GB VRAM ceiling** on the RTX 3050 Ti Laptop | CodeBERT/GraphCodeBERT at 512 tokens + a GNN branch + retained cross-attention maps will not fit at a comfortable batch size | Plan for gradient accumulation, AMP, gradient checkpointing, or a frozen encoder in Phase 3; watch memory when retaining attention matrices in Phase 5. **Do not discover this during a sweep** | 🟥 Open — Phase 3 design input |
+| 6 | **`pip install torch` yields a CPU-only wheel on Windows** — the GPU is silently unused | Every run would have been far slower with no error and no warning from torch | `make setup-cuda` (channel `cu130`, the only one with a cp312 Windows wheel for torch 2.13.0). `device.kind=auto` now *warns* on CPU fallback; `device.kind=cuda` fails hard. Verify with `make gpu-check` | ✅ Fixed — run `f3f24d45…` |
+| 6b | **Reinstalling torch fails with `WinError 5`** if any Python process has it imported — pip cannot delete the loaded `_C.pyd` and leaves a `~orch` stub behind | The 1.9 GB download is wasted and the venv is left in a half-uninstalled state | Close every Python process (including editors and watchers) before `make setup-cuda`. Clean leftovers with `Remove-Item -Recurse .venv/Lib/site-packages/~*`. The wheel stays in pip's cache, so the retry is fast | ✅ Documented |
+| 6c | `requirements.lock.txt` pins `torch==2.13.0+cu130`, which is **not on PyPI** | A plain `pip install -r requirements.lock.txt` fails on a fresh machine | The file carries a header with the required `--extra-index-url`. Regenerate with `make freeze` after any torch change | ✅ Documented |
+| 7 | **4 GiB VRAM ceiling** on the RTX 3050 Ti Laptop | CodeBERT/GraphCodeBERT at 512 tokens + a GNN branch + retained cross-attention maps will not fit at a comfortable batch size | Plan for gradient accumulation, AMP, gradient checkpointing, or a frozen encoder in Phase 3; watch memory when retaining attention matrices in Phase 5. **Do not discover this during a sweep** | 🟥 Open — Phase 3 design input |
+| 8 | The console log sink **silently dropped every `extra=` field** | `make gpu-check` printed a bare "Accelerator" with no GPU attached; console output was strictly poorer than the JSON file | `ConsoleFormatter` appends `key=value` pairs. Never use the stdlib default formatter for this logger | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**
 
@@ -279,7 +293,7 @@ Tracks `PRD.md` §10 as evidence accumulates.
 | ID | Assumption | Status | Evidence |
 |----|------------|--------|----------|
 | A1 | Primary persona = application developer | Unverified | — |
-| A2 | Single-GPU compute budget | ✅ **Confirmed — and quantified** | Dev machine has one **NVIDIA RTX 3050 Ti Laptop GPU, 4 GB VRAM**, compute capability 8.6, driver 591.59 (CUDA 13.1). Single GPU confirmed; **4 GB is the binding constraint**. The first CPU-only reading was the default PyPI wheel, not absent hardware — see ADR-000 §D0.8 |
+| A2 | Single-GPU compute budget | ✅ **Confirmed — and quantified** | Run `f3f24d45…`: one **NVIDIA RTX 3050 Ti Laptop GPU, 4.0 GiB**, compute capability 8.6, driver 591.59, `torch 2.13.0+cu130`. Single GPU confirmed; **4 GiB is the binding constraint**. The first CPU-only reading was the default PyPI wheel, not absent hardware — ADR-000 §D0.8 |
 | A3 | Line-level labels obtainable | Unverified | — |
 | A4 | v1 scope = one language | Unverified | — |
 | A5 | `evidence` schema as specified | Unverified | — |

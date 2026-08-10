@@ -52,6 +52,15 @@ python scripts/train.py train=debug device.kind=cpu    # force CPU
 `auto` warns loudly on CPU fallback rather than failing — a silent fallback reads as a
 slow run instead of a broken environment.
 
+> **Close every Python process before `make setup-cuda`.** pip cannot delete a loaded
+> `torch/_C.pyd`, so the install dies with `WinError 5` *after* the 1.9 GB download and
+> leaves a half-removed `~orch` behind. Clean up with
+> `Remove-Item -Recurse -Force .venv/Lib/site-packages/~*` and retry — the wheel is
+> cached, so the retry is quick.
+
+`requirements.lock.txt` pins the CUDA build, which is **not on PyPI**. Reinstall it with
+the wheel index named in that file's header.
+
 On Windows without GNU `make`, every target has a PowerShell equivalent:
 
 ```powershell

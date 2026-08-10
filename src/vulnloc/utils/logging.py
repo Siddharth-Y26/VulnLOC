@@ -28,6 +28,7 @@ from rich.logging import RichHandler
 from vulnloc.utils.exceptions import ConfigError
 
 __all__ = [
+    "ConsoleFormatter",
     "JsonLogFormatter",
     "RunIdFilter",
     "bind_run_id",
@@ -50,6 +51,22 @@ _STANDARD_RECORD_KEYS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None
 def current_run_id() -> str:
     """Return the run id bound to the current context, or ``"-"`` if unset."""
     return _RUN_ID.get()
+
+
+def _record_extras(record: logging.LogRecord) -> dict[str, Any]:
+    """Return only the fields supplied via ``logger.info(..., extra={...})``.
+
+    Args:
+        record: The record being emitted.
+
+    Returns:
+        The caller-supplied structured context, excluding stdlib record attributes.
+    """
+    return {
+        key: value
+        for key, value in record.__dict__.items()
+        if key not in _STANDARD_RECORD_KEYS and not key.startswith("_")
+    }
 
 
 @contextmanager
@@ -109,16 +126,38 @@ class JsonLogFormatter(logging.Formatter):
             "run_id": getattr(record, "run_id", "-"),
             "message": record.getMessage(),
         }
-        extras = {
-            key: value
-            for key, value in record.__dict__.items()
-            if key not in _STANDARD_RECORD_KEYS and not key.startswith("_")
-        }
+        extras = _record_extras(record)
         if extras:
             payload["extra"] = extras
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
+
+
+class ConsoleFormatter(logging.Formatter):
+    """Human-readable rendering that keeps the structured context visible.
+
+    The stdlib default silently discards anything passed via ``extra=``, which made
+    console output strictly less informative than the JSON file — a message like
+    "Accelerator" is useless without the GPU name attached to it. Extras are appended
+    as ``key=value`` pairs in insertion order, so the most relevant field comes first.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Render ``record`` as ``[logger] message key=value ...``.
+
+        Args:
+            record: The record being emitted.
+
+        Returns:
+            The formatted line, with any ``extra=`` fields appended.
+        """
+        base = f"[{record.name}] {record.getMessage()}"
+        extras = _record_extras(record)
+        if not extras:
+            return base
+        rendered = " ".join(f"{key}={value}" for key, value in extras.items())
+        return f"{base}  {rendered}"
 
 
 def setup_logging(
@@ -158,7 +197,7 @@ def setup_logging(
 
     console = RichHandler(rich_tracebacks=True, show_path=False, log_time_format="%H:%M:%S")
     console.setLevel(resolved)
-    console.setFormatter(logging.Formatter("[%(name)s] %(message)s"))
+    console.setFormatter(ConsoleFormatter())
     console.addFilter(run_id_filter)
     logger.addHandler(console)
 

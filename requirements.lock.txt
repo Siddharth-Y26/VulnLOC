@@ -1,3 +1,16 @@
+# Pinned environment for VulnLoc — regenerate with `make freeze`.
+#
+# NOTE: torch is pinned to a CUDA build (+cu130) and is NOT installable from PyPI.
+# Reinstall this file with the matching wheel index:
+#
+#   pip install -r requirements.lock.txt \
+#     --extra-index-url https://download.pytorch.org/whl/cu130
+#
+# For a CPU-only environment, swap that URL for .../whl/cpu and drop the local
+# version suffix from the torch pin. See docs/adr/000-phase-0-foundation.md §D0.8.
+#
+# Generated on Python 3.12 (Windows). The Docker image builds against 3.11 and
+# resolves its own wheels — this file pins the development environment.
 aiohappyeyeballs==2.7.1
 aiohttp==3.14.3
 aiosignal==1.4.0
@@ -129,7 +142,7 @@ starlette==1.6.0
 sympy==1.14.0
 threadpoolctl==3.6.0
 tokenizers==0.22.2
-torch==2.13.0
+torch==2.13.0+cu130
 torch-geometric==2.8.0.post1
 tqdm==4.70.0
 transformers==5.15.0

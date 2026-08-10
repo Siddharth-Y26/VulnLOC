@@ -8,7 +8,37 @@ import logging
 import pytest
 
 from vulnloc.utils.exceptions import ConfigError
-from vulnloc.utils.logging import bind_run_id, current_run_id, get_logger, setup_logging
+from vulnloc.utils.logging import (
+    ConsoleFormatter,
+    bind_run_id,
+    current_run_id,
+    get_logger,
+    setup_logging,
+)
+
+
+def _record(message: str, **extra) -> logging.LogRecord:
+    record = logging.LogRecord("vulnloc.phase0", logging.INFO, __file__, 1, message, None, None)
+    record.__dict__.update(extra)
+    return record
+
+
+def test_console_formatter_appends_structured_context():
+    # The stdlib default drops `extra=` entirely, which made "Accelerator" print with
+    # no GPU attached to it. Console output must not be poorer than the JSON file.
+    line = ConsoleFormatter().format(_record("Accelerator", device="cuda:0", vram=4.0))
+
+    assert line == "[vulnloc.phase0] Accelerator  device=cuda:0 vram=4.0"
+
+
+def test_console_formatter_without_extras():
+    assert ConsoleFormatter().format(_record("plain")) == "[vulnloc.phase0] plain"
+
+
+def test_console_formatter_preserves_extra_ordering():
+    line = ConsoleFormatter().format(_record("m", first=1, second=2, third=3))
+
+    assert line.endswith("first=1 second=2 third=3")
 
 
 def _read_records(log_file):
