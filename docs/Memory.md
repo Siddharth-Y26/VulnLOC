@@ -25,20 +25,20 @@
 
 | Field | Value |
 |-------|-------|
-| **Active phase** | Phase 0 — Foundation & Scaffolding |
-| **Phase status** | 🟨 3 / 4 exit criteria met — Docker unverified (no Docker on the dev machine) |
+| **Active phase** | Phase 1 — Data Layer (Phase 0 is 3/4; the open item is Docker, which blocks nothing downstream) |
+| **Phase status** | 🟨 Corpora downloaded, verified and audited. Loaders/labelling/splits not yet written |
 | **Last updated** | 2026-08-10 |
 | **Last commit** | `09d5c54` on branch `phase-0/foundation` (6 commits; `main` does not exist yet) |
 | **Best model run ID** | — *(no model exists; no claims permitted)* |
-| **Blocking issues** | Q1 (dataset), Q2 (language), Q3 (graph type), Q6 (CPG tooling) — all unresolved; block Phases 1–2 |
+| **Blocking issues** | None blocking. Q1/Q2/Q3/Q6 closed by ADR-001/002/003. Q4, Q5 deferred to Phases 6–7 |
 
 ### 1.1 Phase Tracker
 
 | Phase | Status | Exit criteria met | Notes |
 |-------|--------|-------------------|-------|
 | 0 Foundation | 🟨 In progress | 3 / 4 | Docker criterion blocked — see §7 issue #1 |
-| 1 Data Layer | ⬜ Blocked | 0 / 5 | Blocked on ADR-001 |
-| 2 Representation | ⬜ Blocked | 0 / 5 | Blocked on ADR-002 |
+| 1 Data Layer | 🟨 In progress | 1 / 5 | ADR-001 + ADR-003 accepted. Corpora downloaded (12.17 GB) and audited |
+| 2 Representation | ⬜ Not started | 0 / 5 | Unblocked — ADR-002 accepted |
 | 3 LLM Branch | ⬜ Not started | 0 / 4 | |
 | 4 GNN Branch | ⬜ Not started | 0 / 4 | |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
@@ -103,12 +103,56 @@ None confirmed. A2 (single-GPU budget) moved from "Unverified" to "Unverified �
 
 ---
 
+## 1.4 Corpus Statistics — measured, not quoted
+
+Measured from the downloaded files on 2026-08-10 (`Rules.md` §5.7 — we never adopt a
+number from a paper as if it were ours). Reproducible from the scan scripts; these
+supersede any figure quoted elsewhere in the docs.
+
+**Big-Vul (LineVul release)** — 12.17 GB of corpora total across all sources.
+
+| | train | val | test | **total** |
+|---|---|---|---|---|
+| rows | 150,908 | 18,864 | 18,864 | **188,636** |
+| vulnerable | 8,736 | 1,109 | 1,055 | **10,900 (5.78%)** |
+| vulnerable **with** line labels | 6,613 | 842 | 788 | **8,243** |
+| vulnerable **without** line labels | 2,123 | 267 | 267 | **2,657 (24.4%)** |
+| non-vulnerable with line labels | 0 | 0 | 0 | **0** ✅ invariant holds |
+| flagged lines | 37,577 | 4,970 | 3,966 | **46,513** |
+| distinct projects | 308 | 271 | 274 | — |
+| distinct CWEs (vulnerable) | 86 | 51 | 48 | — |
+| mean `processed_func` chars | 899 | 904 | 894 | ~900 (≈250 tokens) |
+
+- 188,636 rows matches the published Big-Vul function count exactly — the download is complete.
+- **Chrome + linux = 65.8% of all functions** across every split. See §7 issue #9.
+- Mean function length ≈ 250 tokens, so the 512-token truncation risk is smaller than
+  assumed. The *tail* still matters — measure the distribution before claiming either way.
+
+**Big-Vul × PrimeVul overlap** (join key verified: `md5(func, whitespace stripped)` as
+int, reproduced 300/300):
+
+| | count | share of 8,243 |
+|---|---|---|
+| found in PrimeVul | 1,724 | 20.9% |
+| → PrimeVul agrees vulnerable | **1,393** | 16.9% |
+| → PrimeVul says benign | **331** | 4.0% |
+| absent from PrimeVul (ambiguous) | 6,519 | 79.1% |
+
+**Measured Big-Vul label-noise rate: 331 / 1,724 = 19.2%** on the subset where both
+corpora hold an opinion. This is an RO4 result. PrimeVul holds only 6,004 vulnerable
+functions in total, which is why it cannot serve as a bulk filter (ADR-003).
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-08-10 | **PrimeVul = clean evaluation set, not a training filter.** Train on the noisy pool (~6,519 fn), evaluate on the PrimeVul-confirmed subset (1,393 fn / 4,499 lines), exclude the 331 contradicted | Inclusion filter (ADR-001 §D1.2); no filtering at all | Measured: the filter discards 83% of line-level data for mostly ambiguous reasons. Noise in training is survivable; noise in evaluation invalidates every number. The clean set is *larger* than LineVul's vulnerable test split (788) | ADR-003 |
+| 2026-08-10 | **Dataset architecture: Big-Vul primary (LineVul release), DiverseVul generalization, PrimeVul validation, Juliet controlled** | PrimeVul as primary (no line labels); CVEfixes; MegaVul (GPL-3.0); merging corpora | Only Big-Vul has line labels *and* comparable published baselines. PrimeVul/DiverseVul/CVEfixes are partly built **from** Big-Vul, so none is a clean generalization set without project/hash filtering | ADR-001 |
+| 2026-08-10 | **C/C++; graphs built incrementally AST→CFG→DFG→CPG; in-house CPG passes** | Java+Vul4J; multi-language; Joern as a runtime dependency; AST-only | Follows from the dataset choice. In-house keeps the line mapping under our control, which is the one invariant the project cannot compromise | ADR-002 |
 | 2026-08-10 | MLflow tracks to **SQLite** (`sqlite:///artifacts/mlflow.db`), artifacts under `artifacts/mlartifacts/` | `file:./artifacts/mlruns`; `MLFLOW_ALLOW_FILE_STORE=true` | MLflow 3.x refuses the filesystem store outright — it is in maintenance mode. Opting out would put 20+ ablation runs on an unmaintained backend | ADR-000 §D0.7 |
 | 2026-08-10 | **CUDA torch `2.13.0+cu130`** replaces the CPU wheel; device is resolved from `config.device.{kind,index}` via `training/device.py`, never hard-coded | Leave torch CPU-only; hard-code `.cuda()` at call sites | The default PyPI Windows wheel is CPU-only, so an idle 4 GB RTX 3050 Ti went unnoticed. `auto` probes with a real allocation and warns on fallback; `cuda` fails hard | ADR-000 §D0.8 |
 | 2026-08-10 | Layer enforcement via **import-linter contracts** (1 layers + 2 forbidden), verified non-vacuous by a deliberate violation | Directory conventions + code review | Mechanical enforcement of `Architecture.md` §3; a review rule alone drifts | ADR-000 §D0.6 |
@@ -218,12 +262,12 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 
 | # | Question | Options | Recommendation | Blocks | Status |
 |---|----------|---------|----------------|--------|--------|
-| Q1 | Which dataset? The proposal deck names none. | See `ResearchPlan.md` §3 | Choose one corpus with commit-diff-derived line labels; hold a second as a generalization test set | Phase 1 | 🟥 Open |
-| Q2 | Target language(s)? | C/C++, Java, Python, multi | Start single-language; the richest line-level vulnerability corpora are C/C++ | Phase 2 | 🟥 Open |
-| Q3 | Primary graph representation? | AST · CFG · DFG · CPG | Build AST first (cheap, reliable via Tree-sitter), then add CFG/DFG edges incrementally; treat CPG as the union | Phase 2 | 🟥 Open |
+| Q1 | Which dataset? The proposal deck names none. | See `ResearchPlan.md` §3 | Big-Vul (LineVul release) primary + DiverseVul generalization + PrimeVul validation + Juliet controlled | Phase 1 | ✅ **Closed — ADR-001, ADR-003** |
+| Q2 | Target language(s)? | C/C++, Java, Python, multi | C/C++, single language for v1 | Phase 2 | ✅ **Closed — ADR-002** |
+| Q3 | Primary graph representation? | AST · CFG · DFG · CPG | Incremental AST → CFG → DFG, CPG as their union; all four config-selectable for ablation A3 | Phase 2 | ✅ **Closed — ADR-002** |
 | Q4 | Explanation supervision available? | Ground-truth text · templates + human eval · none | Template baseline + human eval; do not claim generative quality without a reference set | Phase 7 | 🟨 Deferred |
 | Q5 | CWE-type classification required? | Binary only · binary + type | Deck's example output names a type ("Buffer Overflow") — implement type if labels exist, else derive from templates and say so | Phase 6 | 🟨 Deferred |
-| Q6 | CPG tooling: build ourselves vs. external generator? | In-house passes · external exporter | In-house keeps Docker light and reproducible; costs Phase-2 effort | Phase 2 | 🟥 Open |
+| Q6 | CPG tooling: build ourselves vs. external generator? | In-house passes · external exporter | In-house — an external generator would take the line mapping out of our control. DeepDFA/MegaVul graphs used as offline validation oracles only | Phase 2 | ✅ **Closed — ADR-002** |
 
 ---
 
@@ -236,9 +280,12 @@ Ordered. Top item is what the next session starts with.
    `Phases.md` (§7 issue #1). This is the only thing between Phase 0 and done.
 2. **Decide the branching model.** `main` does not exist — the repo's only branch is
    `phase-0/foundation`. `Rules.md` §8 assumes a `main` to open PRs against; create it.
-3. Resolve Q1 (dataset) → write ADR-001. **Everything else is downstream of this.**
-4. Resolve Q2 + Q3 + Q6 → write ADR-002.
-5. Begin Phase 1 only after ADR-001 is accepted.
+3. **Phase 1 build:** Big-Vul loader (`@register_dataset`), `labeling.py` (`labels_v1`),
+   `splits.py`, leakage report, `DATA_CARD.md`.
+4. **Solve the project-concentration problem in `splits.py`** — Chrome + linux are 65.8% of
+   Big-Vul (§7 issue #9). A naive project-wise split is unusable.
+5. Promote the corpus-scan scripts from scratch files into a reproducible pipeline step —
+   a reported result (the 19.2% noise rate) now depends on them (`Rules.md` §1.3).
 6. Before Phase 3, decide how to live within 4 GiB of VRAM (§7 issue #7) — this is a design
    input, not a tuning detail.
 
@@ -265,6 +312,9 @@ Things that cost time once and should not cost time twice.
 | 6c | `requirements.lock.txt` pins `torch==2.13.0+cu130`, which is **not on PyPI** | A plain `pip install -r requirements.lock.txt` fails on a fresh machine | The file carries a header with the required `--extra-index-url`. Regenerate with `make freeze` after any torch change | ✅ Documented |
 | 7 | **4 GiB VRAM ceiling** on the RTX 3050 Ti Laptop | CodeBERT/GraphCodeBERT at 512 tokens + a GNN branch + retained cross-attention maps will not fit at a comfortable batch size | Plan for gradient accumulation, AMP, gradient checkpointing, or a frozen encoder in Phase 3; watch memory when retaining attention matrices in Phase 5. **Do not discover this during a sweep** | 🟥 Open — Phase 3 design input |
 | 8 | The console log sink **silently dropped every `extra=` field** | `make gpu-check` printed a bare "Accelerator" with no GPU attached; console output was strictly poorer than the JSON file | `ConsoleFormatter` appends `key=value` pairs. Never use the stdlib default formatter for this logger | ✅ Fixed |
+| 9 | **Big-Vul is dominated by two projects: Chrome + linux = 65.8%** of all functions (of 308 projects) | ADR-001 §D1.3 leads with project-wise splits, but holding out Chrome alone removes 41% of the data. A naive project-wise split produces wildly unbalanced folds | `splits.py` needs a deliberate strategy — stratified project-wise folds, or grouping the long tail. **Design it before E5, not during** | 🟥 Open — Phase 1 |
+| 10 | **24.4% of Big-Vul's vulnerable functions have no line labels** (2,657 of 10,900): `flaw_line_index` is empty | The real line-level corpus is 8,243 functions, not the 10,900 vulnerable ones. Function-level and line-level denominators differ and must never be conflated | Loader marks these explicitly; they are usable for the unit-level task only. Report both denominators in `DATA_CARD.md` | 🟨 Known |
+| 11 | Our measured Big-Vul line counts **differ from the commonly quoted figures** | Literature quotes "44,603 lines / 11,823 functions"; we measure **46,513 lines / 8,243 functions** on the LineVul release | Unresolved — different processing or counting convention. `Rules.md` §5.7: cite our own measured numbers, never adopt theirs. Run down before `DATA_CARD.md` is final | 🟥 Open |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**
 
@@ -282,6 +332,7 @@ Negative results are recorded here permanently (`Rules.md` §5.6). They are as v
 
 | Date | What was tried | Result | Conclusion |
 |------|----------------|--------------|------------|
+| 2026-08-10 | **PrimeVul cross-reference as a training filter** (ADR-001 §D1.2): keep only Big-Vul line-labelled functions PrimeVul confirms vulnerable | Retains **1,393 of 8,243 functions — discards 83%**. Structural, not mistunable: PrimeVul holds only 6,004 vulnerable functions in total, fewer than Big-Vul's 8,243 line-labelled ones. 79.1% of the loss is *ambiguous* (PrimeVul dedup, not rejection) | Rejected as an inclusion filter. Superseded by ADR-003: PrimeVul becomes the **clean evaluation set**. Only the exclusion half survives — drop the 331 functions PrimeVul explicitly contradicts. **Absence of evidence is not evidence of a wrong label** |
 | 2026-08-10 | MLflow filesystem tracking store, `file:./artifacts/mlruns` (the obvious default, and what `Architecture.md` §6 implies) | 6 tests failed with `MlflowException`: the backend is in maintenance mode and refused by default in MLflow 3.x | Switched to SQLite (ADR-000 §D0.7). Do not reintroduce the file store or the `MLFLOW_ALLOW_FILE_STORE` escape hatch |
 
 ---

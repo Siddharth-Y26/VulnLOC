@@ -48,6 +48,48 @@ _STANDARD_RECORD_KEYS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None
 }
 
 
+# Attributes the stdlib refuses to let `extra=` overwrite; passing one raises KeyError
+# from inside logging itself. `name` and `module` are the easy ones to hit by accident.
+_RESERVED_RECORD_KEYS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) | {
+    "message",
+    "asctime",
+}
+
+
+class _SafeExtraLogger(logging.Logger):
+    """A logger that renames ``extra`` keys colliding with LogRecord attributes.
+
+    The stdlib raises ``KeyError`` when ``extra`` contains a reserved name, which turns
+    a logging call into a crash — the exact opposite of what logging is for. Structured
+    context here is arbitrary domain data (``name``, ``module``, ``filename`` are all
+    natural field names for a corpus audit), so collisions are inevitable. Renaming is
+    the only behaviour that keeps the data *and* the process alive.
+    """
+
+    # No @typing.override: it is 3.12+, and the Docker image and CI both run 3.11
+    # (ADR-000 §D0.3). Revisit if requires-python ever moves past 3.11.
+    def makeRecord(  # noqa: N802 - name and signature are fixed by logging.Logger
+        self,
+        name: str,
+        level: int,
+        fn: str,
+        lno: int,
+        msg: object,
+        args: Any,
+        exc_info: Any,
+        func: str | None = None,
+        extra: Any = None,
+        sinfo: str | None = None,
+    ) -> logging.LogRecord:
+        """Build a record, renaming reserved ``extra`` keys to ``extra_<key>``."""
+        if extra:
+            extra = {
+                (f"extra_{key}" if key in _RESERVED_RECORD_KEYS else key): value
+                for key, value in extra.items()
+            }
+        return super().makeRecord(name, level, fn, lno, msg, args, exc_info, func, extra, sinfo)
+
+
 def current_run_id() -> str:
     """Return the run id bound to the current context, or ``"-"`` if unset."""
     return _RUN_ID.get()
@@ -224,6 +266,12 @@ def get_logger(name: str) -> logging.Logger:
     Returns:
         The namespaced logger.
     """
-    if name == "vulnloc" or name.startswith("vulnloc."):
-        return logging.getLogger(name)
-    return logging.getLogger(f"vulnloc.{name}")
+    qualified = name if name == "vulnloc" or name.startswith("vulnloc.") else f"vulnloc.{name}"
+    # Swap the logger class only around our own creation, so third-party loggers keep
+    # the stdlib behaviour and we avoid a process-wide side effect at import time.
+    previous = logging.getLoggerClass()
+    logging.setLoggerClass(_SafeExtraLogger)
+    try:
+        return logging.getLogger(qualified)
+    finally:
+        logging.setLoggerClass(previous)
