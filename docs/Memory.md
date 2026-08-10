@@ -189,6 +189,44 @@ Next:
 
 ---
 
+### 2026-08-10 (session 2) — Phase 1: dataset decision, acquisition, and audit
+Phase: 1
+Did:
+  - Researched the dataset question end to end and wrote **ADR-001** (five-role dataset
+    architecture), **ADR-002** (C/C++, incremental AST→CFG→DFG→CPG, in-house passes) and
+    **ADR-003** (line-label trust). Closed Q1, Q2, Q3, Q6.
+  - Built the L0 acquisition layer: `data/sources.py` (catalogue with licence, citation and
+    `DatasetRole`), `data/download.py` (content verification, manifest, alias normalisation),
+    `scripts/prepare_data.py`.
+  - Built `data/audit.py` + `scripts/audit_data.py` and promoted the corpus scan out of scratch,
+    because ADR-003's noise rate is a reported result (`Rules.md` §1.3). 22 tests.
+  - Downloaded (by hand) and verified all 7 corpora, 12.17 GB. Juliet's SHA-256 matches NIST's
+    published digest.
+  - Ran the full audit; results in §1.4 and `artifacts/data/audit_report.json`.
+  - Fixed a logger crash: reserved `extra` keys raised `KeyError` and killed the audit run.
+Files touched:
+  - `docs/adr/00{1,2,3}-*.md`, `docs/Memory.md`, `docs/chatgpt.md`, `docs/gemini.md`
+  - `src/vulnloc/data/{sources,download,audit}.py`, `src/vulnloc/utils/logging.py`
+  - `scripts/{prepare_data,audit_data}.py`, `configs/data/default.yaml`, `configs/config.yaml`
+  - `tests/unit/test_audit.py`, `tests/unit/test_logging.py`, `pyproject.toml`
+Runs logged:
+  - None to MLflow. The audit writes `artifacts/data/audit_report.json`; **it should become a
+    tracked run** when it next changes, since a paper number depends on it.
+Learned:
+  - **The PrimeVul filter in ADR-001 §D1.2 does not work** — see §8. Measuring it before
+    building on it saved the whole Phase 1 design.
+  - **Chrome + linux are 65.8% of Big-Vul.** The project-wise split promised in ADR-001 §D1.3
+    is not straightforward. This is the next thing to solve (§7 #9).
+  - 24.4% of positives carry no line labels (§7 #10); the line-level denominator is 8,243.
+  - Our measured line counts disagree with the published ones (§7 #11) — unresolved.
+  - Mean function length is ~900 chars (~250 tokens), so the 512-token truncation risk looks
+    smaller than assumed. Measure the tail before claiming either way.
+Next:
+  - Solve the project-concentration problem in `splits.py` **before** writing the loader, since
+    it determines what the loader must expose.
+  - Then: Big-Vul loader behind `@register_dataset`, `labeling.py` (`labels_v1`), leakage report,
+    `DATA_CARD.md`.
+
 ### 2026-08-10 — Phase 0: foundation & scaffolding
 Phase: 0
 Did:
