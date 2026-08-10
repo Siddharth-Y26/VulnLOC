@@ -166,11 +166,15 @@ Both attention matrices are **retained** and exported as evidence. Baseline comp
 ```
 vulnloc/
 ├── README.md
-├── pyproject.toml
+├── pyproject.toml                 # packaging + ruff/black/mypy/pytest/import-linter config
+├── requirements.lock.txt          # pinned environment (pip freeze)
 ├── Dockerfile
 ├── docker-compose.yml
 ├── Makefile
+├── make.ps1                       # Windows twin of the Makefile (ADR-000 §D0.4)
 ├── .pre-commit-config.yaml
+├── .gitattributes
+├── .github/workflows/             # CI (ADR-000 §D0.5)
 │
 ├── docs/
 │   ├── PRD.md
@@ -196,18 +200,20 @@ vulnloc/
 │
 ├── src/vulnloc/
 │   ├── data/
+│   │   ├── registry.py           # @register_dataset
 │   │   ├── loaders/              # dataset-specific readers
 │   │   ├── labeling.py           # diff → line labels
 │   │   ├── splits.py             # deterministic, leakage-checked
 │   │   └── datamodule.py
 │   ├── representation/
+│   │   ├── registry.py           # @register_graph
 │   │   ├── parser.py             # Tree-sitter wrappers
 │   │   ├── normalizer.py         # comment strip, identifier norm (optional)
 │   │   ├── graphs/               # ast.py cfg.py dfg.py cpg.py
 │   │   ├── line_map.py           # token_to_line / node_to_line  ← critical
 │   │   └── to_pyg.py             # NetworkX → PyTorch Geometric
 │   ├── models/
-│   │   ├── registry.py
+│   │   ├── registry.py           # @register_semantic/_structural/_fusion/_head
 │   │   ├── semantic/             # codebert.py graphcodebert.py
 │   │   ├── structural/           # gcn.py gat.py ggnn.py
 │   │   ├── fusion/               # cross_attention.py concat.py gated.py
@@ -217,12 +223,16 @@ vulnloc/
 │   ├── training/
 │   │   ├── trainer.py
 │   │   ├── callbacks.py
-│   │   └── seeding.py
+│   │   ├── seeding.py            # Python/NumPy/Torch/CUDA seeds + determinism
+│   │   ├── device.py             # config-driven auto|cuda|cpu (ADR-000 §D0.8)
+│   │   └── tracking.py           # the only caller of mlflow.start_run (ADR-000 §D0.2)
 │   ├── evaluation/
+│   │   ├── registry.py           # @register_metric
 │   │   ├── metrics/              # classification.py localization.py explanation.py
 │   │   ├── evaluator.py
 │   │   └── ablation.py
 │   ├── explanation/
+│   │   ├── registry.py           # @register_explainer
 │   │   ├── evidence.py           # attention + node importance extraction
 │   │   ├── templates.py
 │   │   ├── generator.py
@@ -231,7 +241,8 @@ vulnloc/
 │   │   ├── app.py                # FastAPI
 │   │   ├── schemas.py            # Pydantic — mirrors PRD §5.4
 │   │   └── inference.py
-│   └── utils/                    # logging, io, config, typing
+│   └── utils/                    # exceptions, logging, config provenance, Registry
+│                                 # sits *below* L0; imports no other subpackage
 │
 ├── scripts/                      # prepare_data.py, train.py, evaluate.py, serve.py
 ├── tests/
@@ -248,14 +259,14 @@ vulnloc/
 
 | Concern | Choice | Why |
 |---------|--------|-----|
-| Language | Python 3.11 | Ecosystem; `[ASSUMPTION]` version not specified in brief |
+| Language | Python 3.12 dev / 3.11 in Docker | Ecosystem; `[ASSUMPTION]` version not specified in brief. 3.11 is not installed on the dev machines — ADR-000 §D0.3 |
 | DL framework | PyTorch | Specified |
 | Graph learning | PyTorch Geometric | Specified; sparse ops + batching |
 | Pretrained code models | Hugging Face Transformers (CodeBERT / GraphCodeBERT) | Specified in deck |
 | Parsing | Tree-sitter | Specified; multi-language, error-tolerant, gives byte offsets → line numbers |
 | Graph manipulation | NetworkX | Specified; used at build time, converted to PyG for training |
 | Config | Hydra + OmegaConf | Specified; enables config-only ablations (FR-20) |
-| Experiment tracking | MLflow and/or W&B | Specified |
+| Experiment tracking | MLflow, **SQLite backend store** | Specified. MLflow 3.x refuses the filesystem store — ADR-000 §D0.7 |
 | Serving | FastAPI + Uvicorn + Pydantic v2 | Specified |
 | Packaging | Docker, docker-compose | Specified |
 | VCS | Git + conventional commits | Specified |
@@ -298,6 +309,7 @@ Caching is content-addressed: `sha256(source + graph_config + tokenizer_config)`
 | **Config** | Hydra composition; the fully-resolved config is written into each run directory |
 | **Logging** | `structlog`-style JSON to file, human-readable to console; run ID in every line |
 | **Determinism** | `seeding.py` sets Python/NumPy/Torch/CUDA seeds; deterministic algorithms flag on; seed recorded in run config |
+| **Device** | `device.py` resolves `auto`/`cuda`/`cpu` from config once; no module names a device. CPU fallback under `auto` warns; `cuda` fails hard. The accelerator is tagged on every run |
 | **Errors** | Typed exception hierarchy (`ParseError`, `GraphBuildError`, `AlignmentError`, `ConfigError`); never swallow silently (see `Rules.md` §4) |
 | **Caching** | Content-addressed on disk under `artifacts/cache/` |
 | **Versioning** | Model artifacts tagged with `git_sha + config_hash`; `/version` exposes both |

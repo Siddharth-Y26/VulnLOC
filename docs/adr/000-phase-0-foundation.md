@@ -177,8 +177,10 @@ evidence export. `PRD.md` §10 A2 ("single-GPU compute budget") is confirmed as 
   line, with no edits to existing modules (`Architecture.md` §9 holds).
 - Every MLflow run is traceable to a commit and a config hash from day one, so
   `Rules.md` §1.3 is enforceable before the first real number exists.
-- `Architecture.md` §5 needs two amendments: `<layer>/registry.py`, `training/tracking.py`,
-  and `.github/`.
+- `Architecture.md` has been amended in the same change (`Rules.md` §8 forbids letting
+  docs and code drift): §5 now lists `<layer>/registry.py`, `training/tracking.py`,
+  `training/device.py`, `make.ps1` and `.github/`; §6 records the Python split and the
+  SQLite store; §8 gains a **Device** row.
 - Docker verification of the Phase 0 exit criteria is deferred: Docker is not installed
   on the development machine. The `Dockerfile` and `docker-compose.yml` are written and
   reviewed but **unbuilt**; the exit criterion stays unchecked until someone with a
