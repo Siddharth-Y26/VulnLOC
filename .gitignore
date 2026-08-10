@@ -1,0 +1,55 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# --- Environments ---
+.venv/
+venv/
+env/
+.python-version
+
+# --- Testing / typing / linting caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# --- Project artifacts (Architecture.md §5: artifacts/ is gitignored) ---
+# `artifacts/*` rather than `artifacts/`: git cannot re-include a file whose parent
+# directory is excluded, and the .gitkeep must survive so a clean clone has the dir.
+artifacts/*
+!artifacts/.gitkeep
+outputs/
+multirun/
+mlruns/
+wandb/
+
+# --- Hydra ---
+.hydra/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- Secrets (Rules.md §7.4) ---
+.env
+*.pem
+*.key
+secrets.yaml

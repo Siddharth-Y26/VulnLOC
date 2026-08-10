@@ -1,0 +1,61 @@
+# Phase 0 gate: the exit criteria must hold from a clean clone, not just locally.
+# See docs/adr/000-phase-0-foundation.md §D0.5.
+name: ci
+
+on:
+  push:
+    branches: [main, "phase-*/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  quality:
+    name: lint + test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # utils/config.py stamps runs with the commit SHA; a shallow clone with no
+          # history still resolves HEAD, but tags need the full fetch later on.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install (CPU-only torch)
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip setuptools wheel
+          .venv/bin/python -m pip install \
+            --extra-index-url https://download.pytorch.org/whl/cpu -e ".[dev]"
+
+      - name: Lint (ruff + black + import-linter + mypy)
+        run: make lint
+
+      - name: Test
+        run: make test
+
+      - name: Phase 0 smoke run
+        run: make train-debug
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-py${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: ignore

@@ -1,0 +1,75 @@
+# docs/Architecture.md §6. Two services share one artifacts volume so that runs
+# logged by `vulnloc` are immediately visible in the `mlflow` UI.
+name: vulnloc
+
+services:
+  vulnloc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.11"
+        TORCH_INDEX_URL: "https://download.pytorch.org/whl/cpu"
+    image: vulnloc:0.1.0
+    working_dir: /workspace
+    volumes:
+      # Bind-mounted so a run's outputs survive the container and stay inspectable.
+      - ./artifacts:/workspace/artifacts
+      - ./configs:/workspace/configs:ro
+      - ./docs:/workspace/docs:ro
+    environment:
+      # Overridden per-run by configs/config.yaml; kept here so ad-hoc `mlflow` CLI
+      # calls inside the container hit the same store. See ADR-000 §D0.7.
+      MLFLOW_TRACKING_URI: sqlite:////workspace/artifacts/mlflow.db
+      HYDRA_FULL_ERROR: "1"
+    command: ["python", "scripts/train.py", "train=debug"]
+
+  # Opt-in GPU variant: `docker compose --profile gpu run --rm vulnloc-gpu`.
+  # Requires the NVIDIA Container Toolkit on the host. The wheel index must match the
+  # host driver's CUDA version — see docs/adr/000-phase-0-foundation.md §D0.8.
+  vulnloc-gpu:
+    profiles: ["gpu"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.11"
+        TORCH_INDEX_URL: "https://download.pytorch.org/whl/cu130"
+    image: vulnloc:0.1.0-cu130
+    working_dir: /workspace
+    volumes:
+      - ./artifacts:/workspace/artifacts
+      - ./configs:/workspace/configs:ro
+      - ./docs:/workspace/docs:ro
+    environment:
+      MLFLOW_TRACKING_URI: sqlite:////workspace/artifacts/mlflow.db
+      HYDRA_FULL_ERROR: "1"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: ["python", "scripts/train.py", "train=debug", "device.kind=cuda"]
+
+  mlflow:
+    image: vulnloc:0.1.0
+    depends_on:
+      - vulnloc
+    working_dir: /workspace
+    volumes:
+      - ./artifacts:/workspace/artifacts
+    ports:
+      - "5000:5000"
+    command:
+      - mlflow
+      - ui
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - sqlite:////workspace/artifacts/mlflow.db
+      - --default-artifact-root
+      - /workspace/artifacts/mlartifacts

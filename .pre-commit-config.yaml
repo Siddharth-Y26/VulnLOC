@@ -1,0 +1,55 @@
+# Install with: make setup  (or  .\make.ps1 setup)
+# Run over the whole repo once with: pre-commit run --all-files
+default_language_version:
+  python: python3
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+        # Hydra configs legitimately use multi-document and custom-tag YAML.
+        args: ["--allow-multiple-documents"]
+      - id: detect-private-key        # Rules.md §7.4 — no secrets in fixtures
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: trailing-whitespace
+
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        args: ["--line-length=100"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+
+  # mypy and import-linter both need the *real* environment to resolve `torch`,
+  # `mlflow` and friends. Mirroring those into an isolated hook env would mean
+  # installing ~2 GB of wheels twice and letting the two copies drift, so both run
+  # against the project interpreter instead.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (src/vulnloc)
+        entry: python -m mypy
+        language: system
+        files: ^src/vulnloc/
+        pass_filenames: false
+        args: ["src/vulnloc"]
+        types: [python]
+
+      - id: import-linter
+        name: import-linter (L0->L6 layer rule)
+        entry: python -m importlinter.cli lint
+        language: system
+        pass_filenames: false
+        types: [python]
