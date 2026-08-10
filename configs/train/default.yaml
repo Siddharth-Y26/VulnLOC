@@ -1,0 +1,6 @@
+# Phase 0 stub — the real training loop (optimizer, scheduler, loss) is
+# built in Phase 3+ (LLM branch) and Phase 6 (full training). This file
+# only carries the fields scripts/train.py needs to run a no-op loop.
+name: default
+debug: false
+max_steps: 1

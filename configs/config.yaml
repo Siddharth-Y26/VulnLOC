@@ -1,0 +1,29 @@
+# Root Hydra composition (Architecture.md §5, §8).
+# Phase 0: only `train` is wired to a real entrypoint (scripts/train.py).
+# Other groups (data, graph, llm, gnn, fusion, head, explainer) exist as
+# empty-but-composable stubs — see Phases.md, each is filled in by its
+# owning phase. Do not add them to `defaults` until that phase lands.
+defaults:
+  - train: default
+  - _self_
+
+seed: 42
+
+# `auto` uses CUDA when it is genuinely usable and warns loudly on CPU fallback.
+# Set `cuda` to make a missing GPU a hard failure, `cpu` to force CPU.
+device:
+  kind: auto
+  index: 0
+
+mlflow:
+  # SQLite, not the legacy `file:./mlruns` store: MLflow 3 put the filesystem backend
+  # into maintenance mode and refuses it by default. See ADR-000 §D0.7.
+  # Paths are relative to the launch directory; `hydra.job.chdir` stays False.
+  tracking_uri: "sqlite:///artifacts/mlflow.db"
+  experiment_name: vulnloc
+  artifact_location: "./artifacts/mlartifacts"
+
+logging:
+  level: INFO
+  json_to_file: true
+  log_dir: "./artifacts/logs"

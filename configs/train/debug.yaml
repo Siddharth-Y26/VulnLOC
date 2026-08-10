@@ -1,0 +1,5 @@
+# Used by Phase 0 exit criterion: `python scripts/train.py train=debug`
+# must run a no-op loop and log a dummy metric to MLflow.
+name: debug
+debug: true
+max_steps: 1
