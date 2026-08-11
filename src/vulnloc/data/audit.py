@@ -101,7 +101,12 @@ def flaw_line_indices(raw: object) -> list[int]:
 
 @dataclass
 class SplitStats:
-    """Composition of one Big-Vul split."""
+    """Composition of one Big-Vul split.
+
+    Per-project counts are tracked in full, not just for the head of the distribution:
+    Big-Vul is dominated by two projects (Chrome + linux ≈ 66%), so the split strategy
+    of ADR-001 §D1.3 cannot be designed without the whole distribution.
+    """
 
     name: str
     rows: int = 0
@@ -111,13 +116,23 @@ class SplitStats:
     nonvulnerable_with_lines: int = 0
     flagged_lines: int = 0
     projects: Counter[str] = field(default_factory=Counter)
+    project_vulnerable: Counter[str] = field(default_factory=Counter)
+    project_with_lines: Counter[str] = field(default_factory=Counter)
     cwes: Counter[str] = field(default_factory=Counter)
     func_chars: int = 0
 
-    def as_dict(self) -> dict[str, Any]:
-        """Return a flat, JSON-serializable summary."""
+    def as_dict(self, *, top_n: int = 10) -> dict[str, Any]:
+        """Return a flat, JSON-serializable summary.
+
+        Args:
+            top_n: How many projects to include in ``top_projects``. The full
+                distribution is available separately via :meth:`project_table`.
+
+        Returns:
+            Summary counts. Log-safe: no key collides with a LogRecord attribute.
+        """
         return {
-            "name": self.name,
+            "split": self.name,
             "rows": self.rows,
             "vulnerable": self.vulnerable,
             "vulnerable_pct": round(100 * self.vulnerable / self.rows, 2) if self.rows else 0.0,
@@ -128,8 +143,24 @@ class SplitStats:
             "distinct_projects": len(self.projects),
             "distinct_cwes": len(self.cwes),
             "mean_func_chars": round(self.func_chars / self.rows) if self.rows else 0,
-            "top_projects": self.projects.most_common(10),
+            "top_projects": self.projects.most_common(top_n),
         }
+
+    def project_table(self) -> list[dict[str, Any]]:
+        """Return the full per-project breakdown, largest first.
+
+        Returns:
+            One row per project with total, vulnerable and line-labelled counts.
+        """
+        return [
+            {
+                "project": project,
+                "functions": total,
+                "vulnerable": self.project_vulnerable.get(project, 0),
+                "vulnerable_with_lines": self.project_with_lines.get(project, 0),
+            }
+            for project, total in self.projects.most_common()
+        ]
 
 
 def scan_split(path: Path, *, chunksize: int = _DEFAULT_CHUNK) -> SplitStats:
@@ -177,7 +208,10 @@ def scan_split(path: Path, *, chunksize: int = _DEFAULT_CHUNK) -> SplitStats:
         for cell in chunk.loc[is_vuln & has_lines, "flaw_line_index"]:
             stats.flagged_lines += len(flaw_line_indices(cell))
 
-        stats.projects.update(chunk["project"].dropna().astype(str))
+        projects = chunk["project"].fillna("<unknown>").astype(str)
+        stats.projects.update(projects)
+        stats.project_vulnerable.update(projects[is_vuln])
+        stats.project_with_lines.update(projects[is_vuln & has_lines])
         stats.cwes.update(chunk.loc[is_vuln, "CWE ID"].dropna().astype(str))
         stats.func_chars += int(chunk["processed_func"].dropna().astype(str).str.len().sum())
 

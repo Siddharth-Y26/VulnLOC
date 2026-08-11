@@ -1,8 +1,10 @@
-"""Generic name -> class registry (``docs/Architecture.md`` §1.6, §9).
+"""Generic name -> implementation registry (``docs/Architecture.md`` §1.6, §9).
 
 The project bans ``if/elif`` dispatch on config strings. Every extension point is a
-registry: a new encoder, GNN, graph type, dataset, explainer, or metric is *one class
-plus one decorator plus one YAML line*, with no edits to existing files.
+registry: a new encoder, GNN, graph type, dataset, explainer, metric or split strategy
+is *one implementation plus one decorator plus one YAML line*, with no edits to existing
+files. Implementations may be classes or plain functions — split strategies are
+functions, encoders are classes, and the registry does not care.
 
 This module lives in ``utils`` (below every layer) so that L0..L6 can each own their
 registries without importing sideways or upward.
@@ -29,6 +31,20 @@ __all__ = ["Registry"]
 T = TypeVar("T")
 
 
+def _describe(impl: object) -> str:
+    """Return a dotted path for an implementation, for error messages.
+
+    Args:
+        impl: A class or function.
+
+    Returns:
+        ``module.qualname``, falling back to ``repr`` for objects lacking them.
+    """
+    module = getattr(impl, "__module__", "?")
+    qualname = getattr(impl, "__qualname__", repr(impl))
+    return f"{module}.{qualname}"
+
+
 class Registry(Generic[T]):
     """A namespaced mapping from config keys to implementations.
 
@@ -42,22 +58,23 @@ class Registry(Generic[T]):
 
     def __init__(self, name: str) -> None:
         self._name = name
-        self._entries: dict[str, type[T]] = {}
+        self._entries: dict[str, T] = {}
 
     @property
     def name(self) -> str:
         """The registry's namespace label."""
         return self._name
 
-    def register(self, key: str, *, override: bool = False) -> Callable[[type[T]], type[T]]:
-        """Return a decorator that registers a class under ``key``.
+    def register(self, key: str, *, override: bool = False) -> Callable[[T], T]:
+        """Return a decorator that registers an implementation under ``key``.
 
         Args:
             key: Config-facing name, e.g. ``"cross_attention"``.
             override: Allow replacing an existing entry. Intended for tests only.
 
         Returns:
-            A class decorator that returns the class unchanged.
+            A decorator that returns its argument unchanged, so the decorated class or
+            function remains directly usable.
 
         Raises:
             RegistryError: If ``key`` is empty, or already registered and
@@ -66,29 +83,28 @@ class Registry(Generic[T]):
         if not key:
             raise RegistryError(f"Cannot register an empty key in registry {self._name!r}.")
 
-        def decorator(cls: type[T]) -> type[T]:
+        def decorator(impl: T) -> T:
             if key in self._entries and not override:
-                existing = self._entries[key]
                 raise RegistryError(
                     f"Key {key!r} is already registered in registry {self._name!r}.",
                     registry=self._name,
                     key=key,
-                    existing=f"{existing.__module__}.{existing.__qualname__}",
-                    incoming=f"{cls.__module__}.{cls.__qualname__}",
+                    existing=_describe(self._entries[key]),
+                    incoming=_describe(impl),
                 )
-            self._entries[key] = cls
-            return cls
+            self._entries[key] = impl
+            return impl
 
         return decorator
 
-    def get(self, key: str) -> type[T]:
-        """Look up a registered class.
+    def get(self, key: str) -> T:
+        """Look up a registered implementation.
 
         Args:
             key: The name it was registered under.
 
         Returns:
-            The registered class.
+            The registered class or function.
 
         Raises:
             RegistryError: If ``key`` is not registered. The message lists the
@@ -108,7 +124,7 @@ class Registry(Generic[T]):
         """Return the registered keys, sorted."""
         return sorted(self._entries)
 
-    def items(self) -> Mapping[str, type[T]]:
+    def items(self) -> Mapping[str, T]:
         """Return a read-only view of the registry contents."""
         return dict(self._entries)
 

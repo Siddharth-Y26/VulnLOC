@@ -14,6 +14,7 @@ Usage::
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,50 @@ from vulnloc.utils.exceptions import DataError
 from vulnloc.utils.logging import get_logger, setup_logging
 
 _LOGGER = get_logger(__name__)
+
+
+def _concentration(projects: Counter[str], with_lines: Counter[str]) -> dict[str, Any]:
+    """Summarize how unevenly the corpus is spread across projects.
+
+    A project-wise split is only meaningful if no single project dominates. These are
+    the numbers that decide whether the strategy promised in ADR-001 §D1.3 is viable.
+
+    Args:
+        projects: Function counts per project.
+        with_lines: Line-labelled vulnerable counts per project.
+
+    Returns:
+        Head shares, the count of projects needed to reach 50/80/95% of the corpus,
+        and how many projects carry no line-level supervision at all.
+    """
+    total = sum(projects.values())
+    total_lines = sum(with_lines.values())
+    ranked = projects.most_common()
+
+    def _share(n: int) -> float:
+        return round(100 * sum(c for _, c in ranked[:n]) / total, 2) if total else 0.0
+
+    cumulative = 0
+    thresholds: dict[str, int] = {}
+    for rank, (_, count) in enumerate(ranked, start=1):
+        cumulative += count
+        for label, fraction in (("p50", 0.50), ("p80", 0.80), ("p95", 0.95)):
+            if label not in thresholds and cumulative >= fraction * total:
+                thresholds[label] = rank
+
+    return {
+        "distinct_projects": len(projects),
+        "top1_pct": _share(1),
+        "top2_pct": _share(2),
+        "top5_pct": _share(5),
+        "top10_pct": _share(10),
+        "projects_for_50pct": thresholds.get("p50"),
+        "projects_for_80pct": thresholds.get("p80"),
+        "projects_for_95pct": thresholds.get("p95"),
+        "projects_with_line_labels": len(with_lines),
+        "projects_without_line_labels": len(projects) - len(with_lines),
+        "line_labelled_functions": total_lines,
+    }
 
 
 def audit(cfg: DictConfig) -> dict[str, Any]:
@@ -58,15 +103,37 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
         "nonvulnerable_with_lines": 0,
         "flagged_lines": 0,
     }
+    corpus_projects: Counter[str] = Counter()
+    corpus_project_vuln: Counter[str] = Counter()
+    corpus_project_lines: Counter[str] = Counter()
+
     for name in split_names:
-        stats = scan_split(raw / f"{name}.csv").as_dict()
+        split_stats = scan_split(raw / f"{name}.csv")
+        stats = split_stats.as_dict()
         report["splits"][name] = stats
         for key in totals:
             totals[key] += int(stats[key])
+        corpus_projects.update(split_stats.projects)
+        corpus_project_vuln.update(split_stats.project_vulnerable)
+        corpus_project_lines.update(split_stats.project_with_lines)
     totals["vulnerable_pct"] = (
         round(100 * totals["vulnerable"] / totals["rows"], 2) if totals["rows"] else 0.0
     )
     report["totals"] = totals
+
+    # Corpus-wide project distribution. Needed in full — not just the head — because
+    # Chrome + linux dominate Big-Vul and the split strategy of ADR-001 §D1.3 depends on
+    # the shape of the long tail (Memory.md §7 issue #9).
+    report["projects"] = [
+        {
+            "project": project,
+            "functions": count,
+            "vulnerable": corpus_project_vuln.get(project, 0),
+            "vulnerable_with_lines": corpus_project_lines.get(project, 0),
+        }
+        for project, count in corpus_projects.most_common()
+    ]
+    report["project_concentration"] = _concentration(corpus_projects, corpus_project_lines)
 
     if not cfg.data.audit.skip_overlap:
         primevul_dir = raw / "primevul"
