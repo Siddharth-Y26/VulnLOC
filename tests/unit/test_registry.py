@@ -32,6 +32,19 @@ ALL_REGISTRIES = [
     METRIC_REGISTRY,
 ]
 
+# Registries whose owning phase has not started. `Rules.md` §1 bans building ahead, so
+# an entry appearing in one of these is a real failure, not a stale test. Move a
+# registry out of this list only when its phase legitimately lands.
+UNPOPULATED_REGISTRIES = [
+    GRAPH_REGISTRY,  # Phase 2
+    SEMANTIC_REGISTRY,  # Phase 3
+    STRUCTURAL_REGISTRY,  # Phase 4
+    FUSION_REGISTRY,  # Phase 5
+    HEAD_REGISTRY,  # Phase 6
+    EXPLAINER_REGISTRY,  # Phase 7
+    METRIC_REGISTRY,  # Phase 8
+]
+
 
 @pytest.fixture
 def registry() -> Registry[object]:
@@ -117,11 +130,33 @@ def test_items_view_is_a_copy(registry):
 
 
 @pytest.mark.parametrize("reg", ALL_REGISTRIES, ids=lambda r: r.name)
-def test_phase_0_registries_exist_and_are_empty(reg):
-    # Phase 0 wires the extension points; Phases 1-8 populate them. An entry appearing
-    # here early means something was built ahead of its phase (Rules.md §1).
+def test_every_extension_point_exists(reg):
+    # Architecture.md §9 names six extension points; all must be wired from Phase 0.
     assert isinstance(reg, Registry)
-    assert reg.keys() == []
+
+
+@pytest.mark.parametrize("reg", UNPOPULATED_REGISTRIES, ids=lambda r: r.name)
+def test_registries_for_unstarted_phases_are_empty(reg):
+    assert reg.keys() == [], f"{reg.name} was populated before its phase (Rules.md §1)"
+
+
+def test_dataset_registry_holds_exactly_the_phase_1_loader():
+    # Phase 1 ships Big-Vul only. DiverseVul and PrimeVul are read by the audit, not by
+    # a training loader, and must not appear here (ADR-001: roles never share data).
+    assert DATASET_REGISTRY.keys() == ["bigvul"]
+
+
+def test_loaders_register_on_package_import_alone():
+    # A @register_dataset decorator only runs when its module is imported. Config-driven
+    # lookup must not depend on the caller having imported the right submodule first.
+    import importlib
+    import sys
+
+    for name in [m for m in sys.modules if m.startswith("vulnloc.data")]:
+        del sys.modules[name]
+    data = importlib.import_module("vulnloc.data")
+
+    assert data.DATASET_REGISTRY.get("bigvul").__name__ == "BigVulLoader"
 
 
 def test_registry_namespaces_are_distinct():
