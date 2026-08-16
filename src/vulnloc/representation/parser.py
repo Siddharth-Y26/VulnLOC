@@ -36,10 +36,12 @@ if TYPE_CHECKING:
 
 __all__ = [
     "LANGUAGE_ALIASES",
+    "LANGUAGE_POLICIES",
     "ParseResult",
     "TreeSitterParser",
     "iter_nodes",
     "node_to_line",
+    "resolve_language",
     "verify_line_alignment",
 ]
 
@@ -57,6 +59,79 @@ LANGUAGE_ALIASES: dict[str, str] = {
 Big-Vul's own ``lang`` column uses ``C``, ``CPP`` and ``C++`` (measured: 185,997 /
 2,636 / 3 functions), so all three must resolve. Matching is case-insensitive.
 """
+
+STATIC_LANGUAGE_POLICIES: tuple[str, ...] = ("cpp", "c", "declared")
+"""Policies that name a grammar without looking at the source."""
+
+LANGUAGE_POLICIES: tuple[str, ...] = ("best_of_two", *STATIC_LANGUAGE_POLICIES)
+"""The grammar-selection policies, in the order ADR-005 ranks them.
+
+``best_of_two`` is the decision of record: parse as C++, and only if that leaves damage,
+parse as C as well and keep the less damaged tree. The three static policies remain
+selectable so the alternatives can be re-measured rather than re-argued — ``declared``
+reproduces every number taken before ADR-005.
+"""
+
+
+def _damage(result: ParseResult) -> tuple[int, int]:
+    """Return a comparable damage score for a parse.
+
+    Args:
+        result: A parse result.
+
+    Returns:
+        ``(error_nodes + missing_nodes, error_nodes)``. The total ranks first because a
+        synthesised semicolon and a wrongly-shaped subtree both cost the graph a node;
+        ERROR count breaks ties because a MISSING node is a repair and an ERROR node is
+        an abandonment.
+    """
+    return (result.error_nodes + result.missing_nodes, result.error_nodes)
+
+
+def resolve_language(policy: str, declared: str, *, unit_id: str) -> str:
+    """Return the grammar a unit is parsed with under a **static** ``policy``.
+
+    The corpus's ``lang`` column is an input to this function, not an authority over it:
+    ADR-005 rejects it because following the declared language parses 37.0% of Big-Vul
+    cleanly against 88.2% for C++.
+
+    ``best_of_two`` — ADR-005's actual decision — cannot be answered here, because it is
+    a function of the source rather than of the language string. Use
+    :meth:`TreeSitterParser.parse_with_policy` instead.
+
+    Args:
+        policy: ``"cpp"``, ``"c"`` or ``"declared"``.
+        declared: The unit's own language string, used only under ``"declared"``.
+        unit_id: Identifier carried into any error payload.
+
+    Returns:
+        A grammar key — ``"c"`` or ``"cpp"``.
+
+    Raises:
+        ParseError: If ``policy`` is not a static policy, or if it is ``"declared"`` and
+            ``declared`` names no grammar we have.
+    """
+    normalised = policy.strip().lower()
+    if normalised not in STATIC_LANGUAGE_POLICIES:
+        raise ParseError(
+            "policy does not name a grammar on its own; parse under it instead",
+            unit_id=unit_id,
+            policy=policy,
+            supported=list(STATIC_LANGUAGE_POLICIES),
+            hint="TreeSitterParser.parse_with_policy handles every policy",
+        )
+    if normalised != "declared":
+        return normalised
+
+    key = LANGUAGE_ALIASES.get(declared.strip().lower())
+    if key is None:
+        raise ParseError(
+            "no Tree-sitter grammar for this language; refusing to guess one",
+            unit_id=unit_id,
+            language=declared,
+            supported=sorted(set(LANGUAGE_ALIASES)),
+        )
+    return key
 
 
 @dataclass(frozen=True)
@@ -209,6 +284,40 @@ class TreeSitterParser:
 
     def __init__(self) -> None:
         self._parsers: dict[str, Parser] = {}
+
+    def parse_with_policy(
+        self, source: str, *, policy: str, declared: str, unit_id: str
+    ) -> ParseResult:
+        """Parse one unit under a grammar-selection policy (ADR-005).
+
+        Under ``best_of_two`` the grammar becomes a function of the source, which is the
+        price ADR-005 accepted for the extra 1,712 clean parses. Two properties keep that
+        reproducible: C++ is always tried first and always wins ties, so identical source
+        always yields an identical grammar choice, and the second parse only happens when
+        the first left damage — 11.8% of the corpus, measured.
+
+        Args:
+            source: The source text.
+            policy: One of :data:`LANGUAGE_POLICIES`.
+            declared: The unit's own language string, consulted only under ``declared``.
+            unit_id: Identifier carried into the result and any error payload.
+
+        Returns:
+            The chosen parse. :attr:`ParseResult.language` records which grammar won.
+
+        Raises:
+            ParseError: If ``policy`` is not a known policy.
+        """
+        normalised = policy.strip().lower()
+        if normalised != "best_of_two":
+            grammar = resolve_language(normalised, declared, unit_id=unit_id)
+            return self.parse(source, language=grammar, unit_id=unit_id)
+
+        primary = self.parse(source, language="cpp", unit_id=unit_id)
+        if primary.is_clean:
+            return primary
+        alternate = self.parse(source, language="c", unit_id=unit_id)
+        return alternate if _damage(alternate) < _damage(primary) else primary
 
     def parse(self, source: str, *, language: str, unit_id: str) -> ParseResult:
         """Parse one source unit.

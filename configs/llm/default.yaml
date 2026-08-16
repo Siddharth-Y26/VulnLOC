@@ -1,0 +1,36 @@
+# Semantic branch (Phase 3, Architecture.md §4.2). CodeBERT / GraphCodeBERT.
+name: default
+
+# HuggingFace model id. GraphCodeBERT is `microsoft/graphcodebert-base` and shares this
+# tokenizer family, so switching encoders does not change the line alignment.
+model_name: microsoft/codebert-base
+tokenizer_name: microsoft/codebert-base
+
+# Window length in tokens, special tokens included. Both encoders cap at 512; a larger
+# value would be silently truncated by the model's position embeddings.
+max_length: 512
+
+# Overlap between consecutive windows, in body tokens. Must be smaller than
+# `max_length` minus the special tokens, or the windows would not advance.
+stride: 128
+
+# Windowing vs. plain truncation. `true` is the default because truncation loses flagged
+# lines outright, and `clean_eval` — which carries the headline line-level numbers —
+# averages 138 lines against the corpus's 31 (Memory.md §7 #14). `false` reproduces the
+# published-baseline behaviour so the cost can be reported rather than asserted; measure
+# it with scripts/report_truncation.py.
+windowing: true
+
+# Truncation report (scripts/report_truncation.py).
+report:
+  output_dir: "./artifacts/llm"
+
+# VRAM probe (scripts/probe_vram.py). Closes Memory.md §7 #7 with a measurement rather
+# than an estimate: what actually fits on the 4 GiB card, and at what throughput.
+probe:
+  batch_sizes: [1, 2, 4, 8, 16, 32]
+  modes: [finetune, amp, checkpoint, frozen]
+  # Line slots to pool onto. 512 covers the clean_eval tail without dominating the
+  # measurement; the encoder activations are what this is measuring.
+  n_lines: 512
+  steps: 5

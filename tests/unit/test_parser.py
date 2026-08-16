@@ -16,11 +16,13 @@ from pathlib import Path
 import pytest
 
 from vulnloc.representation import (
+    LANGUAGE_POLICIES,
     LineMap,
     ParseResult,
     TreeSitterParser,
     iter_nodes,
     node_to_line,
+    resolve_language,
     verify_line_alignment,
 )
 from vulnloc.utils.exceptions import AlignmentError, ParseError
@@ -193,3 +195,103 @@ def test_parser_instance_is_reusable_across_languages(parser):
     assert first.is_clean and second.is_clean and third.is_clean
     assert first.language == third.language == "c"
     assert second.language == "cpp"
+
+
+# --- ADR-005: grammar selection -------------------------------------------------------
+#
+# `best_of_two` makes the grammar a function of the source, which is the one property
+# that could quietly break reproducibility. These tests pin the tie-break rules that
+# stop it from doing so.
+
+# `class` and `new` are ordinary identifiers in C and reserved words in C++, so this
+# compiles as C and cannot parse as C++. It is the whole reason `cpp`-everywhere loses
+# 1,712 units that `best_of_two` keeps.
+C_ONLY = """int scan(void)
+{
+    int class = 1;
+    int new = 2;
+    return class + new;
+}
+"""
+
+# Scope resolution and a reference parameter: C++ that Big-Vul labels `C` for 98.6% of
+# its rows. 100,735 corpus functions are clean only under this grammar.
+CPP_ONLY = """void AudioContext::createConvolver(const Buffer& source)
+{
+    m_buffer = source;
+}
+"""
+
+
+def test_best_of_two_falls_back_to_c_when_cpp_cannot_parse(parser):
+    result = parser.parse_with_policy(C_ONLY, policy="best_of_two", declared="C", unit_id="u1")
+
+    assert result.language == "c"
+    assert result.is_clean
+
+
+def test_best_of_two_keeps_cpp_for_cpp_source_labelled_c(parser):
+    result = parser.parse_with_policy(CPP_ONLY, policy="best_of_two", declared="C", unit_id="u1")
+
+    assert result.language == "cpp"
+    assert result.is_clean
+
+
+def test_best_of_two_prefers_cpp_on_a_tie(parser):
+    """C++ is tried first and wins ties, so the choice never depends on iteration order.
+
+    Neither grammar can parse this, and both fail identically. A rule that broke ties any
+    other way would make the grammar depend on something other than the source.
+    """
+    source = "int f(void) { @@@ }\n"
+
+    result = parser.parse_with_policy(source, policy="best_of_two", declared="C", unit_id="u1")
+    as_c = parser.parse(source, language="c", unit_id="u1")
+    as_cpp = parser.parse(source, language="cpp", unit_id="u1")
+
+    assert (as_c.error_nodes, as_c.missing_nodes) == (as_cpp.error_nodes, as_cpp.missing_nodes)
+    assert result.language == "cpp"
+
+
+def test_best_of_two_is_deterministic_across_calls(parser):
+    """Same source, same grammar — every time, and independent of the declared label."""
+    for declared in ("C", "CPP", "C++"):
+        chosen = {
+            parser.parse_with_policy(
+                C_ONLY, policy="best_of_two", declared=declared, unit_id="u1"
+            ).language
+            for _ in range(3)
+        }
+        assert chosen == {"c"}
+
+
+def test_static_policies_ignore_the_source(parser):
+    assert (
+        parser.parse_with_policy(C_ONLY, policy="cpp", declared="C", unit_id="u1").language == "cpp"
+    )
+    assert (
+        parser.parse_with_policy(CPP_ONLY, policy="c", declared="CPP", unit_id="u1").language == "c"
+    )
+    assert (
+        parser.parse_with_policy(CPP_ONLY, policy="declared", declared="CPP", unit_id="u1").language
+        == "cpp"
+    )
+
+
+def test_unknown_policy_raises_rather_than_defaulting(parser):
+    with pytest.raises(ParseError) as excinfo:
+        parser.parse_with_policy(CLEAN_C, policy="auto", declared="C", unit_id="u1")
+
+    assert excinfo.value.details["policy"] == "auto"
+
+
+def test_resolve_language_refuses_the_source_dependent_policy():
+    """`best_of_two` has no answer without the source; saying so beats guessing one."""
+    with pytest.raises(ParseError):
+        resolve_language("best_of_two", "C", unit_id="u1")
+
+
+def test_every_declared_policy_is_usable(parser):
+    for policy in LANGUAGE_POLICIES:
+        result = parser.parse_with_policy(CLEAN_C, policy=policy, declared="C", unit_id="u1")
+        assert result.is_clean

@@ -26,10 +26,13 @@ from vulnloc.representation.graphs import (
 from vulnloc.representation.line_map import LINE_SEPARATOR, LineMap, split_lines
 from vulnloc.representation.parser import (
     LANGUAGE_ALIASES,
+    LANGUAGE_POLICIES,
+    STATIC_LANGUAGE_POLICIES,
     ParseResult,
     TreeSitterParser,
     iter_nodes,
     node_to_line,
+    resolve_language,
     verify_line_alignment,
 )
 from vulnloc.representation.registry import GRAPH_REGISTRY, register_graph
@@ -39,7 +42,9 @@ __all__ = [
     "EDGE_TYPES",
     "GRAPH_REGISTRY",
     "LANGUAGE_ALIASES",
+    "LANGUAGE_POLICIES",
     "LINE_SEPARATOR",
+    "STATIC_LANGUAGE_POLICIES",
     "AstGraphBuilder",
     "CfgGraphBuilder",
     "CodeGraph",
@@ -59,6 +64,7 @@ __all__ = [
     "iter_nodes",
     "node_to_line",
     "register_graph",
+    "resolve_language",
     "split_lines",
     "terminal_nodes",
     "transcribe",

@@ -6,10 +6,12 @@ success rate on the corpus, with failures categorised rather than hidden**, and 
 from here, and both are written to an artefact so that a later claim can cite a file
 rather than a memory.
 
-The report also carries the evidence for open decision Q8 (``Memory.md`` §5): each unit
-is parsed under *both* grammars and both rates are reported. The corpus's own ``lang``
-column says ``C`` for 98.6% of functions, and that turns out not to be the grammar most
-of them parse cleanly under. Nothing here decides Q8 — it measures it.
+The report also carries the evidence that decided Q8 (``Memory.md`` §5, now ADR-005):
+each unit is parsed under *both* grammars and both rates are reported. The corpus's own
+``lang`` column says ``C`` for 98.6% of functions, and that turns out not to be the
+grammar most of them parse cleanly under. The unit is parsed for real under
+``graph.language``, so re-running with ``graph.language=declared`` reproduces every
+number taken before ADR-005.
 
 Reads the preprocessed shards only; it never opens a Big-Vul CSV.
 
@@ -82,7 +84,8 @@ class ShardReport:
         self.clean_either = 0
         self.clean_neither = 0
         self.declared_language: Counter[str] = Counter()
-        self.declared_clean = 0
+        self.parsed_language: Counter[str] = Counter()
+        self.policy_clean = 0
         self.error_nodes = 0
         self.missing_nodes = 0
         self.first_error_lines: Counter[str] = Counter()
@@ -108,8 +111,9 @@ class ShardReport:
 
         Args:
             unit: The unit that was parsed.
-            results: Parse result per grammar name.
-            graph: The AST graph built from the declared-language parse.
+            results: Parse result per grammar name. ``results["policy"]`` is the parse
+                the graph was actually built from.
+            graph: The graph built from the policy parse.
         """
         self.units += 1
         self.graph_type = graph.graph_type
@@ -123,12 +127,13 @@ class ShardReport:
             self.clean_either += any_clean
             self.clean_neither += not any_clean
 
-        declared = results["declared"]
-        self.declared_clean += declared.is_clean
-        self.error_nodes += declared.error_nodes
-        self.missing_nodes += declared.missing_nodes
-        if not declared.is_clean:
-            self.first_error_lines[_error_bucket(declared, unit)] += 1
+        parsed = results["policy"]
+        self.parsed_language[parsed.language] += 1
+        self.policy_clean += parsed.is_clean
+        self.error_nodes += parsed.error_nodes
+        self.missing_nodes += parsed.missing_nodes
+        if not parsed.is_clean:
+            self.first_error_lines[_error_bucket(parsed, unit)] += 1
 
         self.nodes += len(graph.nodes)
         self.edges += len(graph.edges)
@@ -158,9 +163,10 @@ class ShardReport:
             "split": self.split,
             "units": self.units,
             "declared_language": dict(self.declared_language.most_common()),
+            "parsed_language": dict(self.parsed_language.most_common()),
             "parse": {
-                "clean_as_declared": self.declared_clean,
-                "clean_as_declared_pct": round(100 * self.declared_clean / units, 2),
+                "clean_under_policy": self.policy_clean,
+                "clean_under_policy_pct": round(100 * self.policy_clean / units, 2),
                 "error_nodes": self.error_nodes,
                 "missing_nodes": self.missing_nodes,
                 "failure_categories": dict(self.first_error_lines.most_common()),
@@ -207,7 +213,7 @@ def _error_bucket(result: Any, unit: CodeUnit) -> str:
     """Categorise a failed parse, so failures are reported rather than counted.
 
     Args:
-        result: The declared-language parse result.
+        result: The parse result the graph was built from.
         unit: The unit it came from.
 
     Returns:
@@ -242,6 +248,7 @@ def report(cfg: DictConfig) -> dict[str, Any]:
     limit = int(settings.limit)
     compare = bool(settings.compare_grammars)
     builder_name = str(cfg.graph.builder)
+    policy = str(cfg.graph.language)
 
     parser = TreeSitterParser()
     shards: dict[str, Any] = {}
@@ -258,8 +265,11 @@ def report(cfg: DictConfig) -> dict[str, Any]:
                     break
                 unit = CodeUnit.from_labelled_function(labelled)
                 results = {
-                    "declared": parser.parse(
-                        unit.source, language=unit.language, unit_id=unit.unit_id
+                    "policy": parser.parse_with_policy(
+                        unit.source,
+                        policy=policy,
+                        declared=unit.language,
+                        unit_id=unit.unit_id,
                     )
                 }
                 if compare:
@@ -267,7 +277,7 @@ def report(cfg: DictConfig) -> dict[str, Any]:
                         results[grammar] = parser.parse(
                             unit.source, language=grammar, unit_id=unit.unit_id
                         )
-                graph = GRAPH_REGISTRY.get(builder_name)().build(results["declared"])
+                graph = GRAPH_REGISTRY.get(builder_name)().build(results["policy"])
                 accumulator.record(unit, results, graph)
 
             shards[split] = accumulator.to_dict()
@@ -276,13 +286,13 @@ def report(cfg: DictConfig) -> dict[str, Any]:
                 extra={
                     "split": split,
                     "units": accumulator.units,
-                    "clean_pct": shards[split]["parse"]["clean_as_declared_pct"],
+                    "clean_pct": shards[split]["parse"]["clean_under_policy_pct"],
                     "mean_nodes": shards[split]["graph"]["mean_nodes_per_unit"],
                 },
             )
             mlflow.log_metrics(
                 {
-                    f"parse/{split}/clean_pct": shards[split]["parse"]["clean_as_declared_pct"],
+                    f"parse/{split}/clean_pct": shards[split]["parse"]["clean_under_policy_pct"],
                     f"graph/{split}/mean_nodes": shards[split]["graph"]["mean_nodes_per_unit"],
                     f"graph/{split}/mean_edges": shards[split]["graph"]["mean_edges_per_unit"],
                 }
@@ -291,13 +301,19 @@ def report(cfg: DictConfig) -> dict[str, Any]:
         payload = {
             "run_id": run_id,
             "builder": str(cfg.graph.builder),
-            "language_policy": str(cfg.graph.language),
+            "language_policy": policy,
             "limit": limit,
             "compare_grammars": compare,
             "shards": shards,
             "totals": _totals(shards),
         }
         output_path = Path(settings.output_path)
+        if limit:
+            # A capped run is a smoke test, not a measurement. Naming it apart keeps it
+            # from overwriting the corpus-wide artefact that Memory.md §1.7 cites.
+            output_path = output_path.with_name(
+                f"{output_path.stem}_limit{limit}{output_path.suffix}"
+            )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -318,7 +334,7 @@ def _totals(shards: dict[str, Any]) -> dict[str, Any]:
         The corpus totals.
     """
     units = sum(shard["units"] for shard in shards.values())
-    clean = sum(shard["parse"]["clean_as_declared"] for shard in shards.values())
+    clean = sum(shard["parse"]["clean_under_policy"] for shard in shards.values())
     nodes = sum(shard["graph"]["total_nodes"] for shard in shards.values())
     edges = sum(shard["graph"]["total_edges"] for shard in shards.values())
     source_lines = sum(shard["line_coverage"]["source_lines"] for shard in shards.values())
@@ -333,8 +349,8 @@ def _totals(shards: dict[str, Any]) -> dict[str, Any]:
 
     totals = {
         "units": units,
-        "clean_as_declared": clean,
-        "clean_as_declared_pct": round(100 * clean / max(units, 1), 2),
+        "clean_under_policy": clean,
+        "clean_under_policy_pct": round(100 * clean / max(units, 1), 2),
         "failure_categories": dict(categories.most_common()),
         "total_nodes": nodes,
         "total_edges": edges,

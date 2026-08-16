@@ -16,7 +16,8 @@ the code wins; fix this file in the same session and note the drift.
 2. **`docs/Rules.md`** — the operating rules. They override convenience and speed.
 3. **`docs/Phases.md`** — the current phase only. Do not build ahead.
 4. **`docs/adr/`** — decisions that are expensive to reverse. ADR-003 supersedes
-   ADR-001 §D1.2; read both. ADR-004 governs what is in the split at all.
+   ADR-001 §D1.2; read both. ADR-004 governs what is in the split at all. ADR-005 governs
+   which grammar every graph is built from.
 5. `docs/Architecture.md` §4 — only the interface you are implementing.
 
 Do **not** read the whole codebase. If you need to, `Memory.md` has failed and should be
@@ -39,16 +40,17 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ---
 
-## 3. Current state (2026-08-11)
+## 3. Current state (2026-08-16)
 
 | | |
 |---|---|
 | Branch | `phase-2/representation`. **`main` does not exist yet** — decide the branching model. |
 | Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker not installed). Blocks nothing downstream. |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
-| Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. |
-| Phases 3–10 | ⬜ Not started. Phases 3 and 4 are unblocked. |
-| Tests | **461 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
+| Phase 3 | 🟨 **In progress.** Line-safe tokenization + windowing, `LineAligner`, and both design measurements (truncation, VRAM) are built. Encoder, head and training loop are not. |
+| Phases 4–10 | ⬜ Not started. Phase 4 is unblocked. |
+| Tests | **518 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -59,9 +61,11 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
   `pipeline.py`, `cache.py`, `loaders/bigvul.py`
 - `training/` — `seeding.py`, `device.py`, `tracking.py`
 - `representation/` — `line_map.py`, `parser.py`, `units.py`, `to_pyg.py`,
-  `visualize.py`, `graphs/{base,ast,cfg,dfg,cpg}.py`
-- `models/`, `evaluation/`, `explanation/`, `serving/` — **empty packages with registries
-  only.** Nothing built ahead.
+  `tokenization.py`, `visualize.py`, `graphs/{base,ast,cfg,dfg,cpg}.py`
+- `models/` — `alignment.py` only (`LineAligner`, the shared line axis both branches pool
+  onto). The encoder / fusion / head registries are still empty.
+- `evaluation/`, `explanation/`, `serving/` — **empty packages with registries only.**
+  Nothing built ahead.
 
 ### Starting Phase 3 / Phase 4
 
@@ -73,13 +77,21 @@ build graphs through `GRAPH_REGISTRY.get(<ast|cfg|dfg|cpg>)`.
 and the CPG is a literal union. Ablation A3 is the `edge_types` argument to
 `build_cpg_graph`, not a second construction.
 
-**Q8 is still open and gates the corpus-wide graph build** (not the builders). Measured:
-the dataset's `lang` column gives **37.0%** clean parses vs **88.2%** parsing everything
-as C++. Needs an ADR — see `Memory.md` §5.
+**Q8 is closed — ADR-005.** A unit is parsed with **whichever grammar parses it best**:
+C++ first, and only if damage remains, C as well, keeping the less damaged tree (C++ wins
+ties, so the grammar is a pure function of the source). `graph.language=best_of_two` is
+the default; `declared` reproduces every pre-ADR-005 number. Measured corpus-wide:
+`declared` 37.01%, C 35.74%, C++ 88.24%, **`best_of_two` 89.14%**.
+
+**The number to quote about the residue is 31.58%, not 10.86%.** The 20,480 functions no
+grammar parses cleanly are 10.86% of functions but hold **31.58% of the flagged lines** —
+they average 68 lines against 26.5. See `Memory.md` §1.7 and ADR-005.
 
 Regenerate the corpus numbers with `python scripts/report_representation.py
-graph.builder=<type>` (~6 min for `ast`, longer for `cpg`; writes
-`artifacts/representation/report_<type>.json`).
+graph.builder=<type>` (~8 min for `ast`, longer for `cpg`; writes
+`artifacts/representation/report_<type>.json` — **and overwrites the previous one**; the
+prior artefact survives only in `artifacts/mlartifacts/<run_id>/`). Characterise the
+unparseable residue with `python scripts/characterize_parse_failures.py`.
 
 Tracked but not blocking: why our measured line counts differ from the published figures
 (`Memory.md` §7 #11 — now narrowed; it is *not* a parsing artefact).
@@ -112,6 +124,11 @@ python scripts/build_splits.py    # the split; re-running VERIFIES byte-identity
 python scripts/build_cache.py     # preprocessed JSONL shards (needs the split first)
 python scripts/sample_labels.py   # regenerate the human label-audit sheet
 python scripts/train.py train=debug device.kind=cuda
+
+python scripts/report_representation.py graph.builder=ast   # parse + graph corpus report
+python scripts/characterize_parse_failures.py               # the unparseable 10.86%
+python scripts/report_truncation.py                         # what 512 tokens costs
+python scripts/probe_vram.py                                # what fits in 4 GiB
 ```
 
 The data steps run in that order and each is a **full pass over ~11 GB** — several
@@ -217,11 +234,16 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 13 | **Big-Vul's `index` column is not random** — line-labelled positives cluster at the high end (all 788 in `bigvul_test` sit at `index ≥ 160,000`). "First N rows" gives a degenerate sample. |
 | 14 | **`node.start_point` segfaults the interpreter** on real corpus input (`tree-sitter` 0.26.0 + `tree-sitter-c` 0.24.2). Derive lines from `start_byte` via `LineMap`. A native crash gives no traceback. |
 | 15 | **Never use `str.splitlines()` on source code** — it breaks on CR/VT/FF/U+2028 and friends; we and Tree-sitter break only on `\n`. Use `representation.line_map.split_lines`. |
-| 16 | **The `lang` column is the worst grammar selector available** — corpus-wide, 37.0% clean as declared vs 88.2% as C++; 100,735 functions are clean *only* as C++, 1,712 only as C. Open decision Q8. |
-| 17 | **3,646 flagged lines (7.84%) carry no AST node**, so the structural branch cannot score them at all. A separate ceiling from the label noise. |
-| 18 | **AST graphs reach 55,486 nodes** (mean 252; `clean_eval` 1,138). A batch is bounded by its worst graph, not the mean — do not size Phase 4 batching from the average. |
+| 16 | **The `lang` column is the worst grammar selector available** — 37.01% clean as declared vs 88.24% as C++ vs **89.14% best-of-two**; 100,735 functions are clean *only* as C++, 1,712 only as C. Closed by ADR-005; never reintroduce `lang` as the selector. |
+| 17 | **3,646 flagged lines (7.84%) carry no AST node**, so the structural branch cannot score them at all. A separate ceiling from the label noise. **84.8% of them are in units no grammar parses cleanly** — it is parse damage, not blank lines, and a better grammar does not fix it (coverage is flat across grammar policies). |
+| 18 | **AST graphs reach 56,266 nodes** (mean 252; `clean_eval` 1,144). A batch is bounded by its worst graph, not the mean — do not size Phase 4 batching from the average. |
 | 19 | **The DFG is name-based**: no aliasing, no scoping, weak updates through `*p` / `a[i]`. Documented and test-pinned in `graphs/dfg.py`. Don't claim the model "follows data flow" without that caveat. |
 | 20 | **A fixed iteration cap on the reaching-definitions fixpoint silently halves the edges.** The budget scales per node and *raises* when exhausted — never return a partial fixpoint. |
+| 23 | **Truncating at 512 tokens destroys 38.1% of all flagged lines**, 44.5% on `clean_eval`. Windowing (`llm.windowing=true`, the default) keeps 100%. Never report a line-level number taken with truncation on without labelling it. |
+| 24 | **Exceeding VRAM on Windows does not raise — it pages to host RAM and runs 10-25× slower.** 3 of 24 probe configs peaked above the 4 GiB card and completed with valid numbers. Compare peak allocation against `total_memory`; "did not OOM" is not "fits". |
+| 25 | **One unit is not one forward pass.** `clean_eval` averages 4.17 windows and reaches 88; the longest function is 287 windows. Batch in windows, not units. |
+| 21 | **The node-type vocabulary is a union over two grammars** (ADR-005 picks per unit). Build it by scanning the corpus, never from one grammar's symbol list, and never read node types as identifying a unit's language. |
+| 22 | **`graph.language` sat in the config unread for a whole phase.** A knob that nothing consumes looks exactly like a knob that works. If a config value governs a decision, a test should fail when it is ignored. |
 
 ---
 
@@ -243,8 +265,16 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 ## 10. Open questions needing a human
 
 1. **Branching model** — `main` does not exist.
-2. **4 GiB VRAM** — decide the Phase 3 strategy (frozen encoder vs. gradient
-   accumulation / AMP / checkpointing) *before* writing Phase 3 code.
-3. **Manual label audit** — 20+ sampled line labels inspected by a person (Phase 1 exit
-   criterion).
-4. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.
+2. ~~**4 GiB VRAM** — decide the Phase 3 strategy.~~ **Resolved 2026-08-16 by
+   measurement** (`Memory.md` §1.9, run `1904c295…`): AMP + gradient checkpointing at
+   batch 16 windows, 2,456 MiB, 22.9 windows/s. Raise it again only if Phase 5 does not
+   fit alongside.
+3. **Parse-failure categorisation** — 40 units at
+   `artifacts/representation/parse_failure_sample.md`, drawn at seed 1337, `cause:` fields
+   blank. It decides whether macro-aware preprocessing is worth building for the 31.58% of
+   flagged lines in unparseable units.
+4. **Widen the label audit with a second reviewer** — the ~30% line-noise figure rests on
+   n=20 (95% CI [14.5%, 51.9%]) and has no inter-rater agreement number. The first audit
+   is **done** (14 correct / 6 wrong, 2026-08-11); this is about tightening it before the
+   paper.
+5. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.

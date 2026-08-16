@@ -6,15 +6,17 @@ name: default
 # here. They share one node set, so switching this changes edges, never line mapping.
 builder: ast
 
-# Which grammar to parse a unit with.
-#   declared: use the corpus's own `lang` column, and never guess.
-#   c / cpp:  force one grammar for every unit.
-# Measured on clean_eval (1,589 units): 50.8% parse cleanly as C, 73.3% as C++, and
-# 405 units labelled `C` are clean only under C++. A fallback that silently switches
-# grammar changes what every downstream graph is built from, so it stays an open
-# decision (Memory.md §5 Q8) rather than a default. `declared` is the honest option
-# until that ADR is written.
-language: declared
+# Which grammar to parse a unit with — ADR-005, closing Q8.
+#   best_of_two: parse as C++; if that leaves damage, parse as C too and keep the less
+#                damaged tree. C++ is tried first and wins ties, so the choice is a pure
+#                function of the source.
+#   declared:    use the corpus's own `lang` column. Reproduces every pre-ADR-005 number.
+#   c / cpp:     force one grammar for every unit.
+# Measured corpus-wide over all 188,636 units: 37.01% clean under `declared`, 35.74%
+# under `c`, 88.24% under `cpp`, 89.14% under `best_of_two`. The residue that no grammar
+# parses cleanly is characterised in artifacts/representation/parse_failures.json —
+# it is 10.86% of functions but 31.6% of the flagged lines.
+language: best_of_two
 
 # Corpus-wide parse and graph report (scripts/report_representation.py).
 report:
