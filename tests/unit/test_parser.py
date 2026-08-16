@@ -179,8 +179,10 @@ def test_iter_nodes_yields_root_first_and_covers_the_tree(parser):
     nodes = list(iter_nodes(result.root))
 
     assert nodes[0] == result.root
-    assert len(nodes) == 1 + sum(1 for _ in iter_nodes(result.root)) - 1
     assert any(node.type == "function_definition" for node in nodes)
+    # Counted independently, against the tree's own child counts: every node is
+    # somebody's child exactly once, except the root.
+    assert len(nodes) == 1 + sum(node.child_count for node in nodes)
 
 
 def test_parser_instance_is_reusable_across_languages(parser):

@@ -36,7 +36,6 @@ ALL_REGISTRIES = [
 # an entry appearing in one of these is a real failure, not a stale test. Move a
 # registry out of this list only when its phase legitimately lands.
 UNPOPULATED_REGISTRIES = [
-    GRAPH_REGISTRY,  # Phase 2
     SEMANTIC_REGISTRY,  # Phase 3
     STRUCTURAL_REGISTRY,  # Phase 4
     FUSION_REGISTRY,  # Phase 5
@@ -138,6 +137,24 @@ def test_every_extension_point_exists(reg):
 @pytest.mark.parametrize("reg", UNPOPULATED_REGISTRIES, ids=lambda r: r.name)
 def test_registries_for_unstarted_phases_are_empty(reg):
     assert reg.keys() == [], f"{reg.name} was populated before its phase (Rules.md §1)"
+
+
+def test_graph_registry_holds_exactly_the_builders_that_exist():
+    # ADR-002 §D2.2 fixes the order AST -> CFG -> DFG -> CPG. Only the AST is built;
+    # a key appearing here before its builder does would make ablation A3 selectable
+    # against code that does not exist.
+    assert GRAPH_REGISTRY.keys() == ["ast"]
+
+
+def test_graph_builders_register_on_package_import_alone():
+    import importlib
+    import sys
+
+    for name in [m for m in sys.modules if m.startswith("vulnloc.representation")]:
+        del sys.modules[name]
+    representation = importlib.import_module("vulnloc.representation")
+
+    assert representation.GRAPH_REGISTRY.get("ast").__name__ == "AstGraphBuilder"
 
 
 def test_dataset_registry_holds_exactly_the_phase_1_loader():

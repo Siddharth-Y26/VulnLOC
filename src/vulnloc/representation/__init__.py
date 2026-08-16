@@ -6,6 +6,15 @@ Language and graph representation are fixed by ADR-002: C/C++, built incremental
 AST → CFG → DFG → CPG, with in-house passes rather than an external CPG generator.
 """
 
+from vulnloc.representation.graphs import (
+    EDGE_TYPES,
+    AstGraphBuilder,
+    CodeGraph,
+    EdgeType,
+    GraphEdge,
+    GraphNode,
+    build_ast_graph,
+)
 from vulnloc.representation.line_map import LINE_SEPARATOR, LineMap, split_lines
 from vulnloc.representation.parser import (
     LANGUAGE_ALIASES,
@@ -16,14 +25,23 @@ from vulnloc.representation.parser import (
     verify_line_alignment,
 )
 from vulnloc.representation.registry import GRAPH_REGISTRY, register_graph
+from vulnloc.representation.units import CodeUnit
 
 __all__ = [
+    "EDGE_TYPES",
     "GRAPH_REGISTRY",
     "LANGUAGE_ALIASES",
     "LINE_SEPARATOR",
+    "AstGraphBuilder",
+    "CodeGraph",
+    "CodeUnit",
+    "EdgeType",
+    "GraphEdge",
+    "GraphNode",
     "LineMap",
     "ParseResult",
     "TreeSitterParser",
+    "build_ast_graph",
     "iter_nodes",
     "node_to_line",
     "register_graph",

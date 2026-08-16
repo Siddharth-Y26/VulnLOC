@@ -46,9 +46,9 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Branch | `phase-2/representation`. **`main` does not exist yet** — decide the branching model. |
 | Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker not installed). Blocks nothing downstream. |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
-| Phase 2 | 🟨 **1 / 5, in progress** — parser + line map done (2026-08-16); no graph builder yet. |
-| Phases 3–10 | ⬜ Not started. |
-| Tests | **332 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Phase 2 | 🟨 **4 / 5, in progress** — parser, line map, AST builder, PyG conversion, corpus report done (2026-08-16). **CFG/DFG/CPG not built.** |
+| Phases 3–10 | ⬜ Not started. Phase 4 is unblocked by the AST (ADR-002 §D2.2). |
+| Tests | **377 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -58,16 +58,25 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 - `data/` — `sources.py`, `download.py`, `audit.py`, `labeling.py`, `splits.py`,
   `pipeline.py`, `cache.py`, `loaders/bigvul.py`
 - `training/` — `seeding.py`, `device.py`, `tracking.py`
-- `representation/` — `line_map.py`, `parser.py`. Graph builders not started.
+- `representation/` — `line_map.py`, `parser.py`, `units.py`, `to_pyg.py`,
+  `visualize.py`, `graphs/{base,ast}.py`. **CFG/DFG/CPG not built.**
 - `models/`, `evaluation/`, `explanation/`, `serving/` — **empty packages with registries
   only.** Nothing built ahead.
 
 ### Continuing Phase 2
 
-Read `Phases.md` Phase 2 and ADR-002 first. Consume the dataset through
-`vulnloc.data.cache.iter_shard` — **never reopen a Big-Vul CSV.** Next up is the AST
-builder behind `@register_graph`, but **Q8 (which grammar to parse with) is open and
-blocks the corpus-wide build** — see `Memory.md` §5.
+Read `Phases.md` Phase 2, ADR-002, and `Memory.md` §1.7 (the corpus measurements) first.
+Consume the dataset through `vulnloc.data.cache.iter_shard` — **never reopen a Big-Vul
+CSV.** Two things gate the work:
+
+1. **Q8 is open and blocks the corpus-wide graph build.** Measured: following the
+   dataset's `lang` column gives **37.0%** clean parses vs **88.2%** parsing everything
+   as C++. Needs an ADR (`Memory.md` §5).
+2. **CFG → DFG → CPG is the remaining exit criterion** and the part `Phases.md` warns is
+   real compiler work.
+
+Regenerate the corpus numbers with `python scripts/report_representation.py`
+(~6 min, writes `artifacts/representation/report.json`).
 
 Tracked but not blocking: why our measured line counts differ from the published figures
 (`Memory.md` §7 #11 — now narrowed; it is *not* a parsing artefact).
@@ -205,7 +214,9 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 13 | **Big-Vul's `index` column is not random** — line-labelled positives cluster at the high end (all 788 in `bigvul_test` sit at `index ≥ 160,000`). "First N rows" gives a degenerate sample. |
 | 14 | **`node.start_point` segfaults the interpreter** on real corpus input (`tree-sitter` 0.26.0 + `tree-sitter-c` 0.24.2). Derive lines from `start_byte` via `LineMap`. A native crash gives no traceback. |
 | 15 | **Never use `str.splitlines()` on source code** — it breaks on CR/VT/FF/U+2028 and friends; we and Tree-sitter break only on `\n`. Use `representation.line_map.split_lines`. |
-| 16 | **The `lang` column is not a reliable grammar selector** — 405 units labelled `C` in `clean_eval` parse cleanly *only* as C++. Open decision Q8. |
+| 16 | **The `lang` column is the worst grammar selector available** — corpus-wide, 37.0% clean as declared vs 88.2% as C++; 100,735 functions are clean *only* as C++, 1,712 only as C. Open decision Q8. |
+| 17 | **3,646 flagged lines (7.84%) carry no AST node**, so the structural branch cannot score them at all. A separate ceiling from the label noise. |
+| 18 | **AST graphs reach 55,486 nodes** (mean 252; `clean_eval` 1,138). A batch is bounded by its worst graph, not the mean — do not size Phase 4 batching from the average. |
 
 ---
 

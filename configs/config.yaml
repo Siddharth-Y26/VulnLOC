@@ -1,10 +1,11 @@
 # Root Hydra composition (Architecture.md §5, §8).
-# Phase 0: only `train` is wired to a real entrypoint (scripts/train.py).
-# Other groups (data, graph, llm, gnn, fusion, head, explainer) exist as
-# empty-but-composable stubs — see Phases.md, each is filled in by its
-# owning phase. Do not add them to `defaults` until that phase lands.
+# `data` (Phase 1) and `graph` (Phase 2) are wired to real entrypoints. The remaining
+# groups (llm, gnn, fusion, head, explainer) exist as empty-but-composable stubs —
+# see Phases.md, each is filled in by its owning phase. Do not add one to `defaults`
+# until that phase lands.
 defaults:
   - data: default
+  - graph: default
   - train: default
   - _self_
 

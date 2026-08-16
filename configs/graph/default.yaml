@@ -1,0 +1,28 @@
+# Code representation (Phase 2, ADR-002). Parsing and graph construction.
+name: default
+
+# Which registered builder to use. AST is the only one built so far; ADR-002 §D2.2
+# fixes the order AST -> CFG -> DFG -> CPG, and ablation A3 selects between them here.
+builder: ast
+
+# Which grammar to parse a unit with.
+#   declared: use the corpus's own `lang` column, and never guess.
+#   c / cpp:  force one grammar for every unit.
+# Measured on clean_eval (1,589 units): 50.8% parse cleanly as C, 73.3% as C++, and
+# 405 units labelled `C` are clean only under C++. A fallback that silently switches
+# grammar changes what every downstream graph is built from, so it stays an open
+# decision (Memory.md §5 Q8) rather than a default. `declared` is the honest option
+# until that ADR is written.
+language: declared
+
+# Corpus-wide parse and graph report (scripts/report_representation.py).
+report:
+  cache_dir: "./artifacts/data/cache"
+  # Empty means every shard present in the cache directory.
+  splits: []
+  output_path: "./artifacts/representation/report.json"
+  # 0 means the whole corpus. A positive value caps units per shard, for smoke runs.
+  limit: 0
+  # Parse each unit under both grammars and report both rates. This is the evidence
+  # for Q8; it roughly doubles the parse cost.
+  compare_grammars: true

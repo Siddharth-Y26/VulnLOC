@@ -26,7 +26,7 @@
 | Field | Value |
 |-------|-------|
 | **Active phase** | **Phase 2 — Code Representation**, in progress (Phase 1 closed 2026-08-11; Phase 0 is 3/4, the open item is Docker, which blocks nothing before Phase 8) |
-| **Phase status** | 🟨 **Phase 2 — 1 / 5.** Parser and line map landed 2026-08-16; no graph builder exists yet |
+| **Phase status** | 🟨 **Phase 2 — 4 / 5** (2026-08-16). Parser, line map, AST builder and the corpus report are done; CFG/DFG/CPG are not |
 | **Last updated** | 2026-08-16 |
 | **Last commit** | `090091f` (Phase 1 closure) on `phase-0/foundation`; Phase 2 work is on `phase-2/representation` (`main` still does not exist) |
 | **Best model run ID** | — *(no model exists; no claims permitted)* |
@@ -40,7 +40,7 @@
 |-------|--------|-------------------|-------|
 | 0 Foundation | 🟨 In progress | 3 / 4 | Docker criterion blocked — see §7 issue #1 |
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
-| 2 Representation | 🟨 **In progress** | 1 / 5 | ADR-002 accepted ✅. Parser + line map done (2026-08-16). Outstanding: node-level property tests, ≥5 golden files, corpus-wide parse rate, graph stats — no graph builder exists yet |
+| 2 Representation | 🟨 **In progress** | **4 / 5** | Parser, line map, AST builder, PyG conversion, renderer and the corpus report all done (2026-08-16). **CFG/DFG/CPG not built** — that is the open criterion. Phase 4 is unblocked by the AST (ADR-002 §D2.2) |
 | 3 LLM Branch | ⬜ Not started | 0 / 4 | |
 | 4 GNN Branch | ⬜ Not started | 0 / 4 | |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
@@ -118,7 +118,7 @@ A1, A4, A5 untouched.
 | MLflow tracking | ✅ | `src/vulnloc/training/tracking.py` |
 | Train entrypoint (no-op loop) | ✅ | `scripts/train.py` |
 | Quality gates | ✅ | ruff, black, mypy, import-linter, pre-commit, `.github/workflows/ci.yml` |
-| Tests | ✅ **332 passing / 2 skipped, 86% cov** | `tests/unit/`, `tests/integration/` |
+| Tests | ✅ **377 passing / 2 skipped, 88% cov** | `tests/unit/`, `tests/integration/` |
 | Corpus acquisition + audit | ✅ | `data/{sources,download,audit}.py`, `scripts/{prepare_data,audit_data}.py` |
 | Big-Vul loader (`@register_dataset`) | ✅ | `data/loaders/bigvul.py` |
 | Line-label derivation (`labels_v1`) | ✅ | `data/labeling.py` |
@@ -130,7 +130,13 @@ A1, A4, A5 untouched.
 | `DATA_CARD.md` | ✅ | `docs/DATA_CARD.md` |
 | Tree-sitter parser wrapper (C/C++) | ✅ | `representation/parser.py` |
 | Line map (byte + char → 1-indexed line) | ✅ | `representation/line_map.py` |
-| Graph builders (AST/CFG/DFG/CPG) | ⬜ | — |
+| `CodeUnit` (L0 → L1 bridge) | ✅ | `representation/units.py` |
+| Graph container + invariants | ✅ | `representation/graphs/base.py` |
+| AST builder (`@register_graph("ast")`) | ✅ | `representation/graphs/ast.py` |
+| CFG / DFG / CPG builders | ⬜ | — |
+| NetworkX + PyG conversion | ✅ | `representation/to_pyg.py` |
+| Line-annotated graph rendering | ✅ | `representation/visualize.py` |
+| Corpus parse + graph report | ✅ | `scripts/report_representation.py` |
 | LLM branch | ⬜ | — |
 | GNN branch | ⬜ | — |
 | Fusion module | ⬜ | — |
@@ -294,6 +300,76 @@ weight in the paper, so inter-rater agreement can be reported.
 
 ---
 
+## 1.7 Representation — measured on the whole corpus (Phase 2)
+
+Run `6e166bd3f44e487dbcd36ad50634c2bf`, artefact `artifacts/representation/report.json`,
+regenerate with `python scripts/report_representation.py`. All 188,636 functions, read
+from the shards. AST only — CFG/DFG/CPG do not exist yet.
+
+### Parse success — and why the corpus's own `lang` column is the problem
+
+| Parsed as | Clean parses | Share |
+|---|---|---|
+| **the declared `lang`** | 69,807 | **37.01%** |
+| C, everything | 67,421 | 35.74% |
+| **C++, everything** | **166,444** | **88.24%** |
+| clean under **either** | 168,156 | 89.14% |
+| clean under **neither** | 20,480 | 10.86% |
+
+**100,735 functions (53.4% of the corpus) parse cleanly only as C++. Only 1,712 parse
+cleanly only as C.** Following the dataset's own label is therefore the *worst* of the
+three options, by a factor of more than two.
+
+Failure categories under the declared language (118,829 damaged parses):
+
+| Category | Count |
+|---|---|
+| `error_on_first_line` | 98,554 |
+| `error_mid_function` | 12,930 |
+| `missing_token_only` | 7,263 |
+| `error_at_end_of_function` | 82 |
+
+Sampling the dominant category shows two distinct causes, and they need separating
+before Q8 is decided:
+
+1. **C++ labelled `C`** — the large one. Destructors (`WebPagePrivate::~WebPagePrivate()`),
+   scope resolution (`AudioContext::createConvolver`), templates
+   (`v8::FunctionCallbackInfo<v8::Value>&`), references, `virtual`, `bool`. Mostly
+   Chrome, which is 40.9% of the corpus.
+2. **Genuine fragments** — e.g. `nfsd_commit(struct svc_rqst *rqstp,` in linux, where the
+   return type sat on a line that the extraction cut away. ADR-002 anticipated these.
+   No grammar fixes them.
+
+### Graph statistics (AST)
+
+| | |
+|---|---|
+| Total nodes / edges | 47,472,386 / 47,283,750 |
+| Mean per function | **251.66 nodes, 250.66 edges** |
+| Largest graph | **55,486 nodes** (`train`) |
+| Edge-type distribution | 100% `ast` — trivially, until the CFG lands |
+
+Mean nodes per function varies 4× across partitions (train 222, test 334, `clean_eval`
+**1,138**), tracking the function-length differences already recorded in §1.5. The
+`clean_eval` figure is the one to plan memory against, since it carries the headline
+numbers.
+
+### Line coverage — a new limit on line-level scoring
+
+| | |
+|---|---|
+| Source lines with ≥1 node | 83.25% |
+| **Flagged lines with ≥1 node** | **92.16%** (42,867 of 46,513) |
+| **Flagged lines with no node at all** | **3,646** |
+
+A flagged line carrying no AST node cannot receive a structural score — there is nothing
+to pool over it. Blank lines and comment-only lines inside a fix's diff account for much
+of it. This is a *ceiling on the structural branch specifically*, distinct from the
+~30% label-noise ceiling (§1.6), and it must be reported per partition: `clean_eval`
+reaches 98.78% but `test` only 83.41%.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -366,6 +442,31 @@ Learned:
 Next:
   - Decide Q8 before any corpus-wide graph build, then the AST builder (ADR-002 §D2.2
     build order), then golden files and the corpus-wide parse report.
+
+---
+
+### 2026-08-16 (session 5, continued) — Phase 2: AST, PyG, and the corpus report
+Phase: 2 (4/5)
+Did:
+  - `CodeUnit` (L0→L1 bridge), the graph container with its invariants, the **AST
+    builder** behind `@register_graph("ast")`, NetworkX/PyG conversion, and the
+    line-annotated renderer.
+  - `scripts/report_representation.py` + `configs/graph/default.yaml`; ran it over all
+    188,636 functions (run `6e166bd3f44e487dbcd36ad50634c2bf`).
+  - Four of five Phase 2 exit criteria met. **CFG, DFG and CPG are not built.**
+Learned (§1.7 — all measured, none quoted):
+  - **The `lang` column is the worst grammar choice available**: 37.0% clean against
+    88.2% parsing everything as C++. 100,735 functions are clean *only* as C++, 1,712
+    only as C. The dominant failure is C++ code labelled `C` — Chrome destructors,
+    templates, `::`. Q8 now has an evidence base and a lean; it still needs the ADR.
+  - **3,646 flagged lines (7.84%) have no AST node**, so the structural branch cannot
+    score them at all (§7 #21). Separate ceiling from the label noise.
+  - **Graphs reach 55,486 nodes**; `clean_eval` averages 1,138 against the corpus's 252
+    (§7 #22). Batching cannot be sized from the mean.
+  - `to_pyg` keeps torch out of the package import path deliberately — parsing and the
+    corpus report stay usable without loading a 2 GB stack.
+Next:
+  - Write the Q8 ADR, then CFG → DFG → CPG. Phase 4 is unblocked by the AST now.
 
 ---
 
@@ -480,7 +581,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q4 | Explanation supervision available? | Ground-truth text · templates + human eval · none | Template baseline + human eval; do not claim generative quality without a reference set | Phase 7 | 🟨 Deferred |
 | Q5 | CWE-type classification required? | Binary only · binary + type | Deck's example output names a type ("Buffer Overflow") — implement type if labels exist, else derive from templates and say so | Phase 6 | 🟨 Deferred |
 | Q6 | CPG tooling: build ourselves vs. external generator? | In-house passes · external exporter | In-house — an external generator would take the line mapping out of our control. DeepDFA/MegaVul graphs used as offline validation oracles only | Phase 2 | ✅ **Closed — ADR-002** |
-| Q8 | **Which grammar parses a Big-Vul function?** The dataset's `lang` column says `C` for 98.6% of the corpus, but measured on `clean_eval` (1,589 units) only **50.8%** parse cleanly as C against **73.3%** as C++; **405 units labelled `C` are clean only under the C++ grammar**, and 23.7% are clean under neither | Trust `lang` · always C++ · try declared then fall back · report both and pick per-unit by damage count | Undecided — a fallback that silently switches grammar changes what every downstream graph is built from, so it needs an ADR, not a default. Current code parses exactly the language it is told and never guesses | Phase 2 corpus build | 🟥 **Open — blocks the corpus-wide graph build** |
+| Q8 | **Which grammar parses a Big-Vul function?** Measured corpus-wide (§1.7): following the dataset's own `lang` column yields **37.0%** clean parses, against **88.2%** parsing everything as C++. **100,735 functions parse cleanly only as C++; only 1,712 only as C.** The `lang` column is the worst of the three options by more than 2× | Trust `lang` · **always C++** · try declared then fall back · pick per-unit by damage count | **Lean: parse everything as C++.** It is a near-superset of C, it wins by 51 points corpus-wide, and per-unit fallback would make the grammar a function of the code — reproducible but hard to reason about. Needs an ADR because it changes what every downstream graph is built from, and because 10.9% of the corpus parses cleanly under neither grammar and must be characterised, not absorbed | Phase 2 corpus build | 🟥 **Open — blocks the corpus-wide graph build** |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -492,17 +593,16 @@ Ordered. Top item is what the next session starts with.
 **Phase 1 is closed. Phase 2 is 1/5.** The parser and line map exist; the graph builders
 do not.
 
-1. **Decide Q8 — which grammar parses a Big-Vul function** (§5). It blocks the
-   corpus-wide graph build, because a grammar fallback changes what every graph is built
-   from. Needs an ADR, not a default.
-2. **Build the AST builder** behind `@register_graph` (ADR-002 §D2.2 build order:
-   AST → CFG → DFG → CPG). Phase 4 may start as soon as AST lands. Consume
+1. **Write the Q8 ADR — which grammar parses a Big-Vul function** (§5, evidence in §1.7).
+   It blocks the corpus-wide graph build. The measurement is done and points at "parse
+   everything as C++"; what remains is the decision and the characterisation of the
+   10.9% that parses cleanly under neither grammar.
+2. **Build the CFG, then the DFG, then the CPG** (ADR-002 §D2.2). This is the one open
+   Phase 2 exit criterion and the part `Phases.md` warns is real compiler work. Consume
    `artifacts/data/cache/*.jsonl` via `data.cache.iter_shard`; **never reopen a Big-Vul
    CSV.**
-3. **Finish the remaining Phase 2 exit criteria:** node-level property tests on
-   randomised inputs, golden files for ≥5 hand-written functions (loops, branches,
-   pointers/aliasing), the corpus-wide parse-success rate as a written artefact, and
-   graph statistics.
+3. **Phase 4 is unblocked now** — the GNN branch does not wait for the DFG. Size batches
+   against §7 #22 (55,486-node worst case), not the 252-node mean.
 4. **Decide the branching model.** `main` still does not exist — the repo's only branch is
    `phase-0/foundation`. `Rules.md` §8 assumes a `main` to open PRs against; create it.
 5. **Close the last Phase 0 exit criterion.** On a machine with Docker installed, run
@@ -547,6 +647,8 @@ Things that cost time once and should not cost time twice.
 | 16 | **Big-Vul's `index` column is not random.** Line-labelled positives cluster at the high end — measured on `bigvul_test`, **all 788** line-labelled rows have `index ≥ 160,000` while total rows spread evenly | "Take the first N rows" for a smoke test yields a subset with almost no positives; treating `index` as a time proxy would produce a fake temporal split | Sample by content hash (`utils/hashing.py`), never by row position or index range | 🟨 Known |
 | 19 | **`node.start_point` segfaults the interpreter.** `tree-sitter==0.26.0` (the latest release) + `tree-sitter-c==0.24.2`: walking a tree and reading `start_point` crashes the process on real corpus input. Reproduced deterministically on `bigvul-188127`; minimal trigger is its first **258 lines / 7,810 bytes**. The identical walk reading `start_byte` completes over all 3,061 nodes. Pure ASCII, max line length 87 — nothing exotic in the input | A native crash cannot be caught, so any corpus-wide pass touching `Point` dies with no traceback and no partial result. It was found only because a 2,618-unit smoke test segfaulted | **Never read `start_point`/`end_point`.** Line numbers come from `start_byte` through `LineMap`. Regression fixture at `tests/fixtures/parser/segfault_start_point.c`; if anyone reintroduces `Point` the test suite crashes rather than fails. No upstream fix to take — 0.26.0 is already the newest release | ✅ Fixed — designed around |
 | 20 | **`str.splitlines()` is the wrong splitter for source code.** It breaks on carriage return, vertical tab, form feed, U+001C–U+001E, U+0085, U+2028 and U+2029; Tree-sitter and Big-Vul's `flaw_line_index` break only on `\n` | Every line number after the first stray character would shift by one, silently. Measured: exactly **1 function of 188,636** (`bigvul-76919`, a form feed) is split differently — rare enough to survive any casual test, which is what makes it dangerous | Use `representation.line_map.split_lines`. Never call `str.splitlines()` on source | ✅ Fixed |
+| 21 | **3,646 flagged lines (7.84%) carry no AST node at all** (§1.7) | Nothing can be pooled over them, so the structural branch cannot score them however good the model is. A *separate* ceiling from the ~30% label noise (#18), and unevenly distributed: `clean_eval` 98.78% covered vs. `test` 83.41% | Report line coverage per partition alongside every line-level metric. Revisit once the CFG lands — a statement-level graph may cover lines the AST does not | 🟥 Open — Phase 6/8 reporting input |
+| 22 | **AST graphs reach 55,486 nodes** on the largest function; mean is 251.66 (§1.7), and `clean_eval` averages 1,138 — 4.5× the corpus mean, matching its 4.5× function length | With 4 GiB of VRAM (#7) a batch is bounded by the worst graph in it, not the mean. Length-bucketed batching or a node cap is required, and a node cap silently drops lines | Measure before Phase 4 batching is written. Do not size batches from the mean | 🟨 Known — Phase 4 design input |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**

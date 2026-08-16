@@ -86,12 +86,14 @@ Durations are `[RECOMMENDATION]`s for a three-person student team, not commitmen
 - Visualization utility to render a graph with line annotations (debugging + paper figures)
 
 **Exit criteria**
-- [ ] ADR-002 (graph representation + CPG tooling) accepted
-- [ ] Property tests: every node and non-special token maps to a valid line, on randomized inputs
-- [ ] Golden-file tests for ≥ 5 hand-written functions covering loops, branches, pointers/aliasing
-- [ ] Parse success rate on the corpus reported; failures categorized, not hidden
-- [ ] Graph stats reported: mean nodes/edges, edge-type distribution
+- [x] ADR-002 (graph representation + CPG tooling) accepted
+- [x] Property tests: every **node** maps to a valid line, on randomized inputs *(`tests/unit/test_graphs_ast.py`, `test_line_map.py`. The **token** half needs a tokenizer and lands with the semantic branch in Phase 3 — `char_to_line` is built and tested for it.)*
+- [x] Golden-file tests for ≥ 5 hand-written functions covering loops, branches, pointers/aliasing *(`tests/fixtures/graphs/`: loop, branch, pointers, goto-cleanup, preprocessor)*
+- [x] Parse success rate on the corpus reported; failures categorized, not hidden *(`scripts/report_representation.py` → `artifacts/representation/report.json`)*
+- [x] Graph stats reported: mean nodes/edges, edge-type distribution *(same report; AST only — the edge-type distribution is trivially 100% `ast` until the CFG lands)*
 
+**Not done: CFG, DFG and CPG builders.** ADR-002 §D2.2 fixes the order AST → CFG → DFG
+→ CPG and unblocks Phase 4 on the AST alone, so the phase is usable but not finished.
 **This is the phase most likely to be underestimated.** CFG/DFG construction is real compiler work.
 
 ---
