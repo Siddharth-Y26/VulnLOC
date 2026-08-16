@@ -1,0 +1,47 @@
+# LLM-only baseline (Phase 3). Defaults are the measured ones, not conventional ones:
+# Memory.md §1.9 found AMP + gradient checkpointing at a 16-window batch to be
+# simultaneously the cheapest and the fastest trainable configuration on the 4 GiB card.
+name: semantic
+
+train_split: train
+eval_split: val
+# 0 means the whole shard.
+limit: 0
+eval_limit: 0
+overfit: false
+
+# The line-level task needs line labels. 24.4% of Big-Vul's positives have none
+# (Memory.md §7 #10), and training a line head against an all-zero label vector for a
+# function known to be vulnerable teaches it the wrong thing.
+line_labelled_only: true
+
+epochs: 10
+lr: 2.0e-5
+weight_decay: 0.01
+max_grad_norm: 1.0
+
+# Batching is in WINDOWS, not units: a function is 1 to 287 windows (Memory.md §7 #28),
+# so a unit-sized batch varies in cost by two orders of magnitude.
+max_windows_per_batch: 16
+# A safety cap for the pathological case of many tiny units in one batch.
+max_units_per_batch: 8
+accumulation_steps: 2
+amp: true
+
+# focal | bce. `auto_pos_weight` computes bce's pos_weight from the training split's own
+# scoreable lines rather than a corpus constant.
+loss: focal
+focal_alpha: 0.25
+focal_gamma: 2.0
+auto_pos_weight: true
+pos_weight: 1.0
+function_weight: 0.3
+threshold: 0.5
+
+# Early stopping follows a LINE metric. The loss is dominated by the 0.795% class
+# imbalance and improves happily while localization does not.
+watch_metric: line/top_5_accuracy
+watch_mode: max
+patience: 3
+
+checkpoint_dir: ./artifacts/checkpoints

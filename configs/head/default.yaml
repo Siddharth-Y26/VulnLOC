@@ -1,0 +1,8 @@
+# Per-line scoring head (Phase 3, Architecture.md §4.2).
+name: default
+
+# 0 makes the head a single linear projection — the honest baseline an ablation should
+# compare against. A hidden layer lets the head learn interactions between feature
+# dimensions before scoring.
+hidden_dim: 256
+dropout: 0.1

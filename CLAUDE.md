@@ -48,9 +48,9 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker not installed). Blocks nothing downstream. |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
-| Phase 3 | 🟨 **In progress.** Line-safe tokenization + windowing, `LineAligner`, and both design measurements (truncation, VRAM) are built. Encoder, head and training loop are not. |
+| Phase 3 | 🟨 **3 / 4.** Tokenization, `LineAligner`, encoder, line head, losses, metrics and the training loop are built; **the overfit test passes** (Top-5 = 1.0). Remaining: LLM-only metrics over ≥3 seeds. |
 | Phases 4–10 | ⬜ Not started. Phase 4 is unblocked. |
-| Tests | **518 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **568 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -62,8 +62,9 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 - `training/` — `seeding.py`, `device.py`, `tracking.py`
 - `representation/` — `line_map.py`, `parser.py`, `units.py`, `to_pyg.py`,
   `tokenization.py`, `visualize.py`, `graphs/{base,ast,cfg,dfg,cpg}.py`
-- `models/` — `alignment.py` only (`LineAligner`, the shared line axis both branches pool
-  onto). The encoder / fusion / head registries are still empty.
+- `models/` — `alignment.py` (the shared line axis), `semantic/{encoder,baseline}.py`,
+  `heads/line_head.py`. Fusion and structural registries are still empty.
+- `training/` — plus `datasets.py`, `losses.py`, `metrics.py`, `loop.py`
 - `evaluation/`, `explanation/`, `serving/` — **empty packages with registries only.**
   Nothing built ahead.
 
@@ -129,7 +130,13 @@ python scripts/report_representation.py graph.builder=ast   # parse + graph corp
 python scripts/characterize_parse_failures.py               # the unparseable 10.86%
 python scripts/report_truncation.py                         # what 512 tokens costs
 python scripts/probe_vram.py                                # what fits in 4 GiB
+
+python scripts/train_semantic.py train=overfit              # RUN FIRST: 32-sample sanity
+python scripts/train_semantic.py train=semantic seed=42     # the LLM-only baseline
 ```
+
+`train=semantic` is required — the root `train` default is Phase 0's no-op stub that
+`scripts/train.py` still depends on.
 
 The data steps run in that order and each is a **full pass over ~11 GB** — several
 minutes apiece. `build_splits.py` re-run without `data.splits.overwrite=true` is the
@@ -242,6 +249,8 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 23 | **Truncating at 512 tokens destroys 38.1% of all flagged lines**, 44.5% on `clean_eval`. Windowing (`llm.windowing=true`, the default) keeps 100%. Never report a line-level number taken with truncation on without labelling it. |
 | 24 | **Exceeding VRAM on Windows does not raise — it pages to host RAM and runs 10-25× slower.** 3 of 24 probe configs peaked above the 4 GiB card and completed with valid numbers. Compare peak allocation against `total_memory`; "did not OOM" is not "fits". |
 | 25 | **One unit is not one forward pass.** `clean_eval` averages 4.17 windows and reaches 88; the longest function is 287 windows. Batch in windows, not units. |
+| 26 | **The 512-line cap (`llm.n_lines`) costs `val` 17.07% of its flagged lines and `train` 0.70%** — 24x. A third partition-specific ceiling after truncation and no-node coverage, landing on the reported split again. Never tune the cap on train. |
+| 27 | **Checkpoints are written at epoch boundaries only, and an epoch is >16 min.** A run stopped partway through epoch 0 leaves nothing on disk and restarts from scratch. Add per-N-steps checkpointing before starting a multi-hour run. |
 | 21 | **The node-type vocabulary is a union over two grammars** (ADR-005 picks per unit). Build it by scanning the corpus, never from one grammar's symbol list, and never read node types as identifying a unit's language. |
 | 22 | **`graph.language` sat in the config unread for a whole phase.** A knob that nothing consumes looks exactly like a knob that works. If a config value governs a decision, a test should fail when it is ignored. |
 

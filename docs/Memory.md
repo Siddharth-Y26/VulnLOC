@@ -25,12 +25,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Active phase** | **Phase 3 — LLM Branch, in progress.** Tokenization, windowing, the line aligner and both design measurements are done; the encoder, head and training loop are not |
+| **Active phase** | **Phase 3 — LLM Branch, 3 / 4 exit criteria.** Model, loop and both design measurements are built and the overfit test passes. The ≥3-seed criterion is not started; no training result exists |
 | **Phase status** | ✅ **Phase 2 COMPLETE — 5 / 5** (2026-08-16). Phases 3 and 4 are both unblocked |
 | **Last updated** | 2026-08-16 |
 | **Open decision** | **None blocking.** Q8 closed 2026-08-16 by ADR-005 (`graph.language=best_of_two`). Q4/Q5 deferred to Phases 6–7 |
 | **Last commit** | `1ea2965` (Phase 1–2 docs) on `phase-2/representation` (`main` still does not exist) |
-| **Best model run ID** | — *(no model exists; no claims permitted)* |
+| **Best model run ID** | — *(a model exists and passes its overfit test; **no trained result exists**, so no claims are permitted)* |
 | **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` (project-wise, 80/10/10, seed 42) |
 | **Blocking issues** | None. Q1/Q2/Q3/Q6/Q7/Q8 closed by ADR-001/002/003/004/005. Q4, Q5 deferred to Phases 6–7 |
 | **Biggest live constraint** | **~30% line-level label noise** (§1.6) — the ceiling on every line-level number this project will report |
@@ -42,7 +42,7 @@
 | 0 Foundation | 🟨 In progress | 3 / 4 | Docker criterion blocked — see §7 issue #1 |
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
-| 3 LLM Branch | 🟨 In progress | 0 / 4 | Line-safe tokenization + windowing, `LineAligner`, truncation report (§1.8) and VRAM probe (§1.9) built. Encoder, line head, training loop and the overfit test remain |
+| 3 LLM Branch | 🟨 In progress | **3 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). Remaining: LLM-only metrics over ≥3 seeds |
 | 4 GNN Branch | ⬜ Not started | 0 / 4 | |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
@@ -119,7 +119,7 @@ A1, A4, A5 untouched.
 | MLflow tracking | ✅ | `src/vulnloc/training/tracking.py` |
 | Train entrypoint (no-op loop) | ✅ | `scripts/train.py` |
 | Quality gates | ✅ | ruff, black, mypy, import-linter, pre-commit, `.github/workflows/ci.yml` |
-| Tests | ✅ **518 passing / 2 skipped** | `tests/unit/`, `tests/integration/` |
+| Tests | ✅ **568 passing / 2 skipped** | `tests/unit/`, `tests/integration/` |
 | Corpus acquisition + audit | ✅ | `data/{sources,download,audit}.py`, `scripts/{prepare_data,audit_data}.py` |
 | Big-Vul loader (`@register_dataset`) | ✅ | `data/loaders/bigvul.py` |
 | Line-label derivation (`labels_v1`) | ✅ | `data/labeling.py` |
@@ -146,7 +146,14 @@ A1, A4, A5 untouched.
 | VRAM probe | ✅ | `scripts/probe_vram.py` |
 | Grammar policy (ADR-005) | ✅ | `representation/parser.py` — `parse_with_policy` |
 | Parse-failure characterization | ✅ | `scripts/characterize_parse_failures.py` |
-| LLM branch (encoder + head + loop) | ⬜ | — |
+| Semantic encoder (CodeBERT/GraphCodeBERT) | ✅ | `models/semantic/encoder.py` |
+| LLM-only baseline model | ✅ | `models/semantic/baseline.py` |
+| Per-line head + derived function score | ✅ | `models/heads/line_head.py` |
+| Window-budget dataset / sampler / collate | ✅ | `training/datasets.py` |
+| Imbalance losses (focal, weighted BCE) | ✅ | `training/losses.py` |
+| Line + function metrics (Top-k, IFA) | ✅ | `training/metrics.py` |
+| Training loop, early stopping, checkpoints | ✅ | `training/loop.py` |
+| Training entrypoint | ✅ | `scripts/train_semantic.py` |
 | GNN branch | ⬜ | — |
 | Fusion module | ⬜ | — |
 | Localization head | ⬜ | — |
@@ -577,6 +584,52 @@ Next:
 
 ---
 
+### 2026-08-16 (session 8) — Phase 3: the model, the loop, and the first thing that learns
+Phase: 3 (3 of 4 exit criteria met)
+Did:
+  - **`models/semantic/encoder.py`** — `PretrainedCodeEncoder` behind `@register_semantic`
+    for both `codebert` and `graphcodebert` (one class, two keys: same architecture,
+    different pretraining). `frozen` and `gradient_checkpointing` are constructor
+    arguments because §1.9 measured them as the difference between 22.9 windows/s and a
+    host-RAM spill.
+  - **`models/heads/line_head.py`** — per-line logits, with the function-level score
+    *derived* from them by a masked logsumexp rather than learned separately, so the two
+    cannot contradict each other. Masked lines are pinned to a finite floor.
+  - **`models/semantic/baseline.py`** — the LLM-only baseline: encoder → line alignment →
+    head. One arm of A1.
+  - **`training/{datasets,losses,metrics,loop}.py`** — window-budget batching, focal /
+    weighted-BCE losses, Top-k + IFA + coverage metrics, and a loop with AMP, gradient
+    accumulation, early stopping on a *line* metric, and provenance-carrying checkpoints.
+  - **`scripts/train_semantic.py`** + `configs/{llm,head,train}` wired into composition.
+  - 50 new tests (**568 passing**).
+Runs logged:
+  - `ffe3d03a25ac47d1a44b29ce7f54a359` — **overfit test: PASSED.** Top-5 accuracy **1.0**
+    on 32 samples, loss 1.237 → 0.0026 over 40 epochs. Never cite this as a result.
+Learned:
+  - **The VRAM probe predicted real training to within 0.5%**: §1.9 measured 2,456 MiB for
+    AMP + gradient checkpointing at batch 16, and the real loop peaks at **2,467.7 MiB**
+    (60.3% of the card). The probe was worth building.
+  - **The 512-line cap costs `val` 17.07% of its flagged lines against `train`'s 0.70%** —
+    a 24× difference (§7 #30). A *third* partition-specific ceiling, after truncation
+    (§1.8) and no-node coverage (§7 #21), and it lands on the reported split again. The
+    dataset counts it per split instead of dropping it silently.
+  - The registry-emptiness test caught Phase 3 populating `head` and `semantic`, which is
+    what it is for. Both packages now register on import, following `data/loaders`.
+  - **A full seed-42 training run was started and stopped by the user after ~16 minutes**,
+    partway through epoch 0. **No checkpoint, no metrics, no result** — checkpoints are
+    written at epoch boundaries only, so nothing survived and the run must restart from
+    scratch. It is *not* in §4 and must never be cited. Measured while it ran: 2,467.7 MiB
+    peak, GPU at 100%, and **epoch 0 had not finished after 16 minutes**, so the real cost
+    is >16 min/epoch — well above the ~9 min the probe implied.
+Next:
+  - **Make long runs interruptible before starting one.** Checkpointing every epoch is
+    what made this stop lossy; a per-N-steps checkpoint would have preserved it. This is
+    now the first thing to do in Phase 3, ahead of the seeds.
+  - Then seeds (Phase 3 needs ≥3), after which the LLM-only numbers go in §4 and the
+    phase closes. Then Phase 4, or Phase 5 if the GNN branch is deferred.
+
+---
+
 ### 2026-08-16 (session 7) — Phase 3 foundation: the token→line bridge, and what 512 tokens costs
 Phase: 3 (in progress)
 Did:
@@ -865,6 +918,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `ffe3d03a…` | 2026-08-16 | `train_semantic.py train=overfit` (32 samples) | 42 | — | llm_only | — | **1.000** | 0.129 | **Phase 3 overfit test: PASSED.** Loss 1.237 → 0.0026. A debugging instrument — **never cite this as a result.** |
 | `1904c295…` | 2026-08-16 | `probe_vram.py` (CodeBERT, 512 tok, 24-point grid) | — | — | — | — | — | — | **AMP + checkpointing at batch 16 = 2,456 MiB / 22.9 win/s. 3 configs silently spilled past the 4 GiB card.** Closes §7 #7. |
 | `b7ccc9ca…` | 2026-08-16 | `report_truncation.py` (CodeBERT, 512/128) | — | — | — | — | — | — | **Truncation costs 38.1% of all flagged lines; 44.5% on `clean_eval`. Windowing keeps 100%.** Data artefact, not a result. |
 | `004b05de…` | 2026-08-16 | `report_representation.py graph.builder=cpg` (`best_of_two`) | — | — | — | — | — | — | CPG of record under ADR-005. 59,664,000 edges; CFG +26.9%, DFG +27.2% vs. the declared-language build. Data artefact, not a result. |
@@ -910,28 +964,31 @@ measured** (§1.8 truncation, §1.9 VRAM). The data, the parser, the line map, a
 graph builders, line-safe tokenization and the shared line aligner exist. **No model
 exists.**
 
-1. **Finish Phase 3.** `SemanticEncoder` behind the registry (CodeBERT + GraphCodeBERT),
-   the line head, the training loop with a class-imbalance loss, early stopping, and the
-   overfit test on 32 samples. Default to **AMP + gradient checkpointing at batch 16
-   windows** (§1.9); batch in **windows, not units** (§7 #28); never treat "it did not
-   OOM" as "it fits" (§7 #29).
-2. **Phase 4 (GNN branch) is equally unblocked.** Size batches against §7 #22 (55,486-node
+1. **Add per-N-steps checkpointing** (`training/loop.py`). Epoch-boundary checkpoints made
+   a stopped run unrecoverable — measured: >16 min of GPU work lost with nothing on disk.
+   Do this *before* committing to a multi-hour run.
+2. **Close Phase 3's last exit criterion: LLM-only metrics over ≥3 seeds.** Everything
+   else is built and the overfit test passes. `python scripts/train_semantic.py
+   train=semantic seed=<n>`. Budget **>16 min/epoch**, up to 10 epochs, per seed. Report
+   the three partition-specific ceilings beside every line number: truncation (§1.8),
+   no-node coverage (§7 #21) and the line cap (§7 #30).
+3. **Phase 4 (GNN branch) is equally unblocked.** Size batches against §7 #22 (55,486-node
    worst case), not the 252-node mean; build the node-type vocabulary from the corpus, not
    from one grammar's symbol list (§7 #27); read §7 #23-24 before claiming what the graphs
    model.
-3. **Have a human categorise the parse-failure sample** —
+4. **Have a human categorise the parse-failure sample** —
    `artifacts/representation/parse_failure_sample.md`, 40 units drawn at seed 1337, blank
    `cause:` fields. It exists so the residue's causes get *counted* instead of read off
    three examples (§7 #26). Cheap, and it decides whether macro-aware preprocessing is
    worth building.
-4. **Decide the branching model.** `main` still does not exist; work is on
+5. **Decide the branching model.** `main` still does not exist; work is on
    `phase-2/representation`. `Rules.md` §8 assumes a `main` to open PRs against; create it.
-5. **Close the last Phase 0 exit criterion.** On a machine with Docker installed, run
+6. **Close the last Phase 0 exit criterion.** On a machine with Docker installed, run
    `make docker-build && make docker-train` and record the result (§7 issue #1).
-6. **Re-run the leakage check with near-duplicate detection** — tokenization now exists
+7. **Re-run the leakage check with near-duplicate detection** — tokenization now exists
    (`representation/tokenization.py`), so the blocker named in §7 #15 is gone. The 207
    exact matches are a floor and the number is expected to grow.
-7. Before the paper: widen the label audit (`data.label_audit.k`) with a **second
+8. Before the paper: widen the label audit (`data.label_audit.k`) with a **second
    reviewer**, so the ~30% gets a tighter interval and an inter-rater agreement figure
    (§1.6). And resolve or formally declare unresolvable the published-vs-measured
    line-count discrepancy (§7 #11).
@@ -971,6 +1028,8 @@ Things that cost time once and should not cost time twice.
 | 21 | **3,646 flagged lines (7.84%) carry no AST node at all** (§1.7). **Cause identified 2026-08-16: it is parse damage, not blank lines.** 3,093 of the 3,646 — **84.8%** — sit in the 20,480 units that parse cleanly under no grammar (run `228e35e0…`) | Nothing can be pooled over them, so the structural branch cannot score them however good the model is. A *separate* ceiling from the ~30% label noise (#18), and unevenly distributed: `clean_eval` 98.78% covered vs. `test` 83.41% | Report line coverage per partition alongside every line-level metric. **Do not expect a better grammar to fix it** — coverage is flat across grammar policies (#27). The lever, if there is one, is the CFG or a fallback that emits a token node per unparsed line | 🟥 Open — Phase 6/8 reporting input, cause now known |
 | 26 | **The 10.86% of functions that no grammar parses cleanly hold 31.58% of the flagged lines** — 14,690 of 46,513, and 1,584 of the 8,243 line-labelled functions. Damaged units average **68.0 lines against 26.5** for clean ones, and length carries both vulnerability and line labels. Damage is also 2.5× worse on `clean_eval` (23.66%) than on train (9.30%) | "Only 11% of the corpus fails to parse" is true and understates the line-level exposure by a factor of three. Said in a paper it would be a misleading statistic | **Always quote the residue as a share of flagged lines, never of functions.** Full characterisation in `artifacts/representation/parse_failures.json` (run `228e35e0…`) and ADR-005. Mitigating it is a *parser* problem — macro-aware preprocessing or signature repair — not a grammar-selection one | 🟥 Open — inherent to Big-Vul extraction |
 | 27 | **The grammar is now a function of the source** (ADR-005 `best_of_two`), so the node-type vocabulary is a **union over the C and C++ grammars**, which do not share a symbol set | ADR-002 §D2.5 embeds `node_type` as a categorical feature. Phase 4 must build the vocabulary from the corpus under this policy — not from either grammar's symbol list — and must not read a unit's node types as identifying its language. A one-character edit can flip a unit's grammar and change its node types wholesale, which is an unmeasured robustness risk | Build the vocabulary by scanning the corpus. If embeddings prove unstable, `graph.language=cpp` removes the effect for 0.90 points of parse rate. `ParseResult.language` and the report's `parsed_language` breakdown make the split auditable | 🟨 Known — Phase 4 design input |
+| 31 | **Checkpoints are written at epoch boundaries only, so a stopped run loses everything.** Measured 2026-08-16: a seed-42 run was stopped ~16 minutes in, partway through epoch 0, and left **no checkpoint and no metrics** | On this hardware an epoch is >16 minutes, so any interruption — a reboot, a thermal event, a user stopping a hot laptop — costs the whole epoch. `Trainer.load_checkpoint` restores weights, optimizer, scaler and step counters correctly; it simply has nothing to restore from | **Add per-N-steps checkpointing before starting a multi-hour run** (§6 item 1). Until then, treat any long run as all-or-nothing | 🟥 Open — blocks the ≥3-seed criterion in practice |
+| 30 | **The 512-line cap costs `val` 17.07% of its flagged lines and `train` only 0.70%** — a **24× difference** (measured 2026-08-16 on the real datasets: val 578 of 3,386, train 238 of 34,027). Lines past `llm.n_lines` are dropped from features *and* labels, so they can never be predicted | A third partition-specific ceiling, on top of truncation (§1.8) and no-node coverage (#21). Evaluating on `val`/`test` against a cap tuned by looking at `train` understates the model's ceiling on exactly the splits that are reported | The dataset **counts and logs** `flagged_beyond_line_cap` per split rather than dropping silently, and it is logged as an MLflow param. Raise `llm.n_lines` for evaluation, or report the cap loss beside every line metric. Do not tune the cap on train | 🟥 Open — Phase 3/8 reporting input |
 | 29 | **Exceeding VRAM on Windows does not raise — it silently pages to host RAM.** Measured: 3 of 24 probe configurations peaked *above* the card's 4,095 MiB and ran anyway, at 10–25× the cost (`amp` batch 16: 19.8 → 2.5 windows/s). Only one point in the grid actually raised `OutOfMemoryError` | A memory sweep that trusts the absence of a crash finds no ceiling. It completes, reports valid numbers, and takes a day instead of an hour — the worst kind of failure, because nothing looks wrong | **Never treat "it did not OOM" as "it fits".** Compare `torch.cuda.max_memory_allocated` against `get_device_properties().total_memory`; `scripts/probe_vram.py` reports `within_physical_vram` and that is what "fits" means. Applies to Phase 4 and Phase 5 batching too | ✅ Documented — inherent to WDDM |
 | 28 | **One unit is not one forward pass.** Windowing makes `clean_eval` average **4.17 windows per unit, reaching 88**; the longest function in the corpus is 146,721 tokens — **287 windows** | A batch sized in units has wildly variable cost, and on 4 GiB (#7) the worst unit in a batch bounds it. Exactly the trap #22 describes for graphs, on the other branch | Batch in **windows**, not units, and pool to units afterwards — `align_tokens_to_lines(window_to_unit=…)` already does the second half. Length-bucket by window count | 🟨 Known — Phase 3 design input |
 | 22 | **Graphs reach 55,486 nodes** on the largest function; mean is 251.66 (§1.7), and `clean_eval` averages 1,138 nodes / **1,577 CPG edges** — 4.5× the corpus mean, matching its 4.5× function length | With 4 GiB of VRAM (#7) a batch is bounded by the worst graph in it, not the mean. Length-bucketed batching or a node cap is required, and a node cap silently drops lines | Measure before Phase 4 batching is written. Do not size batches from the mean | 🟨 Known — Phase 4 design input |

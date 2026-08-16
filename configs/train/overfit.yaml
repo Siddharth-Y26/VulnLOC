@@ -1,0 +1,26 @@
+# Phase 3 exit criterion: the model must reach ~100% on a 32-sample subset.
+#
+# This is a debugging instrument, not a result. It proves the head can learn, the loss has
+# a usable gradient, and the line alignment points where it claims to. A model that cannot
+# memorise 32 functions has a bug, and finding that out after a six-hour run is the
+# expensive way to learn it. Never cite a number from this config.
+defaults:
+  - semantic
+
+name: overfit
+
+limit: 32
+eval_limit: 32
+overfit: true
+epochs: 40
+
+# Memorisation needs a higher learning rate and no regularisation fighting it.
+lr: 5.0e-5
+weight_decay: 0.0
+accumulation_steps: 1
+patience: 40
+
+# Plain weighted BCE: focal loss deliberately down-weights confident predictions, which is
+# exactly what an overfit test is trying to produce.
+loss: bce
+auto_pos_weight: true

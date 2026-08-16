@@ -1,12 +1,13 @@
 # Root Hydra composition (Architecture.md §5, §8).
-# `data` (Phase 1), `graph` (Phase 2) and `llm` (Phase 3) are wired to real entrypoints.
-# The remaining groups (gnn, fusion, head, explainer) exist as empty-but-composable stubs —
+# `data` (Phase 1), `graph` (Phase 2), `llm` and `head` (Phase 3) are wired to real
+# entrypoints. The remaining groups (gnn, fusion, explainer) are empty-but-composable stubs —
 # see Phases.md, each is filled in by its owning phase. Do not add one to `defaults`
 # until that phase lands.
 defaults:
   - data: default
   - graph: default
   - llm: default
+  - head: default
   - train: default
   - _self_
 

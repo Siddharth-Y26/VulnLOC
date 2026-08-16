@@ -36,10 +36,8 @@ ALL_REGISTRIES = [
 # an entry appearing in one of these is a real failure, not a stale test. Move a
 # registry out of this list only when its phase legitimately lands.
 UNPOPULATED_REGISTRIES = [
-    SEMANTIC_REGISTRY,  # Phase 3
     STRUCTURAL_REGISTRY,  # Phase 4
     FUSION_REGISTRY,  # Phase 5
-    HEAD_REGISTRY,  # Phase 6
     EXPLAINER_REGISTRY,  # Phase 7
     METRIC_REGISTRY,  # Phase 8
 ]
@@ -137,6 +135,22 @@ def test_every_extension_point_exists(reg):
 @pytest.mark.parametrize("reg", UNPOPULATED_REGISTRIES, ids=lambda r: r.name)
 def test_registries_for_unstarted_phases_are_empty(reg):
     assert reg.keys() == [], f"{reg.name} was populated before its phase (Rules.md §1)"
+
+
+def test_semantic_registry_holds_exactly_the_encoders_that_exist():
+    # Phase 3. CodeBERT and GraphCodeBERT are one class behind two keys: same
+    # architecture, different pretraining. A key without an encoder behind it would make
+    # an ablation selectable against code that does not exist.
+    import vulnloc.models.semantic  # noqa: F401  (registration happens on import)
+
+    assert SEMANTIC_REGISTRY.keys() == ["codebert", "graphcodebert"]
+
+
+def test_head_registry_holds_exactly_the_heads_that_exist():
+    # Phase 3 builds the semantic-only line head; Phase 6 extends the same interface.
+    import vulnloc.models.heads  # noqa: F401
+
+    assert HEAD_REGISTRY.keys() == ["line"]
 
 
 def test_graph_registry_holds_exactly_the_builders_that_exist():

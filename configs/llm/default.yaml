@@ -21,6 +21,21 @@ stride: 128
 # it with scripts/report_truncation.py.
 windowing: true
 
+# Encoder runtime. Defaults from the measured grid (Memory.md §1.9): AMP + gradient
+# checkpointing is simultaneously the cheapest and the fastest trainable configuration on
+# the 4 GiB card. `frozen: true` is the fallback and a legitimate Phase 3 ablation — the
+# phase requires both variants to be runnable from config.
+frozen: false
+gradient_checkpointing: true
+dropout: 0.1
+# false builds the architecture with random weights — for tests, and for the ablation
+# that asks what pretraining is worth.
+pretrained: true
+
+# Line-axis cap, L. Lines past it are dropped from features AND labels, and the count of
+# flagged lines lost that way is reported by the dataset rather than hidden.
+n_lines: 512
+
 # Truncation report (scripts/report_truncation.py).
 report:
   output_dir: "./artifacts/llm"
