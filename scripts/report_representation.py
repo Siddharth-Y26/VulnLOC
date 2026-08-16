@@ -32,7 +32,7 @@ import mlflow
 from omegaconf import DictConfig
 
 from vulnloc.data.cache import iter_shard, shard_path
-from vulnloc.representation import TreeSitterParser, build_ast_graph
+from vulnloc.representation import GRAPH_REGISTRY, TreeSitterParser
 from vulnloc.representation.units import CodeUnit
 from vulnloc.training.tracking import start_run
 from vulnloc.utils.exceptions import DataError
@@ -76,6 +76,7 @@ class ShardReport:
 
     def __init__(self, split: str) -> None:
         self.split = split
+        self.graph_type = "?"
         self.units = 0
         self.clean: Counter[str] = Counter()
         self.clean_either = 0
@@ -111,6 +112,7 @@ class ShardReport:
             graph: The AST graph built from the declared-language parse.
         """
         self.units += 1
+        self.graph_type = graph.graph_type
         self.declared_language[unit.language] += 1
 
         for name, result in results.items():
@@ -164,7 +166,7 @@ class ShardReport:
                 "failure_categories": dict(self.first_error_lines.most_common()),
             },
             "graph": {
-                "graph_type": "ast",
+                "graph_type": self.graph_type,
                 "total_nodes": self.nodes,
                 "total_edges": self.edges,
                 "mean_nodes_per_unit": round(self.nodes / units, 2),
@@ -239,6 +241,7 @@ def report(cfg: DictConfig) -> dict[str, Any]:
     splits = discover_splits(cache_dir, [str(s) for s in settings.splits])
     limit = int(settings.limit)
     compare = bool(settings.compare_grammars)
+    builder_name = str(cfg.graph.builder)
 
     parser = TreeSitterParser()
     shards: dict[str, Any] = {}
@@ -264,7 +267,7 @@ def report(cfg: DictConfig) -> dict[str, Any]:
                         results[grammar] = parser.parse(
                             unit.source, language=grammar, unit_id=unit.unit_id
                         )
-                graph = build_ast_graph(results["declared"])
+                graph = GRAPH_REGISTRY.get(builder_name)().build(results["declared"])
                 accumulator.record(unit, results, graph)
 
             shards[split] = accumulator.to_dict()

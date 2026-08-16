@@ -26,6 +26,9 @@ from vulnloc.representation import (
     GraphNode,
     TreeSitterParser,
     build_ast_graph,
+    build_cfg_graph,
+    build_cpg_graph,
+    build_dfg_graph,
     split_lines,
 )
 from vulnloc.utils.exceptions import GraphBuildError
@@ -71,12 +74,47 @@ def test_golden_ast(parser, name):
     per_line = Counter(node.line_no for node in graph.nodes)
 
     assert len(graph.nodes) == expected["n_nodes"]
-    assert len(graph.edges) == expected["n_edges"]
+    assert len(graph.edges) == expected["ast"]["n_edges"]
     assert graph.n_lines == expected["n_lines"]
     assert sorted(graph.lines_covered) == expected["lines_covered"]
     assert {str(k): per_line[k] for k in sorted(per_line)} == expected["nodes_per_line"]
     assert sum(1 for node in graph.nodes if node.is_named) == expected["named_nodes"]
     assert graph.nodes[0].node_type == expected["root_type"]
+
+
+@pytest.mark.parametrize("name", sorted(GOLDEN))
+@pytest.mark.parametrize("graph_type", ["ast", "cfg", "dfg", "cpg"])
+def test_golden_edge_counts(parser, name, graph_type):
+    source = (FIXTURES / name).read_text(encoding="utf-8")
+    expected = GOLDEN[name][graph_type]
+    builder = {
+        "ast": build_ast_graph,
+        "cfg": build_cfg_graph,
+        "dfg": build_dfg_graph,
+        "cpg": build_cpg_graph,
+    }[graph_type]
+
+    graph = builder(parser.parse(source, language="C", unit_id=name))
+
+    assert len(graph.edges) == expected["n_edges"]
+    assert graph.edge_type_counts() == expected["edge_types"]
+
+
+@pytest.mark.parametrize("name", sorted(GOLDEN))
+@pytest.mark.parametrize("graph_type", ["cfg", "dfg"])
+def test_golden_line_level_flow(parser, name, graph_type):
+    # The counts above would survive an edge moving to the wrong node. These pin the
+    # actual (from_line, to_line) relation, which is what downstream consumes — so a
+    # grammar upgrade that reshapes control or data flow shows up as a reviewable diff
+    # rather than as a quietly different model.
+    source = (FIXTURES / name).read_text(encoding="utf-8")
+    builder = {"cfg": build_cfg_graph, "dfg": build_dfg_graph}[graph_type]
+
+    graph = builder(parser.parse(source, language="C", unit_id=name))
+    by_id = {node.node_id: node for node in graph.nodes}
+    observed = sorted({(by_id[e.source].line_no, by_id[e.target].line_no) for e in graph.edges})
+
+    assert observed == [tuple(pair) for pair in GOLDEN[name][graph_type]["line_edges"]]
 
 
 @pytest.mark.parametrize("name", sorted(GOLDEN))

@@ -19,6 +19,7 @@ Two choices worth stating, because both are visible in the graph statistics:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from vulnloc.representation.graphs.base import CodeGraph, GraphEdge, GraphNode
@@ -29,16 +30,41 @@ if TYPE_CHECKING:
 
     from vulnloc.representation.parser import ParseResult
 
-__all__ = ["AstGraphBuilder", "build_ast_graph"]
+__all__ = ["AstGraphBuilder", "Transcription", "build_ast_graph", "transcribe"]
 
 GRAPH_TYPE = "ast"
 
 
-def build_ast_graph(result: ParseResult) -> CodeGraph:
-    """Transcribe a parse tree into a :class:`CodeGraph`.
+@dataclass(frozen=True)
+class Transcription:
+    """The shared node universe every builder works in.
+
+    ADR-002 §D2.2 makes the CPG "a typed union of the above; no new extraction, only
+    edge-type composition". That is only true if AST, CFG and DFG number their nodes
+    identically, so all four builders transcribe once, here, and differ only in which
+    edges they add. It also means the line mapping is computed once and cannot drift
+    between graph types.
+
+    Attributes:
+        nodes: Nodes in pre-order, positionally indexed by ``node_id``.
+        ast_edges: Parent-to-child edges.
+        node_ids: Tree-sitter node identity to our ``node_id``. Named this rather than
+            ``index`` because a field called ``index`` on a tuple type shadows
+            :meth:`tuple.index`.
+        n_lines: Line count of the source.
+    """
+
+    nodes: tuple[GraphNode, ...]
+    ast_edges: tuple[GraphEdge, ...]
+    node_ids: dict[int, int]
+    n_lines: int
+
+
+def transcribe(result: ParseResult) -> Transcription:
+    """Walk a parse tree once and number every node.
 
     Nodes are numbered in pre-order, so node 0 is the root and a node's children always
-    carry higher ids than it does. Edges run parent to child.
+    carry higher ids than it does.
 
     Line numbers come from ``start_byte`` through the unit's
     :class:`~vulnloc.representation.line_map.LineMap` — never from Tree-sitter's
@@ -48,10 +74,9 @@ def build_ast_graph(result: ParseResult) -> CodeGraph:
         result: A parsed unit.
 
     Returns:
-        The AST as a graph, already validated.
+        The shared node universe for this unit.
 
     Raises:
-        GraphBuildError: If the resulting graph violates a structural invariant.
         AlignmentError: If a node's offset falls outside the source.
     """
     line_map = result.line_map
@@ -59,12 +84,14 @@ def build_ast_graph(result: ParseResult) -> CodeGraph:
 
     nodes: list[GraphNode] = []
     edges: list[GraphEdge] = []
+    index: dict[int, int] = {}
 
     # (tree-sitter node, id of its parent in `nodes`); None for the root.
     stack: list[tuple[Node, int | None]] = [(result.root, None)]
     while stack:
         ts_node, parent_id = stack.pop()
         node_id = len(nodes)
+        index[ts_node.id] = node_id
         is_leaf = ts_node.child_count == 0
         nodes.append(
             GraphNode(
@@ -89,12 +116,29 @@ def build_ast_graph(result: ParseResult) -> CodeGraph:
         # source order.
         stack.extend((child, node_id) for child in reversed(ts_node.children))
 
+    return Transcription(tuple(nodes), tuple(edges), index, line_map.n_lines)
+
+
+def build_ast_graph(result: ParseResult) -> CodeGraph:
+    """Transcribe a parse tree into a :class:`CodeGraph`.
+
+    Args:
+        result: A parsed unit.
+
+    Returns:
+        The AST as a graph, already validated.
+
+    Raises:
+        GraphBuildError: If the resulting graph violates a structural invariant.
+        AlignmentError: If a node's offset falls outside the source.
+    """
+    parts = transcribe(result)
     graph = CodeGraph(
         unit_id=result.unit_id,
         graph_type=GRAPH_TYPE,
-        nodes=tuple(nodes),
-        edges=tuple(edges),
-        n_lines=line_map.n_lines,
+        nodes=parts.nodes,
+        edges=parts.ast_edges,
+        n_lines=parts.n_lines,
     )
     graph.validate()
     return graph

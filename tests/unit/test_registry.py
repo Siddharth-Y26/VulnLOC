@@ -140,10 +140,10 @@ def test_registries_for_unstarted_phases_are_empty(reg):
 
 
 def test_graph_registry_holds_exactly_the_builders_that_exist():
-    # ADR-002 §D2.2 fixes the order AST -> CFG -> DFG -> CPG. Only the AST is built;
-    # a key appearing here before its builder does would make ablation A3 selectable
-    # against code that does not exist.
-    assert GRAPH_REGISTRY.keys() == ["ast"]
+    # ADR-002 §D2.2 fixes the order AST -> CFG -> DFG -> CPG; all four now exist, and
+    # ablation A3 selects between them by these keys. A key appearing here without a
+    # builder behind it would make an ablation selectable against code that does not.
+    assert GRAPH_REGISTRY.keys() == ["ast", "cfg", "cpg", "dfg"]
 
 
 def test_graph_builders_register_on_package_import_alone():

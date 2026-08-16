@@ -1,8 +1,9 @@
 # Code representation (Phase 2, ADR-002). Parsing and graph construction.
 name: default
 
-# Which registered builder to use. AST is the only one built so far; ADR-002 §D2.2
-# fixes the order AST -> CFG -> DFG -> CPG, and ablation A3 selects between them here.
+# Which registered builder to use: ast | cfg | dfg | cpg. ADR-002 §D2.2 fixes the build
+# order AST -> CFG -> DFG -> CPG; all four exist, and ablation A3 selects between them
+# here. They share one node set, so switching this changes edges, never line mapping.
 builder: ast
 
 # Which grammar to parse a unit with.
@@ -20,7 +21,8 @@ report:
   cache_dir: "./artifacts/data/cache"
   # Empty means every shard present in the cache directory.
   splits: []
-  output_path: "./artifacts/representation/report.json"
+  # Named after the builder, so an AST run cannot silently overwrite a CPG one.
+  output_path: "./artifacts/representation/report_${graph.builder}.json"
   # 0 means the whole corpus. A positive value caps units per shard, for smoke runs.
   limit: 0
   # Parse each unit under both grammars and report both rates. This is the evidence

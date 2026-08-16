@@ -46,9 +46,9 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Branch | `phase-2/representation`. **`main` does not exist yet** — decide the branching model. |
 | Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker not installed). Blocks nothing downstream. |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
-| Phase 2 | 🟨 **4 / 5, in progress** — parser, line map, AST builder, PyG conversion, corpus report done (2026-08-16). **CFG/DFG/CPG not built.** |
-| Phases 3–10 | ⬜ Not started. Phase 4 is unblocked by the AST (ADR-002 §D2.2). |
-| Tests | **377 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. |
+| Phases 3–10 | ⬜ Not started. Phases 3 and 4 are unblocked. |
+| Tests | **461 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -59,24 +59,27 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
   `pipeline.py`, `cache.py`, `loaders/bigvul.py`
 - `training/` — `seeding.py`, `device.py`, `tracking.py`
 - `representation/` — `line_map.py`, `parser.py`, `units.py`, `to_pyg.py`,
-  `visualize.py`, `graphs/{base,ast}.py`. **CFG/DFG/CPG not built.**
+  `visualize.py`, `graphs/{base,ast,cfg,dfg,cpg}.py`
 - `models/`, `evaluation/`, `explanation/`, `serving/` — **empty packages with registries
   only.** Nothing built ahead.
 
-### Continuing Phase 2
+### Starting Phase 3 / Phase 4
 
-Read `Phases.md` Phase 2, ADR-002, and `Memory.md` §1.7 (the corpus measurements) first.
-Consume the dataset through `vulnloc.data.cache.iter_shard` — **never reopen a Big-Vul
-CSV.** Two things gate the work:
+Read `Phases.md`, ADR-002, and `Memory.md` §1.7 (the corpus measurements) first. Consume
+the dataset through `vulnloc.data.cache.iter_shard` — **never reopen a Big-Vul CSV**;
+build graphs through `GRAPH_REGISTRY.get(<ast|cfg|dfg|cpg>)`.
 
-1. **Q8 is open and blocks the corpus-wide graph build.** Measured: following the
-   dataset's `lang` column gives **37.0%** clean parses vs **88.2%** parsing everything
-   as C++. Needs an ADR (`Memory.md` §5).
-2. **CFG → DFG → CPG is the remaining exit criterion** and the part `Phases.md` warns is
-   real compiler work.
+**All four graph types share one node set**, so `node_to_line` is identical across them
+and the CPG is a literal union. Ablation A3 is the `edge_types` argument to
+`build_cpg_graph`, not a second construction.
 
-Regenerate the corpus numbers with `python scripts/report_representation.py`
-(~6 min, writes `artifacts/representation/report.json`).
+**Q8 is still open and gates the corpus-wide graph build** (not the builders). Measured:
+the dataset's `lang` column gives **37.0%** clean parses vs **88.2%** parsing everything
+as C++. Needs an ADR — see `Memory.md` §5.
+
+Regenerate the corpus numbers with `python scripts/report_representation.py
+graph.builder=<type>` (~6 min for `ast`, longer for `cpg`; writes
+`artifacts/representation/report_<type>.json`).
 
 Tracked but not blocking: why our measured line counts differ from the published figures
 (`Memory.md` §7 #11 — now narrowed; it is *not* a parsing artefact).
@@ -217,6 +220,8 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 16 | **The `lang` column is the worst grammar selector available** — corpus-wide, 37.0% clean as declared vs 88.2% as C++; 100,735 functions are clean *only* as C++, 1,712 only as C. Open decision Q8. |
 | 17 | **3,646 flagged lines (7.84%) carry no AST node**, so the structural branch cannot score them at all. A separate ceiling from the label noise. |
 | 18 | **AST graphs reach 55,486 nodes** (mean 252; `clean_eval` 1,138). A batch is bounded by its worst graph, not the mean — do not size Phase 4 batching from the average. |
+| 19 | **The DFG is name-based**: no aliasing, no scoping, weak updates through `*p` / `a[i]`. Documented and test-pinned in `graphs/dfg.py`. Don't claim the model "follows data flow" without that caveat. |
+| 20 | **A fixed iteration cap on the reaching-definitions fixpoint silently halves the edges.** The budget scales per node and *raises* when exhausted — never return a partial fixpoint. |
 
 ---
 
