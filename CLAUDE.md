@@ -16,7 +16,7 @@ the code wins; fix this file in the same session and note the drift.
 2. **`docs/Rules.md`** — the operating rules. They override convenience and speed.
 3. **`docs/Phases.md`** — the current phase only. Do not build ahead.
 4. **`docs/adr/`** — decisions that are expensive to reverse. ADR-003 supersedes
-   ADR-001 §D1.2; read both.
+   ADR-001 §D1.2; read both. ADR-004 governs what is in the split at all.
 5. `docs/Architecture.md` §4 — only the interface you are implementing.
 
 Do **not** read the whole codebase. If you need to, `Memory.md` has failed and should be
@@ -43,29 +43,33 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 | | |
 |---|---|
-| Branch | `phase-0/foundation` (13 commits). **`main` does not exist yet** — decide the branching model. |
+| Branch | `phase-0/foundation`. **`main` does not exist yet** — decide the branching model. |
 | Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker not installed). Blocks nothing downstream. |
-| Phase 1 | 🟨 **In progress** — decisions made, corpora downloaded and audited, loader/labelling/splits built. |
-| Phases 2–10 | ⬜ Not started. Phase 2 is unblocked (ADR-002 accepted). |
-| Tests | **250 passing, 2 skipped, 82% coverage.** ruff / black / mypy / import-linter all clean. |
+| Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
+| Phase 2 | 🟨 **Next** — Code Representation. Unblocked (ADR-002 accepted). |
+| Phases 3–10 | ⬜ Not started. |
+| Tests | **299 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
 
-- `utils/` — exceptions, logging, config provenance, generic `Registry` (sits below L0)
+- `utils/` — exceptions, logging, config provenance, generic `Registry`, `hashing.py`
+  (deterministic selection; sits below L0)
 - `data/` — `sources.py`, `download.py`, `audit.py`, `labeling.py`, `splits.py`,
-  `loaders/bigvul.py`
+  `pipeline.py`, `cache.py`, `loaders/bigvul.py`
 - `training/` — `seeding.py`, `device.py`, `tracking.py`
 - `models/`, `representation/`, `evaluation/`, `explanation/`, `serving/` — **empty
   packages with registries only.** Nothing built ahead.
 
-### Remaining for Phase 1
+### Starting Phase 2
 
-1. Wire splitting into a pipeline step; emit the real split + leakage report.
-2. `docs/DATA_CARD.md`.
-3. **Human task:** manually inspect 20 sampled line labels (an exit criterion — requires
-   a person, not the assistant).
-4. Unresolved: why our measured line counts differ from the published figures
-   (`Memory.md` §7 #11).
+Read `Phases.md` Phase 2 and ADR-002 first. Consume the dataset through
+`vulnloc.data.cache.iter_shard` — **never reopen a Big-Vul CSV.** The highest-risk piece
+of the phase is the Tree-sitter byte-offset→line conversion; the line index is the atomic
+unit of this project.
+
+Tracked but not blocking: why our measured line counts differ from the published figures
+(`Memory.md` §7 #11 — now narrowed; it is *not* a parsing artefact).
 
 ---
 
@@ -91,8 +95,15 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 ```bash
 python scripts/prepare_data.py    # fetch/verify/adopt corpora
 python scripts/audit_data.py      # corpus statistics + label-noise estimate
+python scripts/build_splits.py    # the split; re-running VERIFIES byte-identity
+python scripts/build_cache.py     # preprocessed JSONL shards (needs the split first)
+python scripts/sample_labels.py   # regenerate the human label-audit sheet
 python scripts/train.py train=debug device.kind=cuda
 ```
+
+The data steps run in that order and each is a **full pass over ~11 GB** — several
+minutes apiece. `build_splits.py` re-run without `data.splits.overwrite=true` is the
+reproducibility check: a differing assignment is a hard failure, not a new result.
 
 MLflow tracks to **SQLite** (`artifacts/mlflow.db`), *not* the file store — MLflow 3.x
 refuses `file:./mlruns` outright (ADR-000 §D0.7).
@@ -149,12 +160,28 @@ Five roles. **Roles never share data**; `DatasetRole` in `data/sources.py` encod
 **PrimeVul is built FROM Big-Vul/CrossVul/CVEfixes/DiverseVul** — it is *not* a disjoint
 generalization set. **DiverseVul and PrimeVul have no line labels.**
 
-Measured corpus facts (from our files, not papers — `Memory.md` §1.4):
+Measured corpus facts (from our files, not papers — `Memory.md` §1.4, `docs/DATA_CARD.md`):
 
 - 188,636 functions; 10,900 vulnerable (5.78%); **8,243 with line labels**
 - 24.4% of positives have **no** line labels
 - **Chrome 40.9% + linux 24.8% = 65.8%** of the corpus (310 projects)
 - **Measured Big-Vul label-noise rate: 19.2%**
+- 5,850,944 source lines; mean **31.0** lines/function; **0.795% of lines are vulnerable**
+- Label derivation is **consistent corpus-wide**: 0 out-of-range, 0 text mismatches,
+  0 count mismatches, 0 labels-on-negatives. That is consistency, *not* correctness.
+- **Correctness, measured by human audit: ~30% of line labels are wrong** (6/20, 95% CI
+  [14.5%, 51.9%] — `Memory.md` §1.6). **This is the ceiling on every line-level metric.**
+  It is a *different quantity* from the 19.2% function-level rate and is structurally
+  larger; never present the two as one number.
+
+The split (project-wise, 80/10/10, seed 42) — `Memory.md` §1.5:
+
+| train | val | test | clean_eval | excluded | duplicate |
+|---|---|---|---|---|---|
+| 148,983 | 18,593 | 18,442 | 1,589 | 603 | 426 |
+
+Leakage: **0** shared projects, **0** cross-split duplicate hashes, **0** clean-eval
+functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from training.
 
 ---
 
@@ -170,8 +197,11 @@ Measured corpus facts (from our files, not papers — `Memory.md` §1.4):
 | 6 | Reserved `extra=` keys (`name`, `module`, …) **crash** stdlib logging. Handled in `utils/logging.py`; do not bypass `get_logger`. |
 | 7 | Reinstalling torch while any process has it imported fails with `WinError 5` and wastes the download. |
 | 8 | `requirements.lock.txt` pins `torch==2.13.0+cu130`, **not installable from PyPI** — see its header. |
-| 9 | Splits must be **content-hashed, not shuffled**: a seeded shuffle changes when input order changes. |
-| 10 | The clean evaluation set is **not project-disjoint** from train. It measures label quality, *not* generalization. Never report one as the other. |
+| 9 | Splits must be **content-hashed, not shuffled**: a seeded shuffle changes when input order changes. Use `utils/hashing.py`. |
+| 10 | The clean evaluation set is **not project-disjoint** from train (66.5% project overlap). It measures label quality, *not* generalization. Never report one as the other. |
+| 11 | **A project-wise split does not stop function-level leakage.** Forks and vendored copies put byte-identical code in different projects — 207 hashes / 426 functions, with zero shared projects. Withheld by ADR-004; **exact match only, so that number is a floor.** |
+| 12 | **`clean_eval` functions average 138 lines vs. 31 corpus-wide.** Truncation hits the headline evaluation set hardest. A corpus-average truncation statistic is reassuring and wrong. |
+| 13 | **Big-Vul's `index` column is not random** — line-labelled positives cluster at the high end (all 788 in `bigvul_test` sit at `index ≥ 160,000`). "First N rows" gives a degenerate sample. |
 
 ---
 

@@ -19,3 +19,63 @@ audit:
   report_path: "./artifacts/data/audit_report.json"
   # Skip the PrimeVul cross-reference (Big-Vul statistics only).
   skip_overlap: false
+
+# Split construction (scripts/build_splits.py). The published Big-Vul split is random
+# and leaks, so ADR-001 §D1.3 re-partitions the pooled corpus.
+splits:
+  dataset: bigvul
+  # Which raw files to pool before re-partitioning. Big-Vul's own train/val/test is a
+  # random split, so all three are read and thrown together by design. Narrow this only
+  # for smoke tests — a split built from a subset is not the split.
+  source_splits: [bigvul_train, bigvul_val, bigvul_test]
+  # project: no project spans two splits — the honest generalization number, and what
+  #          ResearchPlan.md §3.4 says to lead with.
+  # random:  reproduction of published numbers only. Leaks near-duplicates.
+  # temporal: train on the past, evaluate on the future.
+  strategy: project
+  train: 0.8
+  val: 0.1
+  test: 0.1
+  # Salts the content hash. Changing it changes the assignment, so treat it as part of
+  # the split's identity, not as a tuning knob.
+  seed: 42
+  output_dir: "./artifacts/data/splits"
+
+  # A project-wise split does not stop a *function* from spanning two partitions:
+  # forks and vendored copies put byte-identical code in different projects. Measured
+  # on Big-Vul: 207 hashes / 426 functions with zero shared projects. They are withheld
+  # into a `duplicate` partition — trained on and evaluated against by nothing.
+  # Setting this false reproduces the field's usual leaky setup; label such numbers.
+  dedup_across_splits: true
+
+  # ADR-003: hold out the PrimeVul-confirmed functions as the clean evaluation set and
+  # drop the ones PrimeVul contradicts. The membership is read from the audit report —
+  # it is a measured result, not something recomputed per run.
+  apply_adr003: true
+  audit_report_path: "./artifacts/data/audit_report.json"
+
+  # Re-running must reproduce the assignment byte for byte (Phases.md Phase 1). A
+  # differing assignment fails unless this is set, which should only happen when the
+  # strategy, seed or corpus deliberately changed.
+  overwrite: false
+
+# Preprocessed shards (scripts/build_cache.py). One JSONL per partition, holding only
+# the fields LabelledFunction carries — ~2% of the raw CSV size. Everything after
+# Phase 1 reads these, never the corpus.
+cache:
+  dataset: bigvul
+  source_splits: [bigvul_train, bigvul_val, bigvul_test]
+  # Empty means every partition in the assignment, withheld ones included: inspecting
+  # what was dropped is worth more than the disk it costs.
+  splits: []
+  output_dir: "./artifacts/data/cache"
+
+# Manual line-label audit (scripts/sample_labels.py). Generates the sheet; the verdicts
+# are written by a human. Phase 1 does not exit until that has happened.
+label_audit:
+  dataset: bigvul
+  source_splits: [bigvul_train, bigvul_val, bigvul_test]
+  k: 20
+  # Independent of the split seed: the sample must not track the partition boundaries.
+  seed: 1337
+  output_dir: "./artifacts/data/label_audit"

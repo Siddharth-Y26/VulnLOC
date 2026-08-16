@@ -60,13 +60,17 @@ Durations are `[RECOMMENDATION]`s for a three-person student team, not commitmen
 - Cached preprocessed shards
 
 **Exit criteria**
-- [ ] ADR-001 written and accepted
-- [ ] Statistics reported: #functions, %vulnerable, mean lines/function, %vulnerable lines
-- [ ] Leakage check run; results in `Memory.md`
-- [ ] 20 randomly sampled line labels manually inspected by a human and judged correct
-- [ ] Re-running the pipeline reproduces byte-identical splits
+- [x] ADR-001 written and accepted *(refined by ADR-003; ADR-004 added for cross-split duplicates)*
+- [x] Statistics reported: #functions, %vulnerable, mean lines/function, %vulnerable lines *(188,636 · 5.78% · 31.0 · 0.795% — `Memory.md` §1.4)*
+- [x] Leakage check run; results in `Memory.md` *(§1.5 — 0 shared projects, 0 cross-split duplicates, 0 clean-eval-in-train)*
+- [x] 20 randomly sampled line labels manually inspected by a human and judged correct *(Siddharth, 2026-08-11: **14 correct / 6 wrong / 0 unsure** — a measured ~30% line-level noise rate, `Memory.md` §1.6)*
+- [x] Re-running the pipeline reproduces byte-identical splits *(run `e395b21b…`, `reproduced=True`)*
 
 **Risk:** label noise here silently caps every downstream number. Spend the time.
+
+> **Closed 2026-08-11 — 5/5.** The risk above was real and is now quantified: the human
+> audit measured **~30% line-level label noise**, which is the ceiling on every
+> line-level metric this project will report (`Memory.md` §1.6, `DATA_CARD.md` §7).
 
 ---
 

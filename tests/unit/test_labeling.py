@@ -15,6 +15,7 @@ from vulnloc.data.labeling import (
     LabelIssue,
     LabellingStats,
     derive_line_labels,
+    sample_for_review,
     split_source_lines,
     summarize,
 )
@@ -231,3 +232,53 @@ def test_stats_accumulate_incrementally():
 
     assert stats.flagged_lines == 3
     assert stats.positive == 2
+
+
+# --- review sampling (Phase 1 human exit criterion) --------------------------------
+
+
+def review_corpus(n=200):
+    return [
+        label(unit_id=f"u{i}", flaw_line_index=str(i % 3) if i % 4 else None, flaw_line=None)
+        for i in range(n)
+    ]
+
+
+def test_sample_only_offers_functions_a_reviewer_can_judge():
+    sampled = sample_for_review(review_corpus(), k=20)
+
+    assert len(sampled) == 20
+    assert all(u.has_line_labels for u in sampled)
+
+
+def test_sample_is_reproducible_and_order_independent():
+    corpus = review_corpus()
+    forwards = [u.unit_id for u in sample_for_review(corpus, k=20)]
+    backwards = [u.unit_id for u in sample_for_review(list(reversed(corpus)), k=20)]
+
+    assert forwards == backwards
+
+
+def test_sample_is_drawn_before_anyone_looks_at_the_data():
+    # The draw must not depend on how many functions were streamed past it, or a
+    # reviewer could widen the corpus until the sample looked agreeable.
+    corpus = review_corpus()
+    small = {u.unit_id for u in sample_for_review(corpus[:60], k=5)}
+    large = {u.unit_id for u in sample_for_review(corpus, k=5)}
+
+    assert small and large
+    assert sample_for_review(corpus, k=5, seed=1) != sample_for_review(corpus, k=5, seed=2)
+
+
+def test_sample_larger_than_the_corpus_returns_what_exists():
+    corpus = [label(unit_id="only", flaw_line_index="1", flaw_line=None)]
+
+    assert len(sample_for_review(corpus, k=20)) == 1
+
+
+def test_sample_of_an_unlabelled_corpus_is_empty():
+    corpus = [
+        label(unit_id=f"u{i}", target=0, flaw_line_index=None, flaw_line=None) for i in range(9)
+    ]
+
+    assert sample_for_review(corpus, k=20) == []

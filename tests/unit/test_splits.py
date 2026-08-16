@@ -12,6 +12,7 @@ import pytest
 
 from vulnloc.data.splits import (
     CLEAN_EVAL,
+    DUPLICATE,
     EXCLUDED,
     SPLIT_REGISTRY,
     TEST,
@@ -21,8 +22,10 @@ from vulnloc.data.splits import (
     Unit,
     assign_splits,
     check_leakage,
+    withhold_cross_split_duplicates,
 )
 from vulnloc.utils.exceptions import ConfigError, DataError, RegistryError
+from vulnloc.utils.hashing import unit_interval
 
 STRATEGIES = ["random", "project", "temporal"]
 
@@ -310,6 +313,18 @@ def test_leakage_detects_a_shared_project():
     assert report.shared_projects == {"shared"}
 
 
+def test_clean_eval_sharing_a_project_with_training_is_not_leakage():
+    # ADR-003 picks the clean evaluation set by label confidence, so it shares projects
+    # with training by construction (Memory.md §7 #13). Reporting that as leakage made
+    # every real project split look dirty and hid the findings that matter.
+    units = [Unit("a", "linux", 1), Unit("b", "linux", 2)]
+
+    report = check_leakage(units, {"a": TRAIN, "b": CLEAN_EVAL}, clean_eval_hashes={2})
+
+    assert report.shared_projects == set()
+    assert report.is_clean
+
+
 def test_duplicates_within_one_split_are_counted_but_not_leakage():
     units = [Unit("a", "p", 1), Unit("b", "p", 1)]
 
@@ -334,3 +349,104 @@ def test_a_clean_project_split_reports_no_leakage():
     result = assign_splits(units, strategy="project")
 
     assert result.leakage.is_clean, result.leakage.as_dict()
+
+
+# --- cross-split duplicates --------------------------------------------------------
+
+
+CLONE_HASH = 999_001
+
+
+def _id_landing_in(lower, upper):
+    """Find a unit id the default random split places between two ratio bounds.
+
+    Picking ids by hand would make the fixture silently vacuous the moment both clones
+    happened to land in the same partition — which is how the first version of these
+    tests passed while testing nothing.
+    """
+    for i in range(100_000):
+        candidate = f"clone-{i}"
+        if lower <= unit_interval(42, candidate) < upper:
+            return candidate
+    raise AssertionError("no id found in the requested range")
+
+
+CLONE_TRAIN = _id_landing_in(0.0, 0.8)
+CLONE_TEST = _id_landing_in(0.9, 1.0)
+
+
+def cloned_units():
+    # The same function vendored into two projects — which a split happily puts on both
+    # sides, because the projects really are distinct.
+    return [
+        *make_units(400, projects=tuple(f"p{i}" for i in range(20))),
+        Unit(CLONE_TRAIN, "fork-a", func_hash=CLONE_HASH),
+        Unit(CLONE_TEST, "fork-b", func_hash=CLONE_HASH),
+    ]
+
+
+def test_the_fixture_really_does_leak_without_deduplication():
+    # Guards the guard: the tests below are meaningless if the clones share a partition.
+    result = assign_splits(cloned_units(), strategy="random", dedup_across_splits=False)
+
+    assert result.assignment[CLONE_TRAIN] == TRAIN
+    assert result.assignment[CLONE_TEST] == TEST
+    assert result.leakage.duplicate_hashes == {CLONE_HASH}
+    assert result.withheld_duplicates == 0
+
+
+def test_a_function_spanning_two_splits_is_withheld():
+    result = assign_splits(cloned_units(), strategy="random")
+
+    assert result.assignment[CLONE_TRAIN] == DUPLICATE
+    assert result.assignment[CLONE_TEST] == DUPLICATE
+    assert result.withheld_duplicates == 2
+    assert result.counts()[DUPLICATE] == 2
+
+
+@pytest.mark.parametrize("strategy", ["random", "project"])
+def test_withholding_removes_the_leak(strategy):
+    result = assign_splits(cloned_units(), strategy=strategy)
+
+    assert result.leakage.duplicate_hashes == set()
+
+
+def test_withholding_does_not_break_project_disjointness():
+    # The alternative fix — reassigning a duplicate to its twin's partition — would
+    # drag a test-only project into training. Withholding must not do that.
+    result = assign_splits(cloned_units(), strategy="project")
+
+    assert result.leakage.shared_projects == set()
+    assert result.leakage.is_clean, result.leakage.as_dict()
+
+
+def test_withholding_leaves_every_other_unit_where_it_was():
+    units = cloned_units()
+
+    dedup = assign_splits(units, strategy="random")
+    leaky = assign_splits(units, strategy="random", dedup_across_splits=False)
+
+    moved = {uid for uid, split in dedup.assignment.items() if split != leaky.assignment[uid]}
+    assert moved == {CLONE_TRAIN, CLONE_TEST}
+
+
+def test_duplicates_within_one_split_are_not_withheld():
+    # Only *cross-split* duplication leaks. Within-split repetition is a weighting
+    # problem, not a validity one, and dropping it would quietly shrink the corpus.
+    units = [Unit("a", "p", 1), Unit("b", "p", 1)]
+
+    updated, withheld = withhold_cross_split_duplicates(units, {"a": TRAIN, "b": TRAIN})
+
+    assert withheld == 0
+    assert updated == {"a": TRAIN, "b": TRAIN}
+
+
+def test_a_duplicate_of_a_held_out_function_is_not_withheld_twice():
+    # clean_eval/excluded units are already out of train/val/test; they must keep their
+    # partition rather than be relabelled `duplicate`.
+    units = [Unit("a", "p", 1), Unit("b", "q", 1)]
+
+    updated, withheld = withhold_cross_split_duplicates(units, {"a": TRAIN, "b": CLEAN_EVAL})
+
+    assert withheld == 0
+    assert updated["b"] == CLEAN_EVAL

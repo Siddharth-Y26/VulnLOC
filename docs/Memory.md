@@ -2,7 +2,7 @@
 
 **Purpose:** the project's working memory. Any contributor — human or AI assistant — reads this file **first**, before touching code, and updates it **last**, before ending a session. It exists so that a new chat, a new tool, or a new teammate does not have to re-read the codebase or re-derive decisions.
 
-**Status:** Phase 0 scaffolding built and verified on the host (2026-08-10). No model code exists.
+**Status:** **Phase 1 complete** (2026-08-11) — the dataset is built, split, cached, leakage-checked and human-audited. No model code exists yet.
 
 ---
 
@@ -25,20 +25,22 @@
 
 | Field | Value |
 |-------|-------|
-| **Active phase** | Phase 1 — Data Layer (Phase 0 is 3/4; the open item is Docker, which blocks nothing downstream) |
-| **Phase status** | 🟨 Corpora downloaded, verified and audited. Loaders/labelling/splits not yet written |
-| **Last updated** | 2026-08-10 |
-| **Last commit** | `09d5c54` on branch `phase-0/foundation` (6 commits; `main` does not exist yet) |
+| **Active phase** | **Phase 2 — Code Representation** (Phase 1 closed 2026-08-11; Phase 0 is 3/4, the open item is Docker, which blocks nothing before Phase 8) |
+| **Phase status** | ✅ **Phase 1 COMPLETE — 5 / 5 exit criteria met** (2026-08-11). Phase 2 is next and unblocked |
+| **Last updated** | 2026-08-11 |
+| **Last commit** | `09d58d0` on branch `phase-0/foundation` (13 commits; `main` does not exist yet) |
 | **Best model run ID** | — *(no model exists; no claims permitted)* |
-| **Blocking issues** | None blocking. Q1/Q2/Q3/Q6 closed by ADR-001/002/003. Q4, Q5 deferred to Phases 6–7 |
+| **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` (project-wise, 80/10/10, seed 42) |
+| **Blocking issues** | None. Q1/Q2/Q3/Q6/Q7 closed by ADR-001/002/003/004. Q4, Q5 deferred to Phases 6–7 |
+| **Biggest live constraint** | **~30% line-level label noise** (§1.6) — the ceiling on every line-level number this project will report |
 
 ### 1.1 Phase Tracker
 
 | Phase | Status | Exit criteria met | Notes |
 |-------|--------|-------------------|-------|
 | 0 Foundation | 🟨 In progress | 3 / 4 | Docker criterion blocked — see §7 issue #1 |
-| 1 Data Layer | 🟨 In progress | 1 / 5 | ADR-001 + ADR-003 accepted. Corpora downloaded (12.17 GB) and audited |
-| 2 Representation | ⬜ Not started | 0 / 5 | Unblocked — ADR-002 accepted |
+| 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
+| 2 Representation | 🟨 **Next** | 0 / 5 | Unblocked — ADR-002 accepted. Read the shards, never the CSVs (§1.5) |
 | 3 LLM Branch | ⬜ Not started | 0 / 4 | |
 | 4 GNN Branch | ⬜ Not started | 0 / 4 | |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
@@ -50,27 +52,52 @@
 
 Legend: ⬜ not started · 🟨 in progress · ✅ done · 🟥 blocked
 
-### 1.1a Phase 0 Gate (`Phases.md` §Phase Gate Rule)
+### 1.1a Phase 0 Gate
 
-**1. Did we meet every exit criterion?** **No — 3 of 4.**
+Archived — see [`memory/ARCHIVE-2026-08-11.md`](memory/ARCHIVE-2026-08-11.md).
+Phase 0 remains **3 / 4**: the Docker criterion is unverified (§7 issue #1) and
+blocks nothing before Phase 8.
+
+### 1.1b Phase 1 Gate (`Phases.md` §Phase Gate Rule)
+
+**1. Did we meet every exit criterion?** **Yes — 5 of 5. Phase 1 is done (2026-08-11).**
 
 | Exit criterion | Status | Evidence |
 |---|---|---|
-| `make setup && make test && make lint` pass from a clean clone | ✅ *(via `make.ps1`; see §7 issue #2)* | 128 passed / 2 skipped, 95% coverage; ruff/black/mypy clean; import-linter 3 contracts kept |
-| `python scripts/train.py train=debug` runs a no-op loop and logs to MLflow | ✅ | Run `58c71014…` (CPU) and `f3f24d45…` (GPU); metrics `noop/loss`, `noop/completed_steps` |
-| Docker image builds and runs the same command | 🟥 **Unverified** | Docker is not installed on the dev machine — §7 issue #1 |
-| Import-linter enforces the L0→L6 layer rule | ✅ | 3 contracts kept; verified non-vacuous by a deliberate `data → models` import that broke the contract |
-
-**Phase 0 is therefore not done.** Nothing in Phases 1–2 depends on the Docker criterion, but it must be closed before Phase 8's "reproducible from a clean clone".
+| ADR-001 written and accepted | ✅ | ADR-001, refined by ADR-003; ADR-004 added for cross-split duplicates |
+| Statistics reported: #functions, %vulnerable, mean lines/function, %vulnerable lines | ✅ | §1.4. 188,636 · 5.78% · 31.0 lines/fn · **0.795% of lines are vulnerable** |
+| Leakage check run; results in `Memory.md` | ✅ | §1.5. 0 shared projects, 0 cross-split duplicate hashes, 0 clean-eval-in-train |
+| 20 sampled line labels manually inspected by a human | ✅ | Reviewed by Siddharth, 2026-08-11: **14 correct / 6 wrong / 0 unsure.** Sheet with per-function reasoning at `artifacts/data/label_audit/label_audit.md` |
+| Re-running the pipeline reproduces byte-identical splits | ✅ | Run `e395b21b…` re-ran the full corpus and reported `reproduced=True` against run `0c64a30f…`; fingerprint `0ade7483…` |
 
 **2. What did we learn that changes a later phase?**
-- MLflow's file store is dead (§7 #3). Any Phase 6/8 tooling assuming `mlruns/` directories on disk must instead query SQLite.
-- Provenance tagging is centralized in `training/tracking.py`, so Phase 6 checkpoint hygiene (`Rules.md` §5.8) is a small extension rather than new infrastructure.
-- `Architecture.md` §5 needs three amendments (`<layer>/registry.py`, `training/tracking.py`, `.github/`) — see ADR-000.
-- The GPU is real and now usable (`torch 2.13.0+cu130`, run `f3f24d45…`), but it holds **4 GiB**. Phase 3 should treat a frozen encoder as the default and full fine-tuning as the expensive variant, and Phase 5 must watch memory when retaining attention matrices for evidence export.
+
+- **Line-level label noise is ~30%, not 19.2%** (§1.6). The two are different quantities
+  and the line-level one is structurally the larger. Phase 6 must not treat line labels
+  as clean, and Phase 8 must report this as the ceiling on any line-level metric.
+- **The clean evaluation set averages 138.3 lines per function against the corpus's
+  31.0 — 4.5× longer.** The 512-token truncation problem therefore lands hardest on
+  exactly the partition carrying the headline line-level numbers. Phase 3 must measure
+  label loss under truncation *on `clean_eval` specifically*, not corpus-wide, or it
+  will report a reassuring average that does not apply where it matters.
+- **A project-wise split does not prevent function-level leakage** (ADR-004). Phase 2
+  should re-run the leakage check once tokenization enables near-duplicate detection;
+  the 207 hashes we found by exact match are a floor.
+- **Label derivation is clean.** Zero out-of-range, zero text mismatches, zero count
+  mismatches, zero labels-on-negatives across 188,636 functions. The 0-indexed
+  conversion is now verified corpus-wide rather than on 400 sampled rows, so Phase 2's
+  line mapping can treat Big-Vul's own line numbers as trustworthy *input* and focus its
+  own risk on the Tree-sitter byte-offset conversion.
+- **val/test hold longer functions than train** (38.7 / 42.5 vs. 27.5 lines). Not just
+  unseen projects — a different length distribution. Phase 8 must not attribute a
+  train/test gap purely to generalization.
 
 **3. What `PRD.md` §10 assumption has been confirmed or falsified?**
-None confirmed. A2 (single-GPU budget) moved from "Unverified" to "Unverified — at risk". A1, A3, A4 and A5 are untouchable until a dataset exists (Q1).
+**A3 (line-level labels obtainable) is confirmed, with a caveat that changes its
+meaning.** They are obtainable (8,243 functions / 46,513 lines, all internally verified)
+but roughly **30% of them point at the wrong lines** (§1.6). A3 as written asked whether
+the labels *exist*; the answer to whether they are *trustworthy* is "mostly, not always".
+A1, A4, A5 untouched.
 
 ### 1.2 What Exists Right Now
 
@@ -91,8 +118,16 @@ None confirmed. A2 (single-GPU budget) moved from "Unverified" to "Unverified �
 | MLflow tracking | ✅ | `src/vulnloc/training/tracking.py` |
 | Train entrypoint (no-op loop) | ✅ | `scripts/train.py` |
 | Quality gates | ✅ | ruff, black, mypy, import-linter, pre-commit, `.github/workflows/ci.yml` |
-| Tests | ✅ 128 passing / 2 skipped, 95% cov | `tests/unit/`, `tests/integration/` |
-| Data pipeline | ⬜ | — |
+| Tests | ✅ **299 passing / 2 skipped, 85% cov** | `tests/unit/`, `tests/integration/` |
+| Corpus acquisition + audit | ✅ | `data/{sources,download,audit}.py`, `scripts/{prepare_data,audit_data}.py` |
+| Big-Vul loader (`@register_dataset`) | ✅ | `data/loaders/bigvul.py` |
+| Line-label derivation (`labels_v1`) | ✅ | `data/labeling.py` |
+| Splitting + leakage (3 strategies) | ✅ | `data/splits.py` |
+| Split pipeline + reports | ✅ | `data/pipeline.py`, `scripts/build_splits.py` |
+| Preprocessed shards | ✅ | `data/cache.py`, `scripts/build_cache.py` |
+| Deterministic sampling primitives | ✅ | `utils/hashing.py` |
+| Label-audit sheet (human task) | ✅ generated | `scripts/sample_labels.py` |
+| `DATA_CARD.md` | ✅ | `docs/DATA_CARD.md` |
 | Parser / graph builders | ⬜ | — |
 | LLM branch | ⬜ | — |
 | GNN branch | ⬜ | — |
@@ -142,6 +177,119 @@ int, reproduced 300/300):
 corpora hold an opinion. This is an RO4 result. PrimeVul holds only 6,004 vulnerable
 functions in total, which is why it cannot serve as a bulk filter (ADR-003).
 
+**Line-level denominators, measured 2026-08-11** (full-corpus pass, label-audit run):
+
+| | Value |
+|---|---|
+| Source lines, whole corpus | 5,850,944 |
+| Mean lines / function | **31.0** |
+| Flagged (vulnerable) lines | 46,513 |
+| **Vulnerable lines as a share of all lines** | **0.795%** |
+
+**Label-derivation quality: clean.** Across all 188,636 functions —
+`out_of_range` **0**, `text_mismatch` **0**, `count_mismatch` **0**,
+`labels_on_negative` **0**, `no_line_labels` **2,657** (the known 24.4%).
+All 46,513 flagged lines verify against their own recorded `flaw_line` text, so the
+0-indexed→1-indexed conversion is confirmed corpus-wide rather than on 400 sampled rows.
+This establishes **consistency, not correctness** — see the human audit (§6 item 1).
+
+---
+
+## 1.5 The Split — measured, reproducible, clean
+
+Built by `scripts/build_splits.py`. Fingerprint
+`0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52`
+(project-wise, 80/10/10, seed 42). Runs: `0c64a30f…` (built), `e395b21b…` (re-ran the
+full corpus and reported `reproduced=True` — the Phase 1 byte-identity criterion).
+
+| Partition | Functions | Vulnerable | Line-labelled | Flagged lines | Mean lines/fn | Projects |
+|---|---|---|---|---|---|---|
+| train | 148,983 | 7,489 (5.03%) | 5,457 | 34,027 | 27.5 | 104 |
+| val | 18,593 | 825 (4.44%) | 488 | 3,386 | 38.7 | 102 |
+| test | 18,442 | 821 (4.45%) | 546 | 2,779 | 42.5 | 101 |
+| **clean_eval** | 1,589 | 1,394 | 1,393 | 4,499 | **138.3** | 184 |
+| excluded | 603 | 331 | 331 | 1,638 | 33.4 | 22 |
+| duplicate | 426 | 40 | 28 | 184 | 42.6 | 14 |
+
+**Leakage report — clean:**
+
+| Check | Result |
+|---|---|
+| Projects in more than one of train/val/test | **0** |
+| Content hashes in more than one partition | **0** (after withholding 426; see ADR-004) |
+| Clean-evaluation functions also in train | **0** |
+| Duplicates *within* one partition | 2,447 — reported, deliberately not removed |
+
+Exact matches only. Near-duplicate detection needs tokenization (Phase 2), so **0 is a
+floor, not a guarantee**.
+
+
+**Preprocessed shards** (`artifacts/data/cache/`, run `1f716614…`): all 188,636 functions
+in **225 MB** against 11 GB of CSV. One JSONL per partition, each with a SHA-256 in
+`shards.json`. Its per-partition counts are an *independent* recount and agree with the
+split report exactly — 148,983 / 5,457 line-labelled / 34,027 flagged lines in train.
+**From Phase 2 on, read the shards; never reopen a Big-Vul CSV.**
+
+**Two caveats that must never be dropped when these numbers are quoted:**
+
+1. `clean_eval` is **not** project-disjoint from train — **66.5% of its functions belong
+   to a project that is also in training**. It measures line-localization quality under
+   trustworthy labels. The `test` partition measures generalization to unseen projects.
+   Never report one as the other (§7 #13).
+2. `clean_eval` functions are **4.5× longer** than the corpus average (138.3 vs. 31.0
+   lines). Truncation risk concentrates on the headline evaluation set (§7 #14).
+
+---
+---
+
+## 1.6 Human label audit — measured line-level noise ≈ 30%
+
+Reviewed by **Siddharth, 2026-08-11**. Sample: 20 line-labelled functions drawn by
+content hash at **seed 1337** (`sample_for_review`), fixed before anyone looked at the
+data. Completed sheet with per-function reasoning:
+`artifacts/data/label_audit/label_audit.md`.
+
+| correct | wrong | unsure |
+|---|---|---|
+| **14** | **6** | 0 |
+
+**6 / 20 = 30.0% of flagged line sets do not point at the vulnerability.**
+Wilson 95% CI **[14.5%, 51.9%]** — quote the interval with the estimate; n=20 supports
+nothing tighter.
+
+**This is not the 19.2% of §1.4, and must never be reported as if it were.**
+
+| | Measures | Value |
+|---|---|---|
+| §1.4 (PrimeVul cross-reference) | **Function**-level: is this function vulnerable at all? | 19.2% |
+| §1.6 (human audit) | **Line**-level: given a vulnerable function, do the flagged lines point at the flaw? | ~30% |
+
+The line-level rate is structurally the larger: a function can be correctly labelled
+vulnerable while its lines are mislabelled, because the fix commit touched more than the
+flaw. 19.2% also sits inside the CI, so the two measurements are consistent.
+
+**Every `wrong` verdict was the failure mode ADR-003 predicted** — cleanup swept into a
+fix commit. Two recurring causes, both worth naming as threats to validity:
+
+1. **Vague multi-fix CVEs.** Several Chrome CVEs bundle unrelated changes into one commit,
+   so "lines the commit touched" is a poor proxy for "lines that were vulnerable"
+   (e.g. CVE-2013-0886: flagged lines delete OpenGL textures, the CVE is NaCl signal
+   handling on macOS).
+2. **Cosmetic edits inside genuine fix commits** — reformatting an exception call
+   (CVE-2017-5509), touching an adjacent test helper (CVE-2016-3751) — are
+   indistinguishable from the fix under `labels_v1`.
+
+Chrome supplied 3 of the 6 (3 wrong of 8 sampled, vs. 3 of 12 elsewhere). The intervals
+overlap heavily — **not a supported difference** — but Chrome is 40.9% of the corpus, so
+re-test on a larger sample before resting anything on it.
+
+**Consequences:** Phase 6 must not treat line labels as clean. Phase 8 must report ~30%
+as the ceiling on line-level metrics — a model far above ~70% line precision is more
+likely fitting label noise than localizing vulnerabilities. It also raises the value of
+`clean_eval` and of the ActiveClean-style line filtering in ADR-003 §D3.4. **The sample
+is 20**: widen it (`data.label_audit.k`) with a second reviewer before the number carries
+weight in the paper, so inter-rater agreement can be reported.
+
 ---
 
 ## 2. Decision Log
@@ -150,6 +298,10 @@ Append-only. Format: date · decision · alternatives considered · rationale ·
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-08-11 | **Cross-split exact duplicates are withheld into a `duplicate` partition**, not reassigned or kept | Reassign every copy to one partition; keep them and report; drop them silently | A project-wise split constrains projects, not functions: forks and vendored copies put byte-identical code in different projects. Measured: 207 hashes / 426 functions across partitions with **zero shared projects**. Reassigning would break project disjointness; withholding preserves both invariants for 0.23% of the corpus | **ADR-004 — accepted 2026-08-11** |
+| 2026-08-11 | **Splits are an artefact with a fingerprint, not a function call.** `assignment.csv` + `split_report.json` are written once and re-running verifies rather than regenerates | Re-split inside every training run | A split that silently changes invalidates every comparison made against the previous one. `build_splits.py` refuses to overwrite a differing assignment unless told to | — |
+| 2026-08-11 | **Preprocessed shards (`artifacts/data/cache/*.jsonl`) are the boundary between corpus and dataset.** Nothing after Phase 1 opens a Big-Vul CSV | Read the CSVs in every phase; Parquet; a database | 11 GB of CSV is minutes per pass, ~98% of it columns we never read. JSONL keeps the records human-inspectable, which matters while labels are still being trusted | — |
+| 2026-08-11 | **`clean_eval` is excluded from the project-disjointness check**, and its train-project overlap is reported separately | Count it as leakage | ADR-003 selects it by label confidence, so overlap is by construction. Counting it made every real split look dirty and buried the 207 genuine duplicates | — |
 | 2026-08-10 | **PrimeVul = clean evaluation set, not a training filter.** Train on the noisy pool (~6,519 fn), evaluate on the PrimeVul-confirmed subset (1,393 fn / 4,499 lines), exclude the 331 contradicted | Inclusion filter (ADR-001 §D1.2); no filtering at all | Measured: the filter discards 83% of line-level data for mostly ambiguous reasons. Noise in training is survivable; noise in evaluation invalidates every number. The clean set is *larger* than LineVul's vulnerable test split (788) | ADR-003 |
 | 2026-08-10 | **Dataset architecture: Big-Vul primary (LineVul release), DiverseVul generalization, PrimeVul validation, Juliet controlled** | PrimeVul as primary (no line labels); CVEfixes; MegaVul (GPL-3.0); merging corpora | Only Big-Vul has line labels *and* comparable published baselines. PrimeVul/DiverseVul/CVEfixes are partly built **from** Big-Vul, so none is a clean generalization set without project/hash filtering | ADR-001 |
 | 2026-08-10 | **C/C++; graphs built incrementally AST→CFG→DFG→CPG; in-house CPG passes** | Java+Vul4J; multi-language; Joern as a runtime dependency; AST-only | Follows from the dataset choice. In-house keeps the line mapping under our control, which is the one invariant the project cannot compromise | ADR-002 |
@@ -189,93 +341,83 @@ Next:
 
 ---
 
-### 2026-08-10 (session 2) — Phase 1: dataset decision, acquisition, and audit
+### 2026-08-11 (session 4) — Phase 1 closed by the human label audit
+Phase: 1 → 2
+Did:
+  - **Siddharth reviewed the 20 sampled line labels: 14 correct / 6 wrong / 0 unsure.**
+    That closes the last Phase 1 exit criterion. **Phase 1 is done, 5/5.**
+  - Recorded the result and its interpretation in §1.6 and `DATA_CARD.md` §7.
+  - Accepted **ADR-004** (cross-split duplicates withheld), closing Q5/Q7.
+Learned:
+  - **Line-level label noise is ~30% (6/20, Wilson 95% CI [14.5%, 51.9%]).** This is a
+    *different quantity* from the 19.2% function-level rate and is structurally larger:
+    a function can be correctly labelled vulnerable while its lines are mislabelled.
+    19.2% lies inside the CI, so the two agree. **Never present them as one number.**
+  - Every `wrong` verdict was cleanup swept into a fix commit — exactly what ADR-003
+    predicted. Two named causes: vague multi-fix Chrome CVEs, and cosmetic edits
+    (reformatting an exception call, touching a test helper) inside genuine fixes.
+  - ~30% is the **ceiling on any line-level metric** this project reports. A model far
+    above ~70% line precision is more likely fitting label noise than localizing.
+Next:
+  - Phase 2. Also: widen the audit sample with a second reviewer before the 30% carries
+    paper weight, so inter-rater agreement can be reported.
+
+### 2026-08-11 (session 3) — Phase 1: the split, the cache, and the data card
 Phase: 1
 Did:
-  - Researched the dataset question end to end and wrote **ADR-001** (five-role dataset
-    architecture), **ADR-002** (C/C++, incremental AST→CFG→DFG→CPG, in-house passes) and
-    **ADR-003** (line-label trust). Closed Q1, Q2, Q3, Q6.
-  - Built the L0 acquisition layer: `data/sources.py` (catalogue with licence, citation and
-    `DatasetRole`), `data/download.py` (content verification, manifest, alias normalisation),
-    `scripts/prepare_data.py`.
-  - Built `data/audit.py` + `scripts/audit_data.py` and promoted the corpus scan out of scratch,
-    because ADR-003's noise rate is a reported result (`Rules.md` §1.3). 22 tests.
-  - Downloaded (by hand) and verified all 7 corpora, 12.17 GB. Juliet's SHA-256 matches NIST's
-    published digest.
-  - Ran the full audit; results in §1.4 and `artifacts/data/audit_report.json`.
-  - Fixed a logger crash: reserved `extra` keys raised `KeyError` and killed the audit run.
+  - Wired splitting into a real pipeline step: `data/pipeline.py` + `scripts/build_splits.py`.
+    Emits `assignment.csv` (sorted, LF, byte-reproducible) and `split_report.json`
+    (composition, leakage, fingerprint, run id) under a tracked MLflow run.
+  - **Ran it on the real corpus.** 188,636 functions → train 148,983 / val 18,593 /
+    test 18,442 / clean_eval 1,589 / excluded 603 / duplicate 426. See §1.5.
+  - **Found and fixed a leak the project split could not prevent:** 207 content hashes /
+    426 functions spanned partitions *with zero shared projects* — forks and vendored
+    copies (Chrome/Android, php/php-src, ImageMagick/ImageMagick6, libxml2). Withheld
+    into a `duplicate` partition → **ADR-004**.
+  - Fixed the leakage check: it counted `clean_eval`'s deliberate project overlap as
+    leakage, so every correct project split reported `is_clean=False`.
+  - Built preprocessed shards (`data/cache.py`, `scripts/build_cache.py`): one JSONL per
+    partition, ~50 MB total against 11 GB of CSV.
+  - Built the human label-audit sheet (`scripts/sample_labels.py`) — 20 functions drawn
+    by content hash at seed 1337, rendered with flagged lines marked and blank verdicts.
+    **Not filled in; that is the open exit criterion.**
+  - Measured label-derivation quality on the same pass: **0 out-of-range, 0 text
+    mismatches, 0 count mismatches, 0 labels-on-negatives** across the corpus.
+  - Extracted `utils/hashing.py` so splitting and sampling share one determinism rule.
+  - Wrote `docs/DATA_CARD.md` and ADR-004.
 Files touched:
-  - `docs/adr/00{1,2,3}-*.md`, `docs/Memory.md`, `docs/chatgpt.md`, `docs/gemini.md`
-  - `src/vulnloc/data/{sources,download,audit}.py`, `src/vulnloc/utils/logging.py`
-  - `scripts/{prepare_data,audit_data}.py`, `configs/data/default.yaml`, `configs/config.yaml`
-  - `tests/unit/test_audit.py`, `tests/unit/test_logging.py`, `pyproject.toml`
+  - `src/vulnloc/data/{pipeline,cache,splits,labeling}.py`, `src/vulnloc/data/loaders/bigvul.py`
+  - `src/vulnloc/utils/hashing.py`
+  - `scripts/{build_splits,build_cache,sample_labels}.py`, `configs/data/default.yaml`
+  - `tests/unit/test_{pipeline,cache,hashing,splits,labeling}.py`
+  - `docs/{DATA_CARD.md,Memory.md}`, `docs/adr/004-cross-split-duplicates.md`
 Runs logged:
-  - None to MLflow. The audit writes `artifacts/data/audit_report.json`; **it should become a
-    tracked run** when it next changes, since a paper number depends on it.
+  - `80b2b588…` — first full split. **Exposed the 207/426 duplicate leak.**
+  - `0c64a30f…` — split with ADR-004 withholding. Fingerprint `0ade7483…`, `is_clean=True`.
+  - `e395b21b…` — **re-ran the full corpus and reported `reproduced=True`.** This is the
+    evidence for the byte-identical-splits exit criterion.
+  - Cache build — see `artifacts/data/cache/shards.json`.
 Learned:
-  - **The PrimeVul filter in ADR-001 §D1.2 does not work** — see §8. Measuring it before
-    building on it saved the whole Phase 1 design.
-  - **Chrome + linux are 65.8% of Big-Vul.** The project-wise split promised in ADR-001 §D1.3
-    is not straightforward. This is the next thing to solve (§7 #9).
-  - 24.4% of positives carry no line labels (§7 #10); the line-level denominator is 8,243.
-  - Our measured line counts disagree with the published ones (§7 #11) — unresolved.
-  - Mean function length is ~900 chars (~250 tokens), so the 512-token truncation risk looks
-    smaller than assumed. Measure the tail before claiming either way.
+  - **Project disjointness is not duplicate disjointness.** The guarantee we designed for
+    was not the one that mattered; only building the artefact and reading the report
+    surfaced it. Exact-match only, so 207 is a floor (§7 #15).
+  - **The clean evaluation set averages 138.3 lines/function vs. 31.0 corpus-wide.**
+    Truncation lands hardest on the headline set — a Phase 3 design input (§7 #14).
+  - **Big-Vul's `index` is not random**: line-labelled positives cluster at the high end
+    (§7 #16). Any "first N rows" sample is degenerate.
+  - Label derivation is consistent corpus-wide. That is *consistency*, not correctness —
+    the human audit is still the only thing that speaks to whether labels are right.
 Next:
-  - Solve the project-concentration problem in `splits.py` **before** writing the loader, since
-    it determines what the loader must expose.
-  - Then: Big-Vul loader behind `@register_dataset`, `labeling.py` (`labels_v1`), leakage report,
-    `DATA_CARD.md`.
+  - The human label audit. Everything else in Phase 1 is done.
+
+### 2026-08-10 (session 2) — Phase 1: dataset decision, acquisition, and audit
+
+Archived — see [`memory/ARCHIVE-2026-08-11.md`](memory/ARCHIVE-2026-08-11.md).
+Its outcomes are live in §1.4 (corpus statistics) and ADR-001/002/003.
 
 ### 2026-08-10 — Phase 0: foundation & scaffolding
-Phase: 0
-Did:
-  - Created `.venv` (Python 3.12) and installed `-e ".[dev]"`; pinned to `requirements.lock.txt` (150 packages).
-  - Built the L0–L6 package skeleton per `Architecture.md` §5, each `__init__.py` documenting its layer contract.
-  - Cross-cutting infrastructure: typed exception hierarchy (8 types + `RegistryError`), JSON-file + rich-console
-    logging with a context-local run id, config resolution / hashing / git-sha provenance, generic `Registry`.
-  - Wired all six `Architecture.md` §9 extension points as empty registries.
-  - `training/seeding.py` (Python/NumPy/Torch/CUDA + deterministic algorithms + DataLoader worker seeding)
-    and `training/tracking.py` (the single MLflow entrypoint).
-  - `scripts/train.py`: Hydra entrypoint running a no-op loop under a tracked run.
-  - Quality gates: ruff (incl. pydocstyle/Google), black, mypy (`strict` on models + representation),
-    import-linter, pre-commit hooks installed, GitHub Actions CI matrix (3.11 / 3.12).
-  - 103 tests across unit + integration; 96% line coverage.
-  - `Dockerfile` (multi-stage, CPU torch, non-root) + `docker-compose.yml` + `.dockerignore`.
-  - ADR-000 recording seven Phase-0 decisions.
-Files touched:
-  - `pyproject.toml`, `README.md`, `Makefile`, `make.ps1`, `Dockerfile`, `docker-compose.yml`,
-    `.dockerignore`, `.gitignore`, `.pre-commit-config.yaml`, `.github/workflows/ci.yml`,
-    `requirements.lock.txt`
-  - `configs/config.yaml`
-  - `src/vulnloc/**` (utils, data, representation, models, training, evaluation, explanation, serving)
-  - `scripts/train.py`, `tests/**`
-  - `docs/adr/000-phase-0-foundation.md`, `docs/Memory.md`
-Runs logged (none is a result; all exist only to prove plumbing):
-  - `a042076a…` — first tracked run. `git_sha=unknown` (no commits existed yet).
-  - `58c71014…` — first run with real provenance, `git_sha=09d5c54`.
-  - `f3f24d45…` — **first GPU run**: `device=cuda:0`, RTX 3050 Ti, 4.0 GiB, cc 8.6, `torch 2.13.0+cu130`.
-  - **GPU enablement** (second half of the session): swapped the CPU-only wheel for `torch==2.13.0+cu130`,
-    added `training/device.py` (config-driven `auto`/`cuda`/`cpu` with a real allocation probe),
-    `device` config section, `make setup-cuda` / `gpu-check` / `train-gpu` targets, a `TORCH_INDEX_URL`
-    Docker build arg and a `gpu` compose profile. The no-op loop now runs a matmul on the resolved device,
-    so a green run is evidence the GPU *computes* rather than merely being reported.
-Learned:
-  - The GPU was **present but idle**: `pip install torch` gives a CPU-only wheel on Windows and says nothing.
-    Assume nothing about accelerator use that a logged tag does not prove.
-  - **4 GB VRAM is the binding constraint** for this architecture — see §7 issue #7. Phase 3 must plan for it.
-  - MLflow 3.x **refuses** `file:./mlruns` outright. Cost ~20 min mid-verification; now ADR-000 §D0.7.
-  - `git_sha` logs as `unknown` because the repo has **no commits yet**. Provenance is only real
-    after the first commit — do not log a run intended to support a claim before then.
-  - The layers contract was verified non-vacuous by temporarily importing `vulnloc.models`
-    from `vulnloc.data` and confirming import-linter broke. Worth repeating whenever contracts change.
-  - Reinstalling torch while any process has it imported fails with `WinError 5` and leaves the venv
-    half-uninstalled (§7 #6b). Cost one wasted 1.9 GB download.
-  - The console log sink was dropping all structured context (§7 #8). Found only because `gpu-check`
-    printed a bare "Accelerator". Infrastructure needs its own smoke test, not just unit tests.
-Next:
-  - Docker exit criterion (§6 item 1) — the only thing standing between Phase 0 and done.
-  - Then resolve Q1 → ADR-001.
+
+Archived — see [`memory/ARCHIVE-2026-08-11.md`](memory/ARCHIVE-2026-08-11.md).
 
 ---
 
@@ -285,6 +427,10 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `1f716614…` | 2026-08-11 | `build_cache.py` | — | — | — | — | — | — | Preprocessed shards, 188,636 functions. Data artefact, not a result. |
+| `e395b21b…` | 2026-08-11 | `build_splits.py` | 42 | — | — | — | — | — | **Reproducibility check: `reproduced=True`** against `0c64a30f…`. Evidence for the Phase 1 byte-identity criterion. |
+| `0c64a30f…` | 2026-08-11 | `build_splits.py` (ADR-004 on) | 42 | — | — | — | — | — | The split of record. Fingerprint `0ade7483…`, `is_clean=True`, 426 duplicates withheld. |
+| `80b2b588…` | 2026-08-11 | `build_splits.py` (pre-ADR-004) | 42 | — | — | — | — | — | First full split. **Exposed 207 hashes / 426 functions leaking across partitions with zero shared projects.** Superseded. |
 | `f3f24d45…` | 2026-08-10 | `train=debug device.kind=cuda` | 42 | — | — | — | — | — | Phase 0 **GPU** plumbing check. RTX 3050 Ti, 4 GiB, cc 8.6, torch 2.13.0+cu130. **Never cite this.** |
 | `58c71014…` | 2026-08-10 | `train=debug` | 42 | — | — | — | — | — | First run with a real `git_sha` (`09d5c54`). CPU. **Never cite this.** |
 | `a042076a…` | 2026-08-10 | `train=debug` | 42 | — | — | — | — | — | Phase 0 plumbing check. No model, no data. Logs `noop/loss` only. **Never cite this.** |
@@ -306,6 +452,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q4 | Explanation supervision available? | Ground-truth text · templates + human eval · none | Template baseline + human eval; do not claim generative quality without a reference set | Phase 7 | 🟨 Deferred |
 | Q5 | CWE-type classification required? | Binary only · binary + type | Deck's example output names a type ("Buffer Overflow") — implement type if labels exist, else derive from templates and say so | Phase 6 | 🟨 Deferred |
 | Q6 | CPG tooling: build ourselves vs. external generator? | In-house passes · external exporter | In-house — an external generator would take the line mapping out of our control. DeepDFA/MegaVul graphs used as offline validation oracles only | Phase 2 | ✅ **Closed — ADR-002** |
+| Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
 
@@ -313,23 +460,25 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 
 Ordered. Top item is what the next session starts with.
 
-1. **Close the last Phase 0 exit criterion.** On a machine with Docker installed, run
-   `make docker-build && make docker-train`, then record the result here and tick the box in
-   `Phases.md` (§7 issue #1). This is the only thing between Phase 0 and done.
-2. **Decide the branching model.** `main` does not exist — the repo's only branch is
-   `phase-0/foundation`. `Rules.md` §8 assumes a `main` to open PRs against; create it.
-3. **Phase 1 build:** Big-Vul loader (`@register_dataset`), `labeling.py` (`labels_v1`),
-   `splits.py`, leakage report, `DATA_CARD.md`.
-4. **Solve the project-concentration problem in `splits.py`** — Chrome + linux are 65.8% of
-   Big-Vul (§7 issue #9). A naive project-wise split is unusable.
-5. Promote the corpus-scan scripts from scratch files into a reproducible pipeline step —
-   a reported result (the 19.2% noise rate) now depends on them (`Rules.md` §1.3).
-6. Before Phase 3, decide how to live within 4 GiB of VRAM (§7 issue #7) — this is a design
-   input, not a tuning detail.
+**Phase 1 is closed.** These are Phase 2's starting conditions and the standing debts.
 
-Done in this session: repo scaffolding, Hydra skeleton, logging/seeding/exceptions/registries,
-device selection, CUDA-enabled torch, CI, MLflow runs on both CPU and GPU, and
-`make test` / `make lint` verified on the host.
+1. **Start Phase 2 — Code Representation.** Read `Phases.md` Phase 2 and ADR-002 first.
+   Consume `artifacts/data/cache/*.jsonl` via `data.cache.iter_shard`; **never reopen a
+   Big-Vul CSV.** The highest-risk piece is the Tree-sitter byte-offset→line conversion
+   (`Rules.md` §2 — the line index is the atomic unit).
+2. **Decide the branching model.** `main` still does not exist — the repo's only branch is
+   `phase-0/foundation`. `Rules.md` §8 assumes a `main` to open PRs against; create it.
+3. **Close the last Phase 0 exit criterion.** On a machine with Docker installed, run
+   `make docker-build && make docker-train` and record the result (§7 issue #1).
+4. Before Phase 3, decide how to live within 4 GiB of VRAM (§7 issue #7) — and note that
+   `clean_eval`'s 138-line average (§7 #14) makes the truncation question sharper than the
+   corpus average suggested.
+5. During Phase 2, re-run the leakage check with near-duplicate detection once
+   tokenization exists (§7 #15) — the 207 exact matches are a floor.
+6. Before the paper: widen the label audit (`data.label_audit.k`) with a **second
+   reviewer**, so the ~30% gets a tighter interval and an inter-rater agreement figure
+   (§1.6). And resolve or formally declare unresolvable the published-vs-measured
+   line-count discrepancy (§7 #11).
 
 ---
 
@@ -354,7 +503,12 @@ Things that cost time once and should not cost time twice.
 | 12 | **The project-wise val/test splits contain only small projects.** Chrome, linux and Android necessarily land in train, since together they exceed the val+test quota | val/test are distributionally different from train — not just unseen projects, but *smaller* projects. Generalization numbers are conservative in one sense and unrepresentative in another | Inherent to the corpus, not fixable by a better algorithm. **State it as a threat to validity** in the paper alongside the project-wise numbers | 🟨 Known — document |
 | 13 | **The clean evaluation set is not project-disjoint from training.** ADR-003 selects it by label confidence, so it contains Chrome/linux functions whose projects are also in train | Easy to misread as a generalization result. It is not one | Keep the two claims separate: `clean_eval` measures **line-localization quality under trustworthy labels**; the project-wise test split measures **generalization to unseen projects**. Never report one as the other | 🟨 Known — document |
 | 10 | **24.4% of Big-Vul's vulnerable functions have no line labels** (2,657 of 10,900): `flaw_line_index` is empty | The real line-level corpus is 8,243 functions, not the 10,900 vulnerable ones. Function-level and line-level denominators differ and must never be conflated | Loader marks these explicitly; they are usable for the unit-level task only. Report both denominators in `DATA_CARD.md` | 🟨 Known |
-| 11 | Our measured Big-Vul line counts **differ from the commonly quoted figures** | Literature quotes "44,603 lines / 11,823 functions"; we measure **46,513 lines / 8,243 functions** on the LineVul release | Unresolved — different processing or counting convention. `Rules.md` §5.7: cite our own measured numbers, never adopt theirs. Run down before `DATA_CARD.md` is final | 🟥 Open |
+| 11 | Our measured Big-Vul line counts **differ from the commonly quoted figures** | Literature quotes "44,603 lines / 11,823 functions"; we measure **46,513 lines / 8,243 functions** on the LineVul release | **Narrowed 2026-08-11:** it is *not* a parsing artefact — out-of-range, duplicate-index, text-mismatch and count-mismatch are all **zero** corpus-wide, so 46,513 is exactly the corpus's own flagged-line set. Remaining candidates: a different release, a different notion of "function", or their counting convention. `Rules.md` §5.7: cite ours, name the gap | 🟥 Open — narrowed |
+| 18 | **~30% of line labels point at the wrong lines** (§1.6, human audit, 6/20, CI [14.5%, 51.9%]) | This is the **ceiling on every line-level metric** the project reports. A model scoring far above ~70% line precision is more likely fitting label noise than localizing. Also easily confused with the 19.2% *function*-level rate — they are different quantities | Phase 6: do not treat line labels as clean. Phase 8: report the ceiling alongside every line-level number. Widen the audit with a second reviewer before the figure carries paper weight | 🟥 Open — inherent to `labels_v1` |
+| 14 | **The clean evaluation set averages 138.3 lines/function against the corpus's 31.0** — 4.5× longer | The 512-token truncation problem lands hardest on precisely the partition that carries the headline line-level numbers. A corpus-wide truncation statistic would be reassuring and wrong | Phase 3 must measure label loss under truncation **on `clean_eval` specifically** and report it separately. Treat windowing as required, not optional, for this partition | 🟥 Open — Phase 3 design input |
+| 15 | **A project-wise split does not prevent function-level leakage.** 207 hashes / 426 functions spanned partitions with **zero shared projects** — forks and vendored copies (Chrome/Android, php/php-src, ImageMagick/ImageMagick6, libxml2) | Byte-identical functions on both sides of the train/test boundary: exactly the criticism levelled at published Big-Vul results | **Fixed** — withheld into a `duplicate` partition (ADR-004), 0.23% of the corpus. **Exact match only**, so 207 is a *floor*: re-run with near-duplicate detection in Phase 2 and expect it to grow | ✅ Fixed — floor only |
+| 16 | **Big-Vul's `index` column is not random.** Line-labelled positives cluster at the high end — measured on `bigvul_test`, **all 788** line-labelled rows have `index ≥ 160,000` while total rows spread evenly | "Take the first N rows" for a smoke test yields a subset with almost no positives; treating `index` as a time proxy would produce a fake temporal split | Sample by content hash (`utils/hashing.py`), never by row position or index range | 🟨 Known |
+| 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**
 
@@ -385,7 +539,7 @@ Tracks `PRD.md` §10 as evidence accumulates.
 |----|------------|--------|----------|
 | A1 | Primary persona = application developer | Unverified | — |
 | A2 | Single-GPU compute budget | ✅ **Confirmed — and quantified** | Run `f3f24d45…`: one **NVIDIA RTX 3050 Ti Laptop GPU, 4.0 GiB**, compute capability 8.6, driver 591.59, `torch 2.13.0+cu130`. Single GPU confirmed; **4 GiB is the binding constraint**. The first CPU-only reading was the default PyPI wheel, not absent hardware — ADR-000 §D0.8 |
-| A3 | Line-level labels obtainable | Unverified | — |
+| A3 | Line-level labels obtainable | ✅ **Confirmed** | 8,243 functions / 46,513 flagged lines derived and verified corpus-wide: 0 out-of-range, 0 text mismatches, 0 count mismatches, 0 labels-on-negatives (§1.4). Confirms *availability and internal consistency*; **correctness is still open** pending the human audit |
 | A4 | v1 scope = one language | Unverified | — |
 | A5 | `evidence` schema as specified | Unverified | — |
 

@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from vulnloc.utils.exceptions import ConfigError, DataError
+from vulnloc.utils.hashing import unit_interval
 from vulnloc.utils.logging import get_logger
 from vulnloc.utils.registry import Registry
 
@@ -45,13 +46,19 @@ __all__ = [
     "assign_splits",
     "check_leakage",
     "register_split",
+    "withhold_cross_split_duplicates",
 ]
 
 _LOGGER = get_logger(__name__)
 
 TRAIN, VAL, TEST = "train", "val", "test"
 CLEAN_EVAL, EXCLUDED = "clean_eval", "excluded"
+DUPLICATE = "duplicate"
 _SPLIT_NAMES = (TRAIN, VAL, TEST)
+
+# Partitions that hold data but are never trained on or evaluated against, and so
+# cannot leak. Leakage checks skip them.
+_WITHHELD = (EXCLUDED, DUPLICATE)
 
 # Ratio arithmetic on floats is inexact; anything inside this of 1.0 is accepted.
 _RATIO_TOLERANCE = 1e-6
@@ -65,6 +72,13 @@ class Unit:
     identity, provenance and time, never source text. Keeping them apart means splits
     can be computed and tested without loading 10 GB of code.
 
+    The two size counters are the exception, and they are here for a measurement reason
+    rather than a splitting one: `Phases.md` Phase 1 requires per-split class balance
+    (*mean lines/function*, *%vulnerable lines*) to be reported, and the units pass is
+    the only cheap pass over the corpus. Both are derived from columns the loader
+    already reads, so carrying them costs nothing; recovering them later would cost a
+    second traversal of 10 GB.
+
     Args:
         unit_id: Stable identifier, unique within the corpus.
         project: Owning project, used by the ``project`` strategy.
@@ -73,6 +87,10 @@ class Unit:
         date: Sortable date string (e.g. ``"2019-03-14"``), used by ``temporal``.
         target: 1 if the unit is vulnerable.
         has_line_labels: Whether line-level supervision exists for this unit.
+        n_lines: Source lines in the function body.
+        n_flagged_lines: Lines flagged vulnerable, before any range validation. This
+            counts what the corpus *claims*; :mod:`vulnloc.data.labeling` counts what
+            survives verification, and the two differing is itself a finding.
     """
 
     unit_id: str
@@ -81,6 +99,8 @@ class Unit:
     date: str | None = None
     target: int = 0
     has_line_labels: bool = False
+    n_lines: int = 0
+    n_flagged_lines: int = 0
 
 
 @dataclass(frozen=True)
@@ -134,23 +154,6 @@ SPLIT_REGISTRY: Registry[Any] = Registry("split_strategy")
 register_split = SPLIT_REGISTRY.register
 
 
-def _unit_interval(seed: int, key: str) -> float:
-    """Map ``(seed, key)`` to a stable value in ``[0, 1)``.
-
-    Uses SHA-256 rather than :func:`hash`, whose randomization differs per process, and
-    rather than an RNG, whose output depends on consumption order.
-
-    Args:
-        seed: Salt.
-        key: Value being bucketed (a unit id or a project name).
-
-    Returns:
-        A deterministic float in ``[0, 1)``.
-    """
-    digest = hashlib.sha256(f"{seed}:{key}".encode()).digest()
-    return int.from_bytes(digest[:8], "big") / float(1 << 64)
-
-
 def _bucket(value: float, spec: SplitSpec) -> str:
     for name, upper in spec.cumulative:
         if value < upper:
@@ -173,7 +176,7 @@ def random_split(units: Sequence[Unit], spec: SplitSpec) -> dict[str, str]:
     Returns:
         Mapping of ``unit_id`` to split name.
     """
-    return {unit.unit_id: _bucket(_unit_interval(spec.seed, unit.unit_id), spec) for unit in units}
+    return {unit.unit_id: _bucket(unit_interval(spec.seed, unit.unit_id), spec) for unit in units}
 
 
 @register_split("project")
@@ -205,7 +208,7 @@ def project_split(units: Sequence[Unit], spec: SplitSpec) -> dict[str, str]:
     # Largest first; the hash breaks ties among equal-sized projects deterministically
     # without reintroducing an order dependence.
     ordered = sorted(
-        sizes.items(), key=lambda item: (-item[1], _unit_interval(spec.seed, item[0]), item[0])
+        sizes.items(), key=lambda item: (-item[1], unit_interval(spec.seed, item[0]), item[0])
     )
 
     project_to_split: dict[str, str] = {}
@@ -276,17 +279,64 @@ def _ratios(spec: SplitSpec) -> tuple[float, float, float]:
     return (spec.train, spec.val, spec.test)
 
 
+def withhold_cross_split_duplicates(
+    units: Sequence[Unit], assignment: dict[str, str]
+) -> tuple[dict[str, str], int]:
+    """Move exactly-duplicated functions out of train/val/test entirely.
+
+    A project-wise split guarantees no *project* spans two partitions. It does not
+    guarantee no *function* does, and on Big-Vul it demonstrably does not: forks and
+    vendored copies put byte-identical functions in different projects (Chrome/Android,
+    php/php-src, ImageMagick/ImageMagick6). Measured on the real corpus: 207 hashes,
+    426 functions, with zero shared projects.
+
+    Withholding rather than reassigning is the only option that preserves both
+    invariants. Reassigning a duplicate to its twin's partition would drag a unit of a
+    test-only project into training and break project disjointness; withholding costs
+    0.23% of the corpus and keeps both guarantees exact.
+
+    Args:
+        units: The units that were assigned.
+        assignment: Mapping of ``unit_id`` to split name. Not mutated.
+
+    Returns:
+        The updated assignment and the number of units withheld.
+    """
+    hash_splits: dict[int, set[str]] = {}
+    for unit in units:
+        split = assignment.get(unit.unit_id)
+        if split in _SPLIT_NAMES:
+            hash_splits.setdefault(unit.func_hash, set()).add(str(split))
+
+    spanning = {digest for digest, splits in hash_splits.items() if len(splits) > 1}
+    if not spanning:
+        return dict(assignment), 0
+
+    updated = dict(assignment)
+    withheld = 0
+    for unit in units:
+        if unit.func_hash in spanning and updated.get(unit.unit_id) in _SPLIT_NAMES:
+            updated[unit.unit_id] = DUPLICATE
+            withheld += 1
+    return updated, withheld
+
+
 @dataclass
 class LeakageReport:
     """Cross-split contamination findings (`Rules.md` §5.4).
 
     Attributes:
-        duplicate_hashes: Content hashes appearing in more than one split.
+        duplicate_hashes: Content hashes appearing in more than one partition.
         duplicated_units: How many units those hashes account for.
-        shared_projects: Projects appearing in more than one split.
+        shared_projects: Projects appearing in more than one of train/val/test. The
+            clean-evaluation partition is deliberately excluded: ADR-003 selects it by
+            label confidence, so it shares projects with training *by construction*
+            (`Memory.md` §7 #13). Counting that here would report a designed property
+            as a defect and drown the real signal — the overlap is quantified
+            separately by :func:`vulnloc.data.pipeline.clean_eval_overlap`.
         clean_eval_in_train: Clean-evaluation hashes that also appear in training —
             must always be empty, or the headline numbers are invalid.
-        intra_split_duplicates: Hashes duplicated *within* a single split.
+        intra_split_duplicates: Hashes duplicated *within* a single partition.
     """
 
     duplicate_hashes: set[int] = field(default_factory=set)
@@ -337,11 +387,12 @@ def check_leakage(
 
     for unit in units:
         split = assignment.get(unit.unit_id)
-        if split is None or split == EXCLUDED:
+        if split is None or split in _WITHHELD:
             continue
         hash_splits.setdefault(unit.func_hash, set()).add(split)
         hash_counts[unit.func_hash] += 1
-        project_splits.setdefault(unit.project, set()).add(split)
+        if split in _SPLIT_NAMES:
+            project_splits.setdefault(unit.project, set()).add(split)
 
     report = LeakageReport()
     for digest, splits in hash_splits.items():
@@ -368,20 +419,23 @@ class SplitResult:
     """The outcome of splitting a corpus.
 
     Attributes:
-        assignment: ``unit_id`` -> one of train/val/test/clean_eval/excluded.
+        assignment: ``unit_id`` -> one of train/val/test/clean_eval/excluded/duplicate.
         strategy: Name of the strategy used.
         spec: The proportions and seed used.
         leakage: Contamination findings.
+        withheld_duplicates: Units moved out of train/val/test because an exact copy
+            of them appeared in another partition.
     """
 
     assignment: dict[str, str]
     strategy: str
     spec: SplitSpec
     leakage: LeakageReport
+    withheld_duplicates: int = 0
 
     def counts(self) -> dict[str, int]:
         """Return the number of units in each split, including empty ones."""
-        counts = dict.fromkeys((*_SPLIT_NAMES, CLEAN_EVAL, EXCLUDED), 0)
+        counts = dict.fromkeys((*_SPLIT_NAMES, CLEAN_EVAL, EXCLUDED, DUPLICATE), 0)
         for split in self.assignment.values():
             counts[split] = counts.get(split, 0) + 1
         return counts
@@ -408,6 +462,7 @@ class SplitResult:
             "seed": self.spec.seed,
             "ratios": {TRAIN: self.spec.train, VAL: self.spec.val, TEST: self.spec.test},
             "counts": self.counts(),
+            "withheld_duplicates": self.withheld_duplicates,
             "fingerprint": self.fingerprint(),
             "leakage": self.leakage.as_dict(),
         }
@@ -420,6 +475,7 @@ def assign_splits(
     spec: SplitSpec | None = None,
     clean_eval_hashes: Iterable[int] = (),
     excluded_hashes: Iterable[int] = (),
+    dedup_across_splits: bool = True,
 ) -> SplitResult:
     """Split a corpus, applying the ADR-003 exclusions and hold-out first.
 
@@ -428,6 +484,7 @@ def assign_splits(
     1. Drop ``excluded`` units — a higher-accuracy source contradicts their label.
     2. Reserve ``clean_eval`` units — held out of training entirely.
     3. Split what remains by ``strategy``.
+    4. Withhold any function that still ended up in two partitions.
 
     Doing this in the other order would let the clean evaluation set influence the
     train/val/test proportions and, worse, allow a duplicate of a clean-eval function
@@ -439,6 +496,10 @@ def assign_splits(
         spec: Proportions and seed; defaults to 80/10/10 at seed 42.
         clean_eval_hashes: Hashes reserved for the clean evaluation set (ADR-003 §D3.1).
         excluded_hashes: Hashes to drop entirely (ADR-003 §D3.2).
+        dedup_across_splits: Withhold exact duplicates that span two partitions. Turning
+            this off reproduces the field's usual setup, in which train/test share
+            byte-identical functions; any number produced that way is inflated and must
+            be labelled as such.
 
     Returns:
         The assignment, its fingerprint, and a leakage report.
@@ -472,11 +533,16 @@ def assign_splits(
 
     assignment.update(strategy_fn(remaining, spec))
 
+    withheld = 0
+    if dedup_across_splits:
+        assignment, withheld = withhold_cross_split_duplicates(units, assignment)
+
     result = SplitResult(
         assignment=assignment,
         strategy=strategy,
         spec=spec,
         leakage=check_leakage(units, assignment, clean_eval_hashes=reserved),
+        withheld_duplicates=withheld,
     )
     _LOGGER.info("Split assigned", extra=result.as_dict())
     if not result.leakage.is_clean:

@@ -23,12 +23,14 @@ rather than silently dropped.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import heapq
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
 from vulnloc.utils.exceptions import DataError
+from vulnloc.utils.hashing import unit_interval
 from vulnloc.utils.logging import get_logger
 
 __all__ = [
@@ -37,6 +39,7 @@ __all__ = [
     "LabelledFunction",
     "LabellingStats",
     "derive_line_labels",
+    "sample_for_review",
     "split_source_lines",
 ]
 
@@ -286,6 +289,43 @@ def derive_line_labels(
         issues=tuple(issues),
         metadata=dict(metadata or {}),
     )
+
+
+def sample_for_review(
+    units: Iterable[LabelledFunction], *, k: int = 20, seed: int = 42
+) -> list[LabelledFunction]:
+    """Draw ``k`` line-labelled functions for manual inspection.
+
+    `Phases.md` Phase 1 requires a human to inspect sampled line labels and judge them
+    correct; that verdict is only meaningful if the sample was not chosen to flatter the
+    labels. Selection is therefore by content hash — the ``k`` functions with the
+    smallest ``sha256(seed, unit_id)`` — which is reproducible, order-independent, and
+    fixed before anyone looks at the data. A second reviewer gets the same twenty.
+
+    Streaming and bounded: the corpus does not fit in memory as
+    :class:`LabelledFunction` objects, so only ``k`` are retained at a time.
+
+    Args:
+        units: Labelled functions to sample from. Those without line labels are
+            skipped — there is nothing for a reviewer to judge.
+        k: Sample size.
+        seed: Salt for the selection hash.
+
+    Returns:
+        The sampled functions, ordered by their selection hash.
+    """
+    # A max-heap of the k smallest keys: push, then evict the largest once over size.
+    heap: list[tuple[float, str, LabelledFunction]] = []
+    for unit in units:
+        if not unit.has_line_labels:
+            continue
+        entry = (-unit_interval(seed, unit.unit_id), unit.unit_id, unit)
+        if len(heap) < k:
+            heapq.heappush(heap, entry)
+        elif k > 0 and entry[0] > heap[0][0]:
+            heapq.heapreplace(heap, entry)
+
+    return [entry[2] for entry in sorted(heap, key=lambda e: (-e[0], e[1]))]
 
 
 def summarize(units: Sequence[LabelledFunction]) -> LabellingStats:

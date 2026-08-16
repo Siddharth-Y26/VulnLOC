@@ -25,8 +25,8 @@ from typing import Any
 
 import pandas as pd
 
-from vulnloc.data.audit import function_hash
-from vulnloc.data.labeling import LabelledFunction, derive_line_labels
+from vulnloc.data.audit import flaw_line_indices, function_hash
+from vulnloc.data.labeling import LabelledFunction, derive_line_labels, split_source_lines
 from vulnloc.data.registry import register_dataset
 from vulnloc.data.splits import Unit
 from vulnloc.utils.exceptions import DataError
@@ -173,7 +173,7 @@ class BigVulLoader:
                     source = _clean(row["processed_func"])
                     if source is None:
                         continue
-                    indices = _clean(row["flaw_line_index"])
+                    indices = flaw_line_indices(_clean(row["flaw_line_index"]))
                     date = _clean(row["Publish Date"])
                     yield Unit(
                         unit_id=self._unit_id(row, path),
@@ -181,7 +181,9 @@ class BigVulLoader:
                         func_hash=function_hash(str(source)),
                         date=str(date) if date is not None else None,
                         target=int(row["target"]),
-                        has_line_labels=indices is not None,
+                        has_line_labels=bool(indices),
+                        n_lines=len(split_source_lines(str(source))),
+                        n_flagged_lines=len(indices),
                     )
 
     def iter_functions(self) -> Iterator[LabelledFunction]:
