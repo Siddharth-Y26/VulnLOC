@@ -7,7 +7,11 @@ network over code property graphs (structural branch), fuses them with cross-att
 and predicts **per-line** vulnerability scores together with a grounded explanation of
 *why* each flagged line is risky.
 
-> **Status:** Phase 0 — Foundation & Scaffolding. No model code exists yet.
+> **Status (2026-08-16):** Phases 0–2 built; **no model code exists yet and no result
+> has been produced.** The dataset is built, split, leakage-checked and human-audited
+> (Phase 1); source is parsed into AST / CFG / DFG / CPG on a verified line map
+> (Phase 2). Phases 3–10 — the branches, fusion, training, evaluation and serving — are
+> not started.
 > See [docs/Phases.md](docs/Phases.md) for the build plan and
 > [docs/Memory.md](docs/Memory.md) for current state.
 
@@ -116,6 +120,23 @@ python scripts/train.py train=debug                 # select a config group
 python scripts/train.py train=debug seed=7          # override any leaf
 python scripts/train.py train=debug --cfg job       # print resolved config, run nothing
 ```
+
+### Data and representation pipeline
+
+Each step is a full pass over the corpus and takes minutes. Run them in this order;
+everything after `build_cache.py` reads the shards and **never reopens a Big-Vul CSV**.
+
+```bash
+python scripts/prepare_data.py           # fetch/verify/adopt corpora
+python scripts/audit_data.py             # corpus statistics + label-noise estimate
+python scripts/build_splits.py           # the split; re-running VERIFIES byte-identity
+python scripts/build_cache.py            # preprocessed JSONL shards
+python scripts/sample_labels.py          # regenerate the human label-audit sheet
+python scripts/report_representation.py graph.builder=cpg   # parse + graph statistics
+```
+
+`build_splits.py` re-run without `data.splits.overwrite=true` is the reproducibility
+check: a differing assignment is a hard failure, not a new result.
 
 The fully-resolved config for every run is written into that run's output directory
 under `artifacts/runs/`.

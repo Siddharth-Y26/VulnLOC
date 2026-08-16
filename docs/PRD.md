@@ -178,6 +178,12 @@ Per the deck's Expected Output slide, one prediction contains:
 
 ## 9. Open Questions
 
+> **This table is the original statement of the questions, kept as written.** Their
+> live status is tracked in `Memory.md` §5, which is authoritative and has since added
+> Q6–Q8. As of 2026-08-16: Q1, Q2, Q3, Q6 and Q7 are closed by ADR-001/002/003/004;
+> Q4 and Q5 remain deferred to Phases 6–7; **Q8 (which Tree-sitter grammar to parse
+> Big-Vul with) is open and gates the corpus-wide graph build.**
+
 | # | Question | Owner | Blocking phase |
 |---|----------|-------|----------------|
 | Q1 | Which dataset(s)? Deck names none. | Team | Phase 1 |

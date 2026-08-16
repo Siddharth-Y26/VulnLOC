@@ -89,7 +89,7 @@ Durations are `[RECOMMENDATION]`s for a three-person student team, not commitmen
 - [x] ADR-002 (graph representation + CPG tooling) accepted
 - [x] Property tests: every **node** maps to a valid line, on randomized inputs *(`tests/unit/test_graphs_ast.py`, `test_line_map.py`. The **token** half needs a tokenizer and lands with the semantic branch in Phase 3 — `char_to_line` is built and tested for it.)*
 - [x] Golden-file tests for ≥ 5 hand-written functions covering loops, branches, pointers/aliasing *(`tests/fixtures/graphs/`: loop, branch, pointers, goto-cleanup, preprocessor)*
-- [x] Parse success rate on the corpus reported; failures categorized, not hidden *(`scripts/report_representation.py` → `artifacts/representation/report.json`)*
+- [x] Parse success rate on the corpus reported; failures categorized, not hidden *(`scripts/report_representation.py` → `artifacts/representation/report_<builder>.json`; results in `Memory.md` §1.7)*
 - [x] Graph stats reported: mean nodes/edges, edge-type distribution *(same report, per builder)*
 
 **All four builders exist** — AST, CFG, DFG and CPG, sharing one node set so the CPG is

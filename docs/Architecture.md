@@ -91,28 +91,46 @@ These interfaces are the stable contract; implementations behind them are free t
 
 ### 4.1 Representation
 
+**Built in Phase 2 (2026-08-16).** The shapes below are as implemented; where they
+extend what this section originally specified, the reason is given.
+
 ```python
 @dataclass(frozen=True)
-class CodeUnit:
+class CodeUnit:                 # representation/units.py
     unit_id: str
     source: str
-    language: str
-    lines: list[str]            # 1-indexed via lines[i-1]
-    metadata: dict
+    language: str               # the corpus's own string — see Q8, it is evidence
+    lines: tuple[str, ...]      # 1-indexed via lines[i-1]
+    line_map: LineMap           # added: offset→line, built once, never re-derived
+    target: int                 # added: carried from L0 so graphs can be evaluated
+    vulnerable_lines: frozenset[int]
+    metadata: Mapping[str, Any]
 
 @dataclass(frozen=True)
-class CodeGraph:
-    nodes: list[GraphNode]      # each carries .line_no
-    edges: list[GraphEdge]      # each carries .edge_type: ast|cfg|dfg|call
-    node_to_line: dict[int, int]
+class CodeGraph:                # representation/graphs/base.py
+    unit_id: str
     graph_type: str             # "ast" | "cfg" | "dfg" | "cpg"
+    nodes: tuple[GraphNode, ...]   # each carries .line_no
+    edges: tuple[GraphEdge, ...]   # each carries .edge_type: ast|cfg|dfg|call
+    n_lines: int
+    # node_to_line is a property, derived from nodes — it cannot drift from them.
 
 @dataclass(frozen=True)
-class TokenizedUnit:
+class TokenizedUnit:            # NOT BUILT — Phase 3, with the semantic branch
     input_ids: Tensor           # [T]
     attention_mask: Tensor      # [T]
     token_to_line: Tensor       # [T]  -1 for special tokens
 ```
+
+**All four graph types share one node set.** `transcribe()` numbers the parse tree once
+and every builder works in that numbering, so `ast.nodes == cfg.nodes == dfg.nodes ==
+cpg.nodes` and `node_to_line` is identical across them. This is what makes the CPG a
+literal union (ADR-002 §D2.2) and what makes ablation A3 an `edge_types` argument
+rather than a second extraction.
+
+**`LineMap` carries two offset spaces**, byte and character: Tree-sitter reports bytes,
+HuggingFace fast tokenizers report characters, and they agree only on ASCII. Never read
+Tree-sitter's `Point` — it segfaults on real corpus input (`Memory.md` §7 #19).
 
 ### 4.2 Model
 
@@ -205,13 +223,15 @@ vulnloc/
 │   │   ├── labeling.py           # diff → line labels
 │   │   ├── splits.py             # deterministic, leakage-checked
 │   │   └── datamodule.py
-│   ├── representation/
-│   │   ├── registry.py           # @register_graph
-│   │   ├── parser.py             # Tree-sitter wrappers
-│   │   ├── normalizer.py         # comment strip, identifier norm (optional)
-│   │   ├── graphs/               # ast.py cfg.py dfg.py cpg.py
-│   │   ├── line_map.py           # token_to_line / node_to_line  ← critical
-│   │   └── to_pyg.py             # NetworkX → PyTorch Geometric
+│   ├── representation/           # BUILT — Phase 2
+│   │   ├── registry.py           # @register_graph → ast, cfg, dfg, cpg
+│   │   ├── parser.py             # Tree-sitter wrapper; damage counted, never raised
+│   │   ├── units.py              # CodeUnit — the L0→L1 bridge
+│   │   ├── graphs/               # base.py ast.py cfg.py dfg.py cpg.py
+│   │   ├── line_map.py           # byte→line and char→line  ← critical
+│   │   ├── to_pyg.py             # NetworkX + PyTorch Geometric (torch imported lazily)
+│   │   ├── visualize.py          # line-annotated text tree and Graphviz DOT
+│   │   └── normalizer.py         # NOT BUILT — comment strip / identifier norm, optional
 │   ├── models/
 │   │   ├── registry.py           # @register_semantic/_structural/_fusion/_head
 │   │   ├── semantic/             # codebert.py graphcodebert.py

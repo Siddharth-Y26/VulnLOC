@@ -12,7 +12,7 @@ guessing.
 | **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52`                                                                                                                                               |
 | **Producing runs**    | split`0c64a30f5632443e815507bec260ea1a` · reproducibility check `e395b21b13114446a944c2dfefac24fc` (`reproduced=True`) · shards `1f716614720b4a3d823aaa3eb24df7c7` · audit `artifacts/data/audit_report.json` |
 | **Reproduce**         | `prepare_data.py` → `audit_data.py` → `build_splits.py` → `build_cache.py` (in `scripts/`, in that order)                                                                                                     |
-| **Status**            | Phase 1.**No model has been trained on this data.** No result exists to report.                                                                                                                                  |
+| **Status**            | Phases 1–2 complete (data + representation).**No model has been trained on this data.** No result exists to report.                                                                                             |
 
 ---
 
@@ -339,6 +339,24 @@ larger sample before any claim rests on it.
 | `artifacts/data/cache/*.jsonl`            | **Preprocessed shards — one per partition.** All 188,636 functions in 225 MB against 11 GB of CSV. Everything after Phase 1 reads these; nothing reopens a Big-Vul CSV |
 | `artifacts/data/cache/shards.json`        | Per-shard counts and SHA-256 digests. Its totals are an*independent* recount that agrees with `split_report.json` exactly                                               |
 | `artifacts/data/label_audit/`             | The human review sheet and the sample's identity record                                                                                                                 |
+| `artifacts/representation/report_{ast,cpg}.json` | Phase 2: parse-success rate with failures categorised, graph statistics, line coverage, and the grammar comparison behind open decision Q8 (`Memory.md` §1.7)      |
 
 None of these are in git (`Rules.md`, `.gitignore`); they are regenerated from the
-commands at the top of this card.
+commands at the top of this card, plus
+`python scripts/report_representation.py graph.builder=<ast|cfg|dfg|cpg>`.
+
+---
+
+## 9. What the representation layer adds to the picture
+
+Phase 2 measured two things that bound line-level results and belong with the data
+facts rather than with the model ones (`Memory.md` §1.7):
+
+- **7.84% of flagged lines carry no AST node** — 3,646 of 46,513. Nothing can be pooled
+  over them, so the structural branch cannot score them at all, however good it is.
+  Uneven across partitions: `clean_eval` 98.78% covered, `test` 83.41%. Report line
+  coverage next to any line-level metric.
+- **The corpus's own `lang` column is the worst grammar selector available** — 37.0% of
+  functions parse cleanly as declared against 88.2% as C++. It is an open decision
+  (Q8), and until it is made, any graph-derived number carries the caveat that half the
+  corpus was parsed with a recovering grammar.

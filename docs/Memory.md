@@ -119,7 +119,7 @@ A1, A4, A5 untouched.
 | MLflow tracking | ✅ | `src/vulnloc/training/tracking.py` |
 | Train entrypoint (no-op loop) | ✅ | `scripts/train.py` |
 | Quality gates | ✅ | ruff, black, mypy, import-linter, pre-commit, `.github/workflows/ci.yml` |
-| Tests | ✅ **377 passing / 2 skipped, 88% cov** | `tests/unit/`, `tests/integration/` |
+| Tests | ✅ **461 passing / 2 skipped, 89% cov** | `tests/unit/`, `tests/integration/` |
 | Corpus acquisition + audit | ✅ | `data/{sources,download,audit}.py`, `scripts/{prepare_data,audit_data}.py` |
 | Big-Vul loader (`@register_dataset`) | ✅ | `data/loaders/bigvul.py` |
 | Line-label derivation (`labels_v1`) | ✅ | `data/labeling.py` |
@@ -737,8 +737,8 @@ Tracks `PRD.md` §10 as evidence accumulates.
 |----|------------|--------|----------|
 | A1 | Primary persona = application developer | Unverified | — |
 | A2 | Single-GPU compute budget | ✅ **Confirmed — and quantified** | Run `f3f24d45…`: one **NVIDIA RTX 3050 Ti Laptop GPU, 4.0 GiB**, compute capability 8.6, driver 591.59, `torch 2.13.0+cu130`. Single GPU confirmed; **4 GiB is the binding constraint**. The first CPU-only reading was the default PyPI wheel, not absent hardware — ADR-000 §D0.8 |
-| A3 | Line-level labels obtainable | ✅ **Confirmed** | 8,243 functions / 46,513 flagged lines derived and verified corpus-wide: 0 out-of-range, 0 text mismatches, 0 count mismatches, 0 labels-on-negatives (§1.4). Confirms *availability and internal consistency*; **correctness is still open** pending the human audit |
-| A4 | v1 scope = one language | Unverified | — |
+| A3 | Line-level labels obtainable | 🟨 **Available, not correct** | 8,243 functions / 46,513 flagged lines derived and verified corpus-wide: 0 out-of-range, 0 text mismatches, 0 count mismatches, 0 labels-on-negatives (§1.4). Availability and internal consistency confirmed. **Correctness measured at ~70%** by the human audit (§1.6) — and a further **7.84% of flagged lines carry no AST node** to score (§1.7 / §7 #21) |
+| A4 | v1 scope = one language | ✅ **Confirmed — and built** | ADR-002 §D2.1 fixed C/C++; Phase 2 implemented exactly that. The cost ADR-002 predicted was real: C/C++ is the hardest case for line mapping, and it produced §7 #19 (`Point` segfault), #20 (`splitlines`) and Q8 (grammar selection) |
 | A5 | `evidence` schema as specified | Unverified | — |
 
 ---
@@ -754,3 +754,20 @@ Tracks `PRD.md` §10 as evidence accumulates.
 - Whether your work depends on an open decision (§5)
 - Which interface contract you are implementing (`Architecture.md` §4)
 - Which exit criterion you are advancing (`Phases.md`)
+
+**Where things live, as of 2026-08-16:**
+
+| You want | Use |
+|---|---|
+| The corpus | `vulnloc.data.cache.iter_shard(cache_dir, split)` — **never a Big-Vul CSV** |
+| One function in L1 form | `CodeUnit.from_labelled_function(...)` |
+| A parse | `TreeSitterParser().parse(source, language=..., unit_id=...)` — syntax errors are counted, not raised |
+| A graph | `GRAPH_REGISTRY.get("ast"\|"cfg"\|"dfg"\|"cpg")().build(parse_result)` |
+| A line number | `LineMap.byte_to_line` / `char_to_line`. **Never** Tree-sitter's `Point` (§7 #19) |
+| To split source into lines | `representation.line_map.split_lines`. **Never** `str.splitlines()` (§7 #20) |
+| Corpus-level graph numbers | `artifacts/representation/report_{ast,cpg}.json`, §1.7 |
+
+**The three standing ceilings on any line-level number** — quote them together, they are
+different quantities: ~30% of line labels are wrong (§1.6); 7.84% of flagged lines have
+no node to score (§7 #21); 512-token truncation lands hardest on `clean_eval`, which is
+4.5× longer than the corpus average (§7 #14).
