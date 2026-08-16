@@ -25,10 +25,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Active phase** | **Phase 2 — Code Representation** (Phase 1 closed 2026-08-11; Phase 0 is 3/4, the open item is Docker, which blocks nothing before Phase 8) |
-| **Phase status** | ✅ **Phase 1 COMPLETE — 5 / 5 exit criteria met** (2026-08-11). Phase 2 is next and unblocked |
-| **Last updated** | 2026-08-11 |
-| **Last commit** | `09d58d0` on branch `phase-0/foundation` (13 commits; `main` does not exist yet) |
+| **Active phase** | **Phase 2 — Code Representation**, in progress (Phase 1 closed 2026-08-11; Phase 0 is 3/4, the open item is Docker, which blocks nothing before Phase 8) |
+| **Phase status** | 🟨 **Phase 2 — 1 / 5.** Parser and line map landed 2026-08-16; no graph builder exists yet |
+| **Last updated** | 2026-08-16 |
+| **Last commit** | `090091f` (Phase 1 closure) on `phase-0/foundation`; Phase 2 work is on `phase-2/representation` (`main` still does not exist) |
 | **Best model run ID** | — *(no model exists; no claims permitted)* |
 | **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` (project-wise, 80/10/10, seed 42) |
 | **Blocking issues** | None. Q1/Q2/Q3/Q6/Q7 closed by ADR-001/002/003/004. Q4, Q5 deferred to Phases 6–7 |
@@ -40,7 +40,7 @@
 |-------|--------|-------------------|-------|
 | 0 Foundation | 🟨 In progress | 3 / 4 | Docker criterion blocked — see §7 issue #1 |
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
-| 2 Representation | 🟨 **Next** | 0 / 5 | Unblocked — ADR-002 accepted. Read the shards, never the CSVs (§1.5) |
+| 2 Representation | 🟨 **In progress** | 1 / 5 | ADR-002 accepted ✅. Parser + line map done (2026-08-16). Outstanding: node-level property tests, ≥5 golden files, corpus-wide parse rate, graph stats — no graph builder exists yet |
 | 3 LLM Branch | ⬜ Not started | 0 / 4 | |
 | 4 GNN Branch | ⬜ Not started | 0 / 4 | |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
@@ -118,7 +118,7 @@ A1, A4, A5 untouched.
 | MLflow tracking | ✅ | `src/vulnloc/training/tracking.py` |
 | Train entrypoint (no-op loop) | ✅ | `scripts/train.py` |
 | Quality gates | ✅ | ruff, black, mypy, import-linter, pre-commit, `.github/workflows/ci.yml` |
-| Tests | ✅ **299 passing / 2 skipped, 85% cov** | `tests/unit/`, `tests/integration/` |
+| Tests | ✅ **332 passing / 2 skipped, 86% cov** | `tests/unit/`, `tests/integration/` |
 | Corpus acquisition + audit | ✅ | `data/{sources,download,audit}.py`, `scripts/{prepare_data,audit_data}.py` |
 | Big-Vul loader (`@register_dataset`) | ✅ | `data/loaders/bigvul.py` |
 | Line-label derivation (`labels_v1`) | ✅ | `data/labeling.py` |
@@ -128,7 +128,9 @@ A1, A4, A5 untouched.
 | Deterministic sampling primitives | ✅ | `utils/hashing.py` |
 | Label-audit sheet (human task) | ✅ generated | `scripts/sample_labels.py` |
 | `DATA_CARD.md` | ✅ | `docs/DATA_CARD.md` |
-| Parser / graph builders | ⬜ | — |
+| Tree-sitter parser wrapper (C/C++) | ✅ | `representation/parser.py` |
+| Line map (byte + char → 1-indexed line) | ✅ | `representation/line_map.py` |
+| Graph builders (AST/CFG/DFG/CPG) | ⬜ | — |
 | LLM branch | ⬜ | — |
 | GNN branch | ⬜ | — |
 | Fusion module | ⬜ | — |
@@ -341,6 +343,32 @@ Next:
 
 ---
 
+### 2026-08-16 (session 5) — Phase 1 committed; Phase 2 starts with the parser and line map
+Phase: 2 (1/5)
+Did:
+  - **Committed the outstanding Phase 1 work** (`090091f`, 21 files): `cache.py`,
+    `pipeline.py`, `utils/hashing.py`, the three build scripts, ADR-004, `DATA_CARD.md`
+    and the Memory archive had all been sitting uncommitted in the working tree.
+  - Opened `phase-2/representation`. Added `tree-sitter-c==0.24.2` /
+    `tree-sitter-cpp==0.23.4` — the core `tree-sitter` wheel ships **no grammars**, so
+    Phase 2 could not have started without them.
+  - Built `representation/line_map.py` (byte→line and char→line, 1-indexed) and
+    `representation/parser.py` (grammar resolution, damage counting, tree walking).
+    33 new tests including Hypothesis property tests over randomised text.
+Learned:
+  - **`node.start_point` segfaults the interpreter** on real corpus input — see §7 #19.
+    Line numbers now come from `start_byte` through our own table, which is what ADR-002
+    §D2.3 wanted anyway ("we would not control its line mapping").
+  - **`str.splitlines()` is the wrong splitter for source code** — §7 #20.
+  - **The dataset's `lang` column is not a reliable grammar selector** — §5 Q8. Measured
+    on `clean_eval` (1,589 units): 50.8% parse cleanly as C, 73.3% as C++, 76.3% under
+    either, and 405 units labelled `C` are clean **only** under the C++ grammar.
+Next:
+  - Decide Q8 before any corpus-wide graph build, then the AST builder (ADR-002 §D2.2
+    build order), then golden files and the corpus-wide parse report.
+
+---
+
 ### 2026-08-11 (session 4) — Phase 1 closed by the human label audit
 Phase: 1 → 2
 Did:
@@ -452,6 +480,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q4 | Explanation supervision available? | Ground-truth text · templates + human eval · none | Template baseline + human eval; do not claim generative quality without a reference set | Phase 7 | 🟨 Deferred |
 | Q5 | CWE-type classification required? | Binary only · binary + type | Deck's example output names a type ("Buffer Overflow") — implement type if labels exist, else derive from templates and say so | Phase 6 | 🟨 Deferred |
 | Q6 | CPG tooling: build ourselves vs. external generator? | In-house passes · external exporter | In-house — an external generator would take the line mapping out of our control. DeepDFA/MegaVul graphs used as offline validation oracles only | Phase 2 | ✅ **Closed — ADR-002** |
+| Q8 | **Which grammar parses a Big-Vul function?** The dataset's `lang` column says `C` for 98.6% of the corpus, but measured on `clean_eval` (1,589 units) only **50.8%** parse cleanly as C against **73.3%** as C++; **405 units labelled `C` are clean only under the C++ grammar**, and 23.7% are clean under neither | Trust `lang` · always C++ · try declared then fall back · report both and pick per-unit by damage count | Undecided — a fallback that silently switches grammar changes what every downstream graph is built from, so it needs an ADR, not a default. Current code parses exactly the language it is told and never guesses | Phase 2 corpus build | 🟥 **Open — blocks the corpus-wide graph build** |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -460,22 +489,30 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 
 Ordered. Top item is what the next session starts with.
 
-**Phase 1 is closed.** These are Phase 2's starting conditions and the standing debts.
+**Phase 1 is closed. Phase 2 is 1/5.** The parser and line map exist; the graph builders
+do not.
 
-1. **Start Phase 2 — Code Representation.** Read `Phases.md` Phase 2 and ADR-002 first.
-   Consume `artifacts/data/cache/*.jsonl` via `data.cache.iter_shard`; **never reopen a
-   Big-Vul CSV.** The highest-risk piece is the Tree-sitter byte-offset→line conversion
-   (`Rules.md` §2 — the line index is the atomic unit).
-2. **Decide the branching model.** `main` still does not exist — the repo's only branch is
+1. **Decide Q8 — which grammar parses a Big-Vul function** (§5). It blocks the
+   corpus-wide graph build, because a grammar fallback changes what every graph is built
+   from. Needs an ADR, not a default.
+2. **Build the AST builder** behind `@register_graph` (ADR-002 §D2.2 build order:
+   AST → CFG → DFG → CPG). Phase 4 may start as soon as AST lands. Consume
+   `artifacts/data/cache/*.jsonl` via `data.cache.iter_shard`; **never reopen a Big-Vul
+   CSV.**
+3. **Finish the remaining Phase 2 exit criteria:** node-level property tests on
+   randomised inputs, golden files for ≥5 hand-written functions (loops, branches,
+   pointers/aliasing), the corpus-wide parse-success rate as a written artefact, and
+   graph statistics.
+4. **Decide the branching model.** `main` still does not exist — the repo's only branch is
    `phase-0/foundation`. `Rules.md` §8 assumes a `main` to open PRs against; create it.
-3. **Close the last Phase 0 exit criterion.** On a machine with Docker installed, run
+5. **Close the last Phase 0 exit criterion.** On a machine with Docker installed, run
    `make docker-build && make docker-train` and record the result (§7 issue #1).
-4. Before Phase 3, decide how to live within 4 GiB of VRAM (§7 issue #7) — and note that
+6. Before Phase 3, decide how to live within 4 GiB of VRAM (§7 issue #7) — and note that
    `clean_eval`'s 138-line average (§7 #14) makes the truncation question sharper than the
    corpus average suggested.
-5. During Phase 2, re-run the leakage check with near-duplicate detection once
+7. During Phase 2, re-run the leakage check with near-duplicate detection once
    tokenization exists (§7 #15) — the 207 exact matches are a floor.
-6. Before the paper: widen the label audit (`data.label_audit.k`) with a **second
+8. Before the paper: widen the label audit (`data.label_audit.k`) with a **second
    reviewer**, so the ~30% gets a tighter interval and an inter-rater agreement figure
    (§1.6). And resolve or formally declare unresolvable the published-vs-measured
    line-count discrepancy (§7 #11).
@@ -508,6 +545,8 @@ Things that cost time once and should not cost time twice.
 | 14 | **The clean evaluation set averages 138.3 lines/function against the corpus's 31.0** — 4.5× longer | The 512-token truncation problem lands hardest on precisely the partition that carries the headline line-level numbers. A corpus-wide truncation statistic would be reassuring and wrong | Phase 3 must measure label loss under truncation **on `clean_eval` specifically** and report it separately. Treat windowing as required, not optional, for this partition | 🟥 Open — Phase 3 design input |
 | 15 | **A project-wise split does not prevent function-level leakage.** 207 hashes / 426 functions spanned partitions with **zero shared projects** — forks and vendored copies (Chrome/Android, php/php-src, ImageMagick/ImageMagick6, libxml2) | Byte-identical functions on both sides of the train/test boundary: exactly the criticism levelled at published Big-Vul results | **Fixed** — withheld into a `duplicate` partition (ADR-004), 0.23% of the corpus. **Exact match only**, so 207 is a *floor*: re-run with near-duplicate detection in Phase 2 and expect it to grow | ✅ Fixed — floor only |
 | 16 | **Big-Vul's `index` column is not random.** Line-labelled positives cluster at the high end — measured on `bigvul_test`, **all 788** line-labelled rows have `index ≥ 160,000` while total rows spread evenly | "Take the first N rows" for a smoke test yields a subset with almost no positives; treating `index` as a time proxy would produce a fake temporal split | Sample by content hash (`utils/hashing.py`), never by row position or index range | 🟨 Known |
+| 19 | **`node.start_point` segfaults the interpreter.** `tree-sitter==0.26.0` (the latest release) + `tree-sitter-c==0.24.2`: walking a tree and reading `start_point` crashes the process on real corpus input. Reproduced deterministically on `bigvul-188127`; minimal trigger is its first **258 lines / 7,810 bytes**. The identical walk reading `start_byte` completes over all 3,061 nodes. Pure ASCII, max line length 87 — nothing exotic in the input | A native crash cannot be caught, so any corpus-wide pass touching `Point` dies with no traceback and no partial result. It was found only because a 2,618-unit smoke test segfaulted | **Never read `start_point`/`end_point`.** Line numbers come from `start_byte` through `LineMap`. Regression fixture at `tests/fixtures/parser/segfault_start_point.c`; if anyone reintroduces `Point` the test suite crashes rather than fails. No upstream fix to take — 0.26.0 is already the newest release | ✅ Fixed — designed around |
+| 20 | **`str.splitlines()` is the wrong splitter for source code.** It breaks on carriage return, vertical tab, form feed, U+001C–U+001E, U+0085, U+2028 and U+2029; Tree-sitter and Big-Vul's `flaw_line_index` break only on `\n` | Every line number after the first stray character would shift by one, silently. Measured: exactly **1 function of 188,636** (`bigvul-76919`, a form feed) is split differently — rare enough to survive any casual test, which is what makes it dangerous | Use `representation.line_map.split_lines`. Never call `str.splitlines()` on source | ✅ Fixed |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**

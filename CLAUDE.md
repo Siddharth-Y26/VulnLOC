@@ -43,12 +43,12 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 | | |
 |---|---|
-| Branch | `phase-0/foundation`. **`main` does not exist yet** — decide the branching model. |
+| Branch | `phase-2/representation`. **`main` does not exist yet** — decide the branching model. |
 | Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker not installed). Blocks nothing downstream. |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
-| Phase 2 | 🟨 **Next** — Code Representation. Unblocked (ADR-002 accepted). |
+| Phase 2 | 🟨 **1 / 5, in progress** — parser + line map done (2026-08-16); no graph builder yet. |
 | Phases 3–10 | ⬜ Not started. |
-| Tests | **299 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **332 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -58,15 +58,16 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 - `data/` — `sources.py`, `download.py`, `audit.py`, `labeling.py`, `splits.py`,
   `pipeline.py`, `cache.py`, `loaders/bigvul.py`
 - `training/` — `seeding.py`, `device.py`, `tracking.py`
-- `models/`, `representation/`, `evaluation/`, `explanation/`, `serving/` — **empty
-  packages with registries only.** Nothing built ahead.
+- `representation/` — `line_map.py`, `parser.py`. Graph builders not started.
+- `models/`, `evaluation/`, `explanation/`, `serving/` — **empty packages with registries
+  only.** Nothing built ahead.
 
-### Starting Phase 2
+### Continuing Phase 2
 
 Read `Phases.md` Phase 2 and ADR-002 first. Consume the dataset through
-`vulnloc.data.cache.iter_shard` — **never reopen a Big-Vul CSV.** The highest-risk piece
-of the phase is the Tree-sitter byte-offset→line conversion; the line index is the atomic
-unit of this project.
+`vulnloc.data.cache.iter_shard` — **never reopen a Big-Vul CSV.** Next up is the AST
+builder behind `@register_graph`, but **Q8 (which grammar to parse with) is open and
+blocks the corpus-wide build** — see `Memory.md` §5.
 
 Tracked but not blocking: why our measured line counts differ from the published figures
 (`Memory.md` §7 #11 — now narrowed; it is *not* a parsing artefact).
@@ -202,6 +203,9 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 11 | **A project-wise split does not stop function-level leakage.** Forks and vendored copies put byte-identical code in different projects — 207 hashes / 426 functions, with zero shared projects. Withheld by ADR-004; **exact match only, so that number is a floor.** |
 | 12 | **`clean_eval` functions average 138 lines vs. 31 corpus-wide.** Truncation hits the headline evaluation set hardest. A corpus-average truncation statistic is reassuring and wrong. |
 | 13 | **Big-Vul's `index` column is not random** — line-labelled positives cluster at the high end (all 788 in `bigvul_test` sit at `index ≥ 160,000`). "First N rows" gives a degenerate sample. |
+| 14 | **`node.start_point` segfaults the interpreter** on real corpus input (`tree-sitter` 0.26.0 + `tree-sitter-c` 0.24.2). Derive lines from `start_byte` via `LineMap`. A native crash gives no traceback. |
+| 15 | **Never use `str.splitlines()` on source code** — it breaks on CR/VT/FF/U+2028 and friends; we and Tree-sitter break only on `\n`. Use `representation.line_map.split_lines`. |
+| 16 | **The `lang` column is not a reliable grammar selector** — 405 units labelled `C` in `clean_eval` parse cleanly *only* as C++. Open decision Q8. |
 
 ---
 
