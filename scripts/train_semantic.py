@@ -200,14 +200,32 @@ def train(cfg: DictConfig) -> dict[str, Any]:
             early_stopping=EarlyStopping(
                 patience=int(cfg.train.patience), mode=str(cfg.train.watch_mode)
             ),
+            checkpoint_every_n_steps=int(cfg.train.checkpoint_every_n_steps),
         )
+
+        start_epoch = 0
+        if str(cfg.train.resume_from):
+            payload = trainer.load_checkpoint(Path(str(cfg.train.resume_from)))
+            # The interrupted epoch is redone from its start: the sampler's position
+            # within it is not part of the checkpoint, and silently skipping the units it
+            # had already seen would be worse than seeing a few of them twice.
+            start_epoch = trainer.state.epoch
+            _LOGGER.info(
+                "Resumed from checkpoint",
+                extra={
+                    "path": str(cfg.train.resume_from),
+                    "resumed_epoch": start_epoch,
+                    "global_step": trainer.state.global_step,
+                    "from_run": payload.get("provenance", {}).get("run_id", "?"),
+                },
+            )
 
         train_loader = build_loader(train_set, cfg, shuffle=True, seed=seed)
         eval_loader = build_loader(eval_set, cfg, shuffle=False, seed=seed)
         best: dict[str, float] = {}
         best_path = checkpoint_dir / "best.pt"
 
-        for epoch in range(int(cfg.train.epochs)):
+        for epoch in range(start_epoch, int(cfg.train.epochs)):
             trainer.state.epoch = epoch
             train_loader.batch_sampler.set_epoch(epoch)  # type: ignore[union-attr]
             train_metrics = trainer.train_epoch(train_loader)

@@ -183,6 +183,10 @@ class Trainer:
         watch_metric: The metric early stopping and checkpoint selection follow.
         early_stopping: Optional early stopper.
         scheduler: Optional LR scheduler, stepped once per optimizer step.
+        checkpoint_every_n_steps: Write a resumable checkpoint this often, in optimizer
+            steps. ``0`` disables it and reverts to epoch boundaries only — which on this
+            hardware means an interrupted run loses everything, because an epoch is
+            longer than most interruptions (``Memory.md`` §7 #31).
     """
 
     def __init__(
@@ -199,9 +203,14 @@ class Trainer:
         watch_metric: str = "line/top_5_accuracy",
         early_stopping: EarlyStopping | None = None,
         scheduler: Any = None,
+        checkpoint_every_n_steps: int = 0,
     ) -> None:
         if accumulation_steps < 1:
             raise ModelError("accumulation_steps must be >= 1", value=accumulation_steps)
+        if checkpoint_every_n_steps < 0:
+            raise ModelError(
+                "checkpoint_every_n_steps must be >= 0", value=checkpoint_every_n_steps
+            )
         self.model = model
         self.criterion = criterion
         self.optimizer = optimizer
@@ -213,6 +222,7 @@ class Trainer:
         self.watch_metric = watch_metric
         self.early_stopping = early_stopping
         self.scheduler = scheduler
+        self.checkpoint_every_n_steps = checkpoint_every_n_steps
         self.scaler = torch.amp.GradScaler(device.type, enabled=self.use_amp)
         self.state = TrainState()
         self._memory_checked = False
@@ -243,6 +253,26 @@ class Trainer:
                     "used_pct": round(100 * peak / total, 1),
                 },
             )
+
+    def _maybe_checkpoint_step(self) -> None:
+        """Write ``last.pt`` if enough optimizer steps have passed.
+
+        Deliberately a *single rolling file* rather than one per interval: the point is to
+        make an interruption cheap, not to keep a history, and 500 MB per snapshot would
+        fill the disk long before it became useful. ``best.pt`` still holds the best
+        model by the watched metric; this one only answers "where was I".
+        """
+        if not self.checkpoint_every_n_steps:
+            return
+        if self.state.global_step % self.checkpoint_every_n_steps:
+            return
+        self.save_checkpoint(
+            self.checkpoint_dir / "last.pt",
+            {},
+            kind="periodic",
+            global_step=self.state.global_step,
+            epoch=self.state.epoch,
+        )
 
     def train_epoch(self, loader: DataLoader[Any]) -> dict[str, float]:
         """Run one training epoch.
@@ -288,6 +318,7 @@ class Trainer:
                     self.scheduler.step()
                 self.state.global_step += 1
                 self._check_memory()
+                self._maybe_checkpoint_step()
 
             for key in totals:
                 totals[key] += float(losses[key].detach())

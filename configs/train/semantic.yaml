@@ -45,3 +45,12 @@ watch_mode: max
 patience: 3
 
 checkpoint_dir: ./artifacts/checkpoints
+
+# Write a resumable checkpoint every N optimizer steps. Memory.md §7 #31: an epoch on the
+# 4 GiB laptop is >16 minutes, so epoch-boundary checkpointing alone means any
+# interruption — a stop, a reboot, a thermal event — loses the whole epoch. 100 steps is
+# roughly 2 minutes there. 0 disables it.
+checkpoint_every_n_steps: 100
+
+# Resume from a previous run's last.pt. Point it at artifacts/checkpoints/<run_id>/last.pt.
+resume_from: ""

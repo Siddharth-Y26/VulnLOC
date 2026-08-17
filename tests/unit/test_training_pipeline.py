@@ -353,3 +353,88 @@ def test_training_a_tiny_model_decreases_the_loss(tmp_path):
         last = trainer.train_epoch([batch])["loss"]
 
     assert last < first
+
+
+# --- per-step checkpointing (Memory.md §7 #31) ----------------------------------------
+
+
+def _step_trainer(tmp_path, model, every):
+    return Trainer(
+        model,
+        LineLoss(kind="bce"),
+        torch.optim.AdamW(model.parameters(), lr=1e-3),
+        torch.device("cpu"),
+        checkpoint_dir=tmp_path,
+        use_amp=False,
+        checkpoint_every_n_steps=every,
+    )
+
+
+def _one_batch():
+    labels = torch.zeros(2, 5)
+    labels[:, 0] = 1.0
+    return {
+        "features": torch.randn(2, 5, 4),
+        "line_valid": torch.ones(2, 5, dtype=torch.bool),
+        "line_labels": labels,
+        "targets": torch.ones(2),
+    }
+
+
+def test_a_rolling_checkpoint_appears_mid_epoch(tmp_path):
+    """The whole point: an interruption must cost minutes, not the epoch."""
+    trainer = _step_trainer(tmp_path, TinyModel(), every=2)
+    batch = _one_batch()
+
+    trainer.train_epoch([batch, batch, batch, batch])
+
+    assert (tmp_path / "last.pt").exists()
+
+
+def test_zero_disables_periodic_checkpointing(tmp_path):
+    trainer = _step_trainer(tmp_path, TinyModel(), every=0)
+
+    trainer.train_epoch([_one_batch(), _one_batch()])
+
+    assert not (tmp_path / "last.pt").exists()
+
+
+def test_the_rolling_checkpoint_records_where_it_was(tmp_path):
+    trainer = _step_trainer(tmp_path, TinyModel(), every=1)
+    trainer.state.epoch = 3
+    batch = _one_batch()
+
+    trainer.train_epoch([batch, batch])
+    payload = torch.load(tmp_path / "last.pt", map_location="cpu", weights_only=False)
+
+    assert payload["provenance"]["kind"] == "periodic"
+    assert payload["provenance"]["epoch"] == 3
+    assert payload["state"]["global_step"] == 2
+
+
+def test_a_rolling_checkpoint_resumes_weights_and_step(tmp_path):
+    torch.manual_seed(0)
+    trainer = _step_trainer(tmp_path, TinyModel(), every=1)
+    batch = _one_batch()
+    trainer.train_epoch([batch, batch, batch])
+
+    torch.manual_seed(99)
+    restored = _step_trainer(tmp_path, TinyModel(), every=1)
+    restored.load_checkpoint(tmp_path / "last.pt")
+
+    assert restored.state.global_step == 3
+    for before, after in zip(trainer.model.parameters(), restored.model.parameters(), strict=True):
+        assert torch.equal(before, after)
+
+
+def test_negative_interval_raises(tmp_path):
+    model = TinyModel()
+    with pytest.raises(ModelError):
+        Trainer(
+            model,
+            LineLoss(),
+            torch.optim.AdamW(model.parameters()),
+            torch.device("cpu"),
+            checkpoint_dir=tmp_path,
+            checkpoint_every_n_steps=-1,
+        )
