@@ -1,8 +1,9 @@
 # ADR-006 — Source Lines Are Whitespace-Normalized Because the Corpus Encodes the Label in Indentation
 
-- **Status:** **Proposed** — 2026-09-08. Awaiting the project owner. The code fix is
-  implemented and default-on; the open part is how far the remedy is pushed (see
-  *Open question: L0 or L1*).
+- **Status:** **Proposed** — 2026-09-08. Awaiting the project owner's formal acceptance.
+  The code fix is implemented and default-on at both L0 and L1, because leaving the leak
+  in place would corrupt any further result. Q9 (how far to push the remedy) was answered
+  by the owner on 2026-09-08: **L0** — see D6.6.
 - **Date:** 2026-09-08
 - **Phase:** 3 — LLM Branch
 - **Depends on:** ADR-001 (Big-Vul, LineVul release, as the primary training corpus),
@@ -146,24 +147,47 @@ falls from precision 0.9016 to 0.1488, `inner_double_space` sits at 0.0766 again
 
 ---
 
-## Open question: L0 or L1 — needs the project owner
+## D6.6 — The fix is applied at L0, in the loader (Q9, closed 2026-09-08)
 
-The fix as implemented is at **L1**, which leaves the L0 shards, the function hashes and
-the **split fingerprint `0ade7483…` untouched**. That is deliberate: it closes the leak
-for every model input at zero rebuild cost, and Phase 1's reproducibility artefact
-survives.
+**Decision: normalize as the corpus is read**, so `source` never carries the defect
+anywhere — not into the function hashes, not into the split, not into the shards.
+`BigVulLoader._source` is the single place raw `processed_func` becomes source text, so
+`iter_units` and `iter_functions` cannot drift apart; they must agree, or the hashes the
+split is built from would describe different text from the shards. The knob is
+`data.normalize_whitespace`, default `true`.
 
-The alternative is to normalize at **L0**, in the loader, so `source` never carries the
-defect anywhere. It is arguably more correct and has one concrete benefit — cross-split
-duplicate detection is currently whitespace-sensitive, so the 207 exact-match hashes
-ADR-004 withheld are a floor (landmine #11), and normalizing first would very likely find
-more. The cost is real: a full splits rebuild and cache rebuild (each a pass over ~11 GB),
-**a new split fingerprint**, and re-verification of every Phase 1 number that cites the
-old one.
+The L1 application (D6.2) **stays** as defence in depth. The transform is idempotent, so
+re-applying it over already-clean text costs nothing, and it keeps any future corpus
+loaded through a different path safe by default.
 
-**Recommendation: stay at L1 for now**, and treat the L0 question as part of the
-near-duplicate re-check already queued in `Memory.md` §6 #7. Nothing in Phases 3–5 is
-blocked by it, and the leak — the part that corrupts results — is closed either way.
+### This costs nothing, and it was expected to cost a rebuild
+
+The L0 move was accepted expecting a new split fingerprint. It does not produce one, for
+a reason worth recording: **every field the split reads is invariant under this
+transform.**
+
+| `Unit` field | Why it does not move |
+|---|---|
+| `func_hash` | PrimeVul's definition already removes `' '`, `'	'`, `'
+'`, `'
+'` — see landmine #3. Stripping whitespace before a hash that strips all whitespace is a no-op |
+| `n_lines` | The transform is line-count preserving by construction (D6.3) |
+| `project`, `date`, `target` | Not derived from source text |
+| `has_line_labels`, `n_flagged_lines` | Derived from `flaw_line_index`, not from source |
+
+So the split assignment, the ADR-003 clean-eval membership (joined on `func_hash`) and
+the ADR-004 duplicate set are **bit-identical**, and fingerprint `0ade7483…` stands.
+Only the source text the models see changes — which is the entire point. Verified by
+re-running `build_splits.py` without `overwrite`, which is the project's reproducibility
+check and passes.
+
+**A claim in the first draft of this ADR was wrong and is corrected here.** It argued
+that L0 normalization would raise ADR-004's 207-hash duplicate floor because "duplicate
+detection is currently whitespace-sensitive". It is not — `func_hash` has always been
+whitespace-insensitive. Landmine #11's "floor" is about **semantic near-duplicates**
+(renamed variables, reordered code), which this transform does not address at all. The
+near-duplicate re-check queued in `Memory.md` §6 #7 remains entirely open and is
+unaffected by ADR-006.
 
 ---
 

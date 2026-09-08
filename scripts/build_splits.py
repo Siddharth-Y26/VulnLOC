@@ -80,7 +80,10 @@ def build(cfg: DictConfig) -> dict[str, Any]:
         )
 
     units = load_units(
-        dataset, cfg.data.raw_dir, splits=tuple(str(s) for s in settings.source_splits)
+        dataset,
+        cfg.data.raw_dir,
+        splits=tuple(str(s) for s in settings.source_splits),
+        normalize_whitespace=bool(cfg.data.normalize_whitespace),
     )
     spec = SplitSpec(
         train=float(settings.train),

@@ -82,7 +82,9 @@ def build(cfg: DictConfig) -> dict[str, Any]:
     splits = [str(s) for s in settings.splits] or None
 
     loader = DATASET_REGISTRY.get(str(settings.dataset))(
-        cfg.data.raw_dir, splits=tuple(str(s) for s in settings.source_splits)
+        cfg.data.raw_dir,
+        splits=tuple(str(s) for s in settings.source_splits),
+        normalize_whitespace=bool(cfg.data.normalize_whitespace),
     )
 
     with start_run(cfg, run_name="cache") as run_id:

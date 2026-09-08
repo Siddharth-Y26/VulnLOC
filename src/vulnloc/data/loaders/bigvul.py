@@ -31,6 +31,7 @@ from vulnloc.data.registry import register_dataset
 from vulnloc.data.splits import Unit
 from vulnloc.utils.exceptions import DataError
 from vulnloc.utils.logging import get_logger
+from vulnloc.utils.text import normalize_source_whitespace
 
 __all__ = ["BIGVUL_SPLITS", "BigVulLoader"]
 
@@ -107,6 +108,15 @@ class BigVulLoader:
             is random and ADR-001 §D1.3 requires re-splitting, so the normal mode is to
             pool everything and re-partition.
         chunksize: Rows per pandas chunk.
+        normalize_whitespace: Strip edge whitespace from every source line as it is read.
+            **On by default because the corpus encodes the label in the indentation**:
+            this release strips leading whitespace from every line of ``processed_func``
+            *except* the flagged ones, which are pasted back verbatim from ``flaw_line``,
+            so "line starts with a space" recovers the line label at precision 1.0000
+            (ADR-006, ``Memory.md`` §1.10). Applying it here rather than downstream means
+            the defect never reaches the function hashes, the split or the shards.
+            ``False`` reproduces every pre-ADR-006 artefact, including split fingerprint
+            ``0ade7483…``.
     """
 
     def __init__(
@@ -115,10 +125,31 @@ class BigVulLoader:
         *,
         splits: Sequence[str] = BIGVUL_SPLITS,
         chunksize: int = _DEFAULT_CHUNK,
+        normalize_whitespace: bool = True,
     ) -> None:
         self.raw_dir = Path(raw_dir)
         self.splits = tuple(splits)
         self.chunksize = chunksize
+        self.normalize_whitespace = normalize_whitespace
+
+    def _source(self, value: object) -> str | None:
+        """Return one row's source text, normalized per ADR-006.
+
+        The single place raw ``processed_func`` becomes source, so ``iter_units`` and
+        ``iter_functions`` cannot drift apart — they must agree, or the hashes and line
+        counts the split is built from would describe different text from the shards.
+
+        Args:
+            value: The raw ``processed_func`` cell.
+
+        Returns:
+            The source text, or ``None`` when the cell is empty.
+        """
+        cleaned = _clean(value)
+        if cleaned is None:
+            return None
+        source = str(cleaned)
+        return normalize_source_whitespace(source) if self.normalize_whitespace else source
 
     def _paths(self) -> list[Path]:
         paths = []
@@ -170,7 +201,7 @@ class BigVulLoader:
         for path in self._paths():
             for chunk in self._read(path, _UNIT_COLUMNS):
                 for _, row in chunk.iterrows():
-                    source = _clean(row["processed_func"])
+                    source = self._source(row["processed_func"])
                     if source is None:
                         continue
                     indices = flaw_line_indices(_clean(row["flaw_line_index"]))
@@ -196,7 +227,7 @@ class BigVulLoader:
             count = 0
             for chunk in self._read(path, _FUNCTION_COLUMNS):
                 for _, row in chunk.iterrows():
-                    source = _clean(row["processed_func"])
+                    source = self._source(row["processed_func"])
                     if source is None:
                         continue
                     count += 1

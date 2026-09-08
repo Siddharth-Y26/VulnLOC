@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import pytest
 
+from vulnloc.data.audit import function_hash
 from vulnloc.data.labeling import LabelledFunction
 from vulnloc.representation.line_map import split_lines
-from vulnloc.representation.normalization import normalize_source_whitespace
 from vulnloc.representation.units import CodeUnit
+from vulnloc.utils.text import normalize_source_whitespace
 
 # Shaped exactly like a Big-Vul `processed_func`: every line flush left except the
 # flagged ones, which kept their original indentation.
@@ -132,3 +133,26 @@ def test_line_map_agrees_with_normalized_source() -> None:
     for index, line in enumerate(unit.lines, start=1):
         del line
         assert 1 <= index <= unit.line_map.n_lines
+
+
+def test_function_hash_is_invariant_under_normalization() -> None:
+    """ADR-006 must not move the split.
+
+    ``function_hash`` is PrimeVul's definition and already removes every whitespace
+    character, so normalizing first cannot change it. This is why the L0 fix leaves the
+    split fingerprint intact — and why it does *not* find extra cross-split duplicates.
+    """
+    assert function_hash(LEAKY_SOURCE) == function_hash(normalize_source_whitespace(LEAKY_SOURCE))
+
+
+def test_normalization_is_idempotent() -> None:
+    """L1 re-applies it over text L0 already cleaned, so it must be a no-op the 2nd time."""
+    once = normalize_source_whitespace(LEAKY_SOURCE)
+    assert normalize_source_whitespace(once) == once
+
+
+def test_every_unit_field_the_split_uses_is_invariant() -> None:
+    """The split reads func_hash and n_lines; both survive normalization unchanged."""
+    normalized = normalize_source_whitespace(LEAKY_SOURCE)
+    assert len(split_lines(normalized)) == len(split_lines(LEAKY_SOURCE))
+    assert function_hash(normalized) == function_hash(LEAKY_SOURCE)

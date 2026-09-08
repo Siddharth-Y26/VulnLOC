@@ -233,7 +233,9 @@ def sample(cfg: DictConfig) -> dict[str, Any]:
     dataset = str(settings.dataset)
 
     loader = DATASET_REGISTRY.get(dataset)(
-        cfg.data.raw_dir, splits=tuple(str(s) for s in settings.source_splits)
+        cfg.data.raw_dir,
+        splits=tuple(str(s) for s in settings.source_splits),
+        normalize_whitespace=bool(cfg.data.normalize_whitespace),
     )
     stats = LabellingStats()
     units = sample_for_review(

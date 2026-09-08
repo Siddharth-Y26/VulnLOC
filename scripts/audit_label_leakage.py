@@ -14,13 +14,25 @@ first epoch (``Memory.md`` §1.10).
 The audit is adversarial by design: each "tell" is a one-feature predictor that reads
 **no code semantics**, only surface shape. Any of them scoring materially above the
 partition's base rate is a leak. They are scored twice — on the corpus text as shipped,
-and after :func:`~vulnloc.representation.normalization.normalize_source_whitespace` — so
+and after :func:`~vulnloc.utils.text.normalize_source_whitespace` — so
 the report shows both that the leak is real and that the fix closes it.
 
 Precision is the number that matters here, not F1. A tell that fires on few lines but is
 never wrong is a perfect oracle for those lines, and F1 would hide that behind low recall.
 
-Reads the preprocessed shards only; it never opens a Big-Vul CSV.
+**What ``as_shipped`` means now.** This script reads the preprocessed shards, never a
+Big-Vul CSV. Since ADR-006 D6.6 the fix is applied at **L0**, so the shards are written
+already normalized and the ``as_shipped`` stage reports *the text as the shards store
+it* — which is post-fix, and correctly shows no leak. **That is not evidence the original
+leak was imaginary**; it is evidence the corpus at rest is clean. To reproduce the
+original finding, rebuild the cache with the fix disabled::
+
+    python scripts/build_cache.py data.normalize_whitespace=false
+    python scripts/audit_label_leakage.py
+
+The script's standing value is forward-looking: it catches this class of defect in a
+corpus that has *not* been through the fix — a new dataset, a changed preprocessing step,
+or a regression that turns the normalization off.
 
 Usage::
 
@@ -42,10 +54,10 @@ from omegaconf import DictConfig
 
 from vulnloc.data.cache import iter_shard, shard_path
 from vulnloc.representation.line_map import split_lines
-from vulnloc.representation.normalization import normalize_source_whitespace
 from vulnloc.training.tracking import start_run
 from vulnloc.utils.exceptions import DataError
 from vulnloc.utils.logging import get_logger, setup_logging
+from vulnloc.utils.text import normalize_source_whitespace
 
 _LOGGER = get_logger(__name__)
 
@@ -188,6 +200,8 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
                 _LOGGER.info("Shard has no line-labelled units", extra={"split": split})
                 continue
 
+            # "as_shipped" is the text as the SHARDS store it, which since ADR-006
+            # D6.6 has already been normalized at L0. See the module docstring.
             section: dict[str, Any] = {"line_labelled_units": len(units)}
             for label, normalize in (("as_shipped", False), ("normalized", True)):
                 scores, judged, flagged = score_split(units, normalize=normalize, n_lines=n_lines)
@@ -222,6 +236,9 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
         payload = {
             "run_id": run_id,
             "n_lines_cap": n_lines,
+            # Records whether the shards being audited were themselves normalized, so a
+            # future reader cannot mistake a clean report for a corpus that never leaked.
+            "shards_normalized_at_l0": bool(cfg.data.normalize_whitespace),
             "shards": shards,
             # The headline: a partition appearing here had its labels readable off the
             # page formatting, with no model involved.

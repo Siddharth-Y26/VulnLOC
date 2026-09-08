@@ -5,6 +5,21 @@ name: default
 # Where raw corpora land. Gitignored (Architecture.md §5).
 raw_dir: "./artifacts/data/raw"
 
+# ADR-006. Strip leading and trailing whitespace from every source line AS IT IS READ,
+# so the defect never reaches the hashes, the split or the shards.
+#
+# This is a LABEL LEAK fix. The LineVul release strips indentation from every line of
+# `processed_func` except the flagged ones, which are pasted back verbatim from
+# `flaw_line` — so "does this line start with a space?" recovers the line label at
+# precision 1.0000 with zero false positives on all six partitions.
+#
+# The split is UNAFFECTED: `func_hash` already removes all whitespace (it is PrimeVul's
+# definition), and the transform preserves the line count, so every field of `Unit` is
+# invariant. Only the source text the models see changes.
+#
+# `false` reproduces every pre-ADR-006 artefact. Never use it for a reported number.
+normalize_whitespace: true
+
 # Empty means "every source in vulnloc.data.sources.SOURCES".
 # Override per-run, e.g. data.sources=[primevul,diversevul]
 sources: []

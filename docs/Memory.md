@@ -28,7 +28,7 @@
 | **Active phase** | **Phase 3 — LLM Branch, 3 / 4 exit criteria.** Model, loop and both design measurements are built and the overfit test passes. **The one full training run is VOID (ADR-006).** The ≥3-seed criterion is unstarted; no valid training result exists |
 | **Phase status** | ✅ **Phase 2 COMPLETE — 5 / 5** (2026-08-16). Phases 3 and 4 are both unblocked |
 | **Last updated** | 2026-09-08 |
-| **Open decision** | **Q9 — apply the ADR-006 normalization at L0 as well as L1?** Not blocking: the leak is closed at L1 either way. Q8 closed 2026-08-16 by ADR-005. Q4/Q5 deferred to Phases 6–7 |
+| **Open decision** | **None blocking.** Q9 closed 2026-09-08 (ADR-006 D6.6: normalize at L0; the split is unchanged). Q8 closed 2026-08-16 by ADR-005. Q4/Q5 deferred to Phases 6–7 |
 | **Last commit** | `bfe7631` (per-N-step checkpointing) on `phase-2/representation`. **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
 | **Best model run ID** | — *(a model exists and passes its overfit test; the only full run, `1843412a…`, is **void** — it learned a formatting artefact. **No valid trained result exists**, so no claims are permitted)* |
 | **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` (project-wise, 80/10/10, seed 42) |
@@ -612,15 +612,30 @@ forever.
 
 ### The fix
 
-`representation/normalization.py::normalize_source_whitespace` strips both ends of every
-line, applied in `CodeUnit` (L1) and **default-on**, so tokenizer and all four graph
-builders are covered by one change. It is **line-count preserving by construction**, so
-every 1-indexed label stays attached. Escape hatch:
-`representation.normalize_whitespace=false` reproduces pre-ADR-006 numbers and is logged
-as an MLflow parameter on every run. After the fix **no tell leaks on any partition**.
+`utils/text.py::normalize_source_whitespace` strips both ends of every line. It is
+**line-count preserving by construction**, so every 1-indexed label stays attached, and
+**idempotent**, so it can safely be applied twice.
 
-The L1 placement leaves the L0 shards, the function hashes and the split fingerprint
-`0ade7483…` untouched — see Q9 for whether to push it to L0.
+It is applied at **both** layers (Q9, ADR-006 D6.6):
+
+- **L0 — `BigVulLoader._source`, `data.normalize_whitespace=true`.** The corpus is
+  normalized as it is read, so the defect never reaches the hashes, the split or the
+  shards. One helper serves `iter_units` and `iter_functions` so they cannot drift.
+- **L1 — `CodeUnit`, `representation.normalize_whitespace=true`.** Idempotent defence in
+  depth, covering any future corpus loaded by a different path.
+
+The function lives in `utils/` because `Architecture.md` §3 forbids L0 from importing L1.
+
+**The L0 move cost nothing, though it was accepted expecting a rebuild.** Every field the
+split reads is invariant: `func_hash` already strips all whitespace (landmine #3), the
+line count is preserved, and everything else comes from non-source columns. The
+assignment is bit-identical and **fingerprint `0ade7483…` stands**. Only the shards'
+source text changes. `build_cache.py` must be re-run; `build_splits.py` need not be, and
+re-running it is the check that proves the point.
+
+Escape hatches `data.normalize_whitespace=false` / `representation.normalize_whitespace=false`
+reproduce pre-ADR-006 artefacts and are logged as MLflow parameters. After the fix **no
+tell leaks on any partition**.
 
 ### What to expect next
 
@@ -1018,6 +1033,8 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `1d89fe71…` | 2026-09-08 | `audit_label_leakage.py` (post-L0 rebuild) | — | — | — | — | — | — | **Confirms the corpus is clean at rest**: 0 partitions leak, the leading-whitespace tell fires on 0 lines. `shards_normalized_at_l0=true` — this reads the rebuilt shards, so it is evidence the fix landed, *not* evidence the leak was imaginary (compare `a5707491…`). Data artefact, not a result. |
+| `8c1cccdd…` | 2026-09-08 | `build_cache.py` (ADR-006 D6.6, `data.normalize_whitespace=true`) | — | — | — | — | — | — | **The shards of record.** Rebuilt with normalized source. Every count identical to `1f716614…` (188,636 functions; train 148,983 / 5,457 line-labelled / 34,027 flagged); only the digests differ. Supersedes `1f716614…`. Data artefact, not a result. |
 | `a5707491…` | 2026-09-08 | `audit_label_leakage.py` | — | — | — | — | — | — | **THE ADR-006 EVIDENCE. "Line starts with a space" predicts the flaw label at precision 1.0000, ZERO false positives, on all six partitions** (recall 0.83–0.99; `clean_eval` lift 38×). No tell leaks after normalization. Data artefact, not a result. |
 | `1843412a…` | 2026-08-17 | `train_semantic.py train=semantic seed=42` | 42 | — | llm_only | ~~1.000~~ | ~~0.996~~ | ~~0.191~~ | 🟥 **VOID — DO NOT CITE. ADR-006.** It learned the indentation artefact, not the vulnerability: its val scores match the one-line whitespace rule to three decimals, and line F1 was flat at 0.960 from epoch 0 through early stopping at epoch 6. Function F1 = 1.000 is separately degenerate (`line_labelled_only` leaves `fp=tn=0`). Retained as the record of the mistake. |
 | `ffe3d03a…` | 2026-08-16 | `train_semantic.py train=overfit` (32 samples) | 42 | — | llm_only | — | **1.000** | 0.129 | **Phase 3 overfit test: PASSED.** Loss 1.237 → 0.0026. A debugging instrument — **never cite this as a result.** |
@@ -1027,7 +1044,7 @@ Every claim in a paper or doc must resolve to a row here.
 | `0729ae71…` | 2026-08-16 | `report_representation.py` (`best_of_two`) | — | — | — | — | — | — | AST of record under ADR-005. **89.14% clean parses.** Data artefact, not a result. |
 | `228e35e0…` | 2026-08-16 | `characterize_parse_failures.py` | — | — | — | — | — | — | The evidence for ADR-005's residue section: 20,480 units no grammar parses cleanly hold **31.58% of the flagged lines**. |
 | `093d672b…` | 2026-08-16 | `report_representation.py` (`declared`) | — | — | — | — | — | — | Pre-ADR-005 baseline, retained. 37.01% clean. **Not comparable with the runs above.** |
-| `1f716614…` | 2026-08-11 | `build_cache.py` | — | — | — | — | — | — | Preprocessed shards, 188,636 functions. Data artefact, not a result. |
+| `1f716614…` | 2026-08-11 | `build_cache.py` (pre-ADR-006) | — | — | — | — | — | — | Preprocessed shards, 188,636 functions. **Superseded by `8c1cccdd…`** — its shards carry the un-normalized source that leaks the label (§1.10). Retained for provenance; do not train from shards built by it. |
 | `e395b21b…` | 2026-08-11 | `build_splits.py` | 42 | — | — | — | — | — | **Reproducibility check: `reproduced=True`** against `0c64a30f…`. Evidence for the Phase 1 byte-identity criterion. |
 | `0c64a30f…` | 2026-08-11 | `build_splits.py` (ADR-004 on) | 42 | — | — | — | — | — | The split of record. Fingerprint `0ade7483…`, `is_clean=True`, 426 duplicates withheld. |
 | `80b2b588…` | 2026-08-11 | `build_splits.py` (pre-ADR-004) | 42 | — | — | — | — | — | First full split. **Exposed 207 hashes / 426 functions leaking across partitions with zero shared projects.** Superseded. |
@@ -1053,7 +1070,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q5 | CWE-type classification required? | Binary only · binary + type | Deck's example output names a type ("Buffer Overflow") — implement type if labels exist, else derive from templates and say so | Phase 6 | 🟨 Deferred |
 | Q6 | CPG tooling: build ourselves vs. external generator? | In-house passes · external exporter | In-house — an external generator would take the line mapping out of our control. DeepDFA/MegaVul graphs used as offline validation oracles only | Phase 2 | ✅ **Closed — ADR-002** |
 | Q8 | **Which grammar parses a Big-Vul function?** Measured corpus-wide (§1.7): the dataset's own `lang` column yields **37.01%** clean parses, C **35.74%**, C++ **88.24%**, best-of-two per unit **89.14%** | Trust `lang` · always C · always C++ · **best of two per unit** | **Best of two per unit**, C++ first and C++ wins ties. The 1,712 units it gains over always-C++ are C that the C++ grammar *misreads* (`class`, `new`, `this` are identifiers in C), so the trade is a clean tree against a confidently wrong one. Cost: the grammar becomes data-dependent, and the node-type vocabulary is now a union over two grammars — a Phase 4 input | Phase 2 corpus build | ✅ **Closed 2026-08-16 — ADR-005 accepted by the project owner.** Reversible via `graph.language={cpp,c,declared}`; `declared` reproduces every pre-ADR-005 number |
-| Q9 | **Should the ADR-006 whitespace normalization also be applied at L0**, so `source` never carries the defect and duplicate detection stops being whitespace-sensitive? | L1 only (current) · L0 as well | **L1 for now.** The leak — the part that corrupts results — is closed either way, and L1 costs nothing. L0 is arguably more correct and would likely raise ADR-004's 207-hash duplicate floor, but it means a splits + cache rebuild and **a new split fingerprint**, invalidating every Phase 1 number citing `0ade7483…`. Fold it into the near-duplicate re-check (§6 #7) | Nothing in Phases 3–5 | 🟨 **Open, not blocking — ADR-006** |
+| Q9 | **Should the ADR-006 whitespace normalization also be applied at L0**, so `source` never carries the defect into the hashes, the split or the shards? | L1 only · **L0 as well** | **L0.** Chosen by the project owner 2026-09-08. It was accepted expecting a new split fingerprint and **turned out to cost nothing**: every field the split reads is invariant under the transform — `func_hash` already strips all whitespace (landmine #3), and the line count is preserved — so the assignment is bit-identical and `0ade7483…` stands. Only the shards' source text changes. L1 stays as idempotent defence in depth | Phase 3 retraining | ✅ **Closed 2026-09-08 — ADR-006 D6.6** |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -1068,6 +1085,11 @@ graph builders, line-safe tokenization, the shared line aligner, the model and t
 training loop all exist. Per-N-step checkpointing landed in `bfe7631`. **The one full
 training run is void (§1.10) and no valid trained result exists.**
 
+0. **Done 2026-09-08 — the corpus is rebuilt.** ADR-006 is applied at L0
+   (`data.normalize_whitespace=true`); `build_splits.py` re-verified `reproduced=True`
+   with fingerprint `0ade7483…` **unchanged**, and `build_cache.py` rewrote the shards
+   (run `8c1cccdd…`). The leak audit on the rebuilt shards reports zero leaking
+   partitions (run `1d89fe71…`). **Training can start from the current cache.**
 1. **Re-run Phase 3's last exit criterion on normalized text: LLM-only metrics over ≥3
    seeds.** `python scripts/train_semantic.py train=semantic seed=<42|1|2>`. Budget
    **~2.3 h per seed** (the void run early-stopped at epoch 6 of 10 after 2 h 21 m).

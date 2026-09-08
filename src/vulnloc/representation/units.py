@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from vulnloc.representation.line_map import LineMap, split_lines
-from vulnloc.representation.normalization import normalize_source_whitespace
+from vulnloc.utils.text import normalize_source_whitespace
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

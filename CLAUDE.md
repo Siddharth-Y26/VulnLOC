@@ -51,19 +51,19 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
 | Phase 3 | 🟨 **3 / 4.** Tokenization, `LineAligner`, encoder, line head, losses, metrics and the training loop are built; **the overfit test passes** (Top-5 = 1.0). **The one full run (`1843412a…`) is VOID — it learned a formatting artefact (ADR-006, landmine #28).** Remaining: LLM-only metrics over ≥3 seeds on normalized text. |
 | Phases 4–10 | ⬜ Not started. Phase 4 is unblocked. |
-| Tests | **585 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **588 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
 
 - `utils/` — exceptions, logging, config provenance, generic `Registry`, `hashing.py`
-  (deterministic selection; sits below L0)
+  (deterministic selection), `text.py` (ADR-006 whitespace normalization — lives here
+  because L0 needs it and cannot import L1); all sit below L0
 - `data/` — `sources.py`, `download.py`, `audit.py`, `labeling.py`, `splits.py`,
   `pipeline.py`, `cache.py`, `loaders/bigvul.py`
 - `training/` — `seeding.py`, `device.py`, `tracking.py`
 - `representation/` — `line_map.py`, `parser.py`, `units.py`, `to_pyg.py`,
-  `tokenization.py`, `visualize.py`, `normalization.py` (ADR-006),
-  `graphs/{base,ast,cfg,dfg,cpg}.py`
+  `tokenization.py`, `visualize.py`, `graphs/{base,ast,cfg,dfg,cpg}.py`
 - `models/` — `alignment.py` (the shared line axis), `semantic/{encoder,baseline}.py`,
   `heads/line_head.py`. Fusion and structural registries are still empty.
 - `training/` — plus `datasets.py`, `losses.py`, `metrics.py`, `loop.py`
@@ -255,7 +255,8 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 25 | **One unit is not one forward pass.** `clean_eval` averages 4.17 windows and reaches 88; the longest function is 287 windows. Batch in windows, not units. |
 | 26 | **The 512-line cap (`llm.n_lines`) costs `val` 17.07% of its flagged lines and `train` 0.70%** — 24x. A third partition-specific ceiling after truncation and no-node coverage, landing on the reported split again. Never tune the cap on train. |
 | 27 | **Checkpoints are written at epoch boundaries only, and an epoch is >16 min.** A run stopped partway through epoch 0 leaves nothing on disk and restarts from scratch. Add per-N-steps checkpointing before starting a multi-hour run. |
-| 28 | **Big-Vul's LineVul release writes the flaw label into the indentation.** `processed_func` strips leading whitespace from every line *except* the flagged ones, pasted back verbatim from `flaw_line`. **"Line starts with a space" predicts the label at precision 1.0000 with ZERO false positives on all six partitions.** It voided the project's first training run (`1843412a…`), which matched that one-line rule to three decimals. Fixed by **ADR-006** — `CodeUnit` strips both ends of every line, default-on. Never train on un-normalized Big-Vul text; re-run `scripts/audit_label_leakage.py` after any corpus change. |
+| 28 | **Big-Vul's LineVul release writes the flaw label into the indentation.** `processed_func` strips leading whitespace from every line *except* the flagged ones, pasted back verbatim from `flaw_line`. **"Line starts with a space" predicts the label at precision 1.0000 with ZERO false positives on all six partitions.** It voided the project's first training run (`1843412a…`), which matched that one-line rule to three decimals. Fixed by **ADR-006**: `utils/text.py` strips both ends of every line, applied at **L0** (`BigVulLoader`, `data.normalize_whitespace`) and again at **L1** (`CodeUnit`), both default-on and idempotent. Never train on un-normalized Big-Vul text; re-run `scripts/audit_label_leakage.py` after any corpus change. |
+| 30 | **ADR-006 normalization does NOT change the split**, though it looks like it should. `func_hash` is PrimeVul's definition and already removes every whitespace character (landmine #3), and the transform preserves line counts — so every `Unit` field is invariant and fingerprint `0ade7483…` survives. Only the shards' source text changes, so **`build_cache.py` must be re-run and `build_splits.py` need not be.** Corollary: normalization does *not* raise ADR-004's duplicate floor — that floor is about semantic near-duplicates, which whitespace stripping does nothing for. |
 | 29 | **A held-out number above the stated ceiling is a bug report, not a result.** §1.6 puts line-label noise at ~30%; run `1843412a…` reported line precision 0.985 and *flat* val F1 from epoch 0 through early stopping. Both were screaming. **Check the learning curve, not just the final metric** — a model that has nothing to learn is finished after one epoch. |
 | 21 | **The node-type vocabulary is a union over two grammars** (ADR-005 picks per unit). Build it by scanning the corpus, never from one grammar's symbol list, and never read node types as identifying a unit's language. |
 | 22 | **`graph.language` sat in the config unread for a whole phase.** A knob that nothing consumes looks exactly like a knob that works. If a config value governs a decision, a test should fail when it is ignored. |
