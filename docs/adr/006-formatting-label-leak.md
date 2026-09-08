@@ -1,0 +1,220 @@
+# ADR-006 — Source Lines Are Whitespace-Normalized Because the Corpus Encodes the Label in Indentation
+
+- **Status:** **Proposed** — 2026-09-08. Awaiting the project owner. The code fix is
+  implemented and default-on; the open part is how far the remedy is pushed (see
+  *Open question: L0 or L1*).
+- **Date:** 2026-09-08
+- **Phase:** 3 — LLM Branch
+- **Depends on:** ADR-001 (Big-Vul, LineVul release, as the primary training corpus),
+  ADR-003 (line-label trust)
+- **Supersedes:** nothing. It **invalidates a result**: run `1843412a…`, the only
+  end-to-end training run this project has produced, measured a formatting artefact.
+
+---
+
+## Context
+
+Phase 3's last exit criterion is LLM-only metrics over ≥3 seeds. One seed had already
+been run (`1843412a445b48c6a21059fb9689bf6f`, 2026-08-17) and reported, on held-out `val`:
+
+| | line precision | line recall | line F1 | Top-1 | Top-5 | function F1 |
+|---|---|---|---|---|---|---|
+| run `1843412a…` | 0.9847 | 0.9377 | 0.9606 | 0.9876 | 0.9959 | 1.0000 |
+
+Those numbers are far above the published line-level literature, and they sit **above the
+project's own stated ceiling**: ADR-003 and `Memory.md` §1.6 record that a human audit
+found ~30% of Big-Vul's line labels point at the wrong lines. A model cannot score 0.985
+precision against labels that are 30% wrong unless it is reproducing the *labelling
+process* rather than the vulnerability.
+
+Two further signals said the same thing before any root cause was known:
+
+- **The learning curve was flat.** Line F1 on `val` went 0.9596 → 0.9630 → 0.9603 →
+  0.9606 → 0.9628 → 0.9619 → 0.9614 across seven epochs. Top-1 never left 0.985–0.990.
+  The model was at its final performance after the first epoch and training changed
+  nothing.
+- **Function-level F1 was exactly 1.0000** with `tp=488, fp=0, fn=0, tn=0` — degenerate
+  by construction, because `train.line_labelled_only=true` makes every evaluation unit
+  positive. That one is a reporting caveat rather than a bug, but it is the same
+  category of mistake: a number that looks like a result and is an artefact of the setup.
+
+Leakage was ruled out first, and it is genuinely absent. Among the line-labelled units
+the run actually used (train 5,457 / val 488), **0 val units appear in train** under
+exact match, whitespace-stripped match, or comment-and-whitespace-stripped match, and the
+two partitions share **0 projects**. The split is clean. The problem is in the text.
+
+### The measurement
+
+`scripts/audit_label_leakage.py`, run **`a57074914375490eb5ec774f41f9a959`**, artefact
+`artifacts/representation/label_leakage.json`.
+
+The audit scores one-feature predictors that read **no code semantics at all** — only the
+surface shape of a line — against the flaw labels, per partition. The result for
+*"does this line begin with a space or tab?"*:
+
+| Partition | line-labelled units | base rate | precision | recall | lift over base rate |
+|---|---|---|---|---|---|
+| `train` | 5,457 | 10.98% | **1.0000** | 0.9613 | 9.1× |
+| `val` | 488 | 6.44% | **1.0000** | 0.9302 | 15.5× |
+| `test` | 546 | 4.70% | **1.0000** | 0.9623 | 21.3× |
+| **`clean_eval`** | 1,393 | 2.63% | **1.0000** | 0.9862 | **38.1×** |
+| `excluded` | 331 | 11.85% | **1.0000** | 0.8266 | 8.4× |
+| `duplicate` | 28 | 25.81% | **1.0000** | 0.8261 | 3.9× |
+
+**Zero false positives on every partition**, across 307,754 judged lines in `train`
+alone. That is not a correlation; it is a deterministic property of how the corpus was
+built. Trailing whitespace is a second, smaller tell at precision 1.0000 (recall 0.027),
+and `contains_tab` a third at precision 0.9016 — the latter mostly an echo of leading
+tabs.
+
+The trained model's `val` scores and the indentation rule's `val` scores are the same
+numbers:
+
+| | precision | recall | F1 | Top-1 |
+|---|---|---|---|---|
+| run `1843412a…` | 0.9847 | 0.9377 | 0.9606 | 0.9876 |
+| *"line starts with a space"* | **1.0000** | **0.9302** | **0.9638** | **0.9855** |
+
+### The cause, confirmed in the raw corpus
+
+The artefact is upstream of every line of code in this repository. Reading
+`artifacts/data/raw/bigvul_test.csv` directly — the `processed_func` and
+`flaw_line_index` columns, no VulnLoc code involved — reproduces it at precision 1.0000
+(3,791 true positives, **0** false positives, 175 misses):
+
+```
+     0| static void CloudPrintInfoCallback(bool enabled,
+>>   1|                                      const std::string& email,
+>>   2|                                      const std::string& proxy_id) {
+>>   3|     QuitMessageLoop();
+     4| }
+```
+
+The LineVul release strips leading whitespace from the lines of `processed_func`, then
+re-inserts the flagged lines **verbatim from the `flaw_line` column**, indentation
+intact. Every indented line is a flagged line. The label is written into the formatting.
+
+**Why our own consistency checks passed.** `Memory.md` §1.4 records "0 text mismatches"
+across 188,636 functions, and that check is real — but `data/labeling.py:272` compares
+`lines[i].strip() != expected`. It strips both sides, which is precisely the difference
+that carries the leak. The check was blind to it by construction.
+
+---
+
+## Decision
+
+**D6.1 — Every source line is stripped of leading and trailing whitespace before anything
+downstream sees it.** `representation/normalization.py::normalize_source_whitespace`
+applies `strip(" \t\r\v\f")` to each line and rejoins on `\n`.
+
+**D6.2 — The transform is applied at the L0→L1 boundary, in `CodeUnit`, default-on.**
+`CodeUnit.from_source` and `CodeUnit.from_labelled_function` take
+`normalize_whitespace: bool = True`. Every model input — tokenizer and all four graph
+builders — is built from a `CodeUnit`, so one change closes the leak for both branches.
+
+**D6.3 — The line count is preserved exactly.** The split and the join use the same
+separator, so the transform cannot move a line. This is what makes the fix safe under
+`Rules.md`'s "never break the line mapping": labels indexed against the original text
+remain valid against the normalized text, and it is pinned by test.
+
+**D6.4 — The escape hatch is `representation.normalize_whitespace=false`,** which
+reproduces every pre-ADR-006 number. Like ADR-005's `declared`, it exists so the cost of
+the decision can be measured rather than asserted. **It must never produce a reported
+number.** The flag is logged as an MLflow parameter on every run, so a run without it is
+identifiable as non-comparable.
+
+**D6.5 — The leak audit is a standing check, not a one-off.**
+`scripts/audit_label_leakage.py` scores six surface tells per partition, before and
+after normalization, and names any partition whose labels are recoverable from shape. It
+should be re-run whenever a corpus is added or a preprocessing step changes.
+
+### Why stripping, and not something else
+
+- **Re-indenting with a formatter** (clang-format and friends) changes line counts and
+  would destroy the line labels outright. Non-starter.
+- **Dropping Big-Vul's line labels** would end the line-level project; they are the only
+  line-level supervision available (ADR-001).
+- **Stripping is the *restoration* of the corpus's own intent.** The non-flagged lines
+  are already flush left; the flagged ones are the exception. Stripping makes the
+  function uniform rather than imposing a new convention, and it costs only indentation —
+  which this corpus never carried consistently in the first place, so no model could have
+  learned anything legitimate from it.
+
+After the fix, no measured tell exceeds its partition's base rate: on `val`, `contains_tab`
+falls from precision 0.9016 to 0.1488, `inner_double_space` sits at 0.0766 against a
+6.44% base rate, and `longer_than_60_chars` at 0.0806.
+
+---
+
+## Open question: L0 or L1 — needs the project owner
+
+The fix as implemented is at **L1**, which leaves the L0 shards, the function hashes and
+the **split fingerprint `0ade7483…` untouched**. That is deliberate: it closes the leak
+for every model input at zero rebuild cost, and Phase 1's reproducibility artefact
+survives.
+
+The alternative is to normalize at **L0**, in the loader, so `source` never carries the
+defect anywhere. It is arguably more correct and has one concrete benefit — cross-split
+duplicate detection is currently whitespace-sensitive, so the 207 exact-match hashes
+ADR-004 withheld are a floor (landmine #11), and normalizing first would very likely find
+more. The cost is real: a full splits rebuild and cache rebuild (each a pass over ~11 GB),
+**a new split fingerprint**, and re-verification of every Phase 1 number that cites the
+old one.
+
+**Recommendation: stay at L1 for now**, and treat the L0 question as part of the
+near-duplicate re-check already queued in `Memory.md` §6 #7. Nothing in Phases 3–5 is
+blocked by it, and the leak — the part that corrupts results — is closed either way.
+
+---
+
+## Consequences
+
+**What this costs.**
+
+- **Run `1843412a…` is void.** It is retained in the experiment ledger, marked invalid,
+  with the reason. It must never be cited, and the Phase 3 exit criterion it was
+  progress toward is **not** met.
+- **Phase 3 goes from 3/4 to 3/4 with the remaining criterion unstarted**, and the three
+  seeds must be run against normalized text. Roughly 2.3 h per seed on the 4 GiB card.
+- **The overfit test (`ffe3d03a…`) is unaffected as a debugging instrument** — it proves
+  the head can memorise 32 samples, and that remains true — but it never was a result.
+- **Nothing in Phases 1–2 is invalidated.** The parse rates, graph statistics and
+  grammar comparison of ADR-005 do not depend on edge whitespace; Tree-sitter ignores it.
+  The corpus statistics, the split and the label audit are likewise untouched.
+
+**What this buys.**
+
+- The next Phase 3 number will be a number about vulnerability rather than about
+  formatting, and it will be free to be unimpressive.
+- A reusable adversarial audit, so the next leak of this shape is caught by a script
+  instead of by suspicion.
+- **A publishable finding.** Any line-level result trained on the LineVul release of
+  Big-Vul without whitespace normalization is contaminated by this artefact. That
+  plausibly includes published baselines. Establishing whether it does is a paper-grade
+  contribution and is now cheap to test — but it is a claim about other people's work
+  and must be **verified against their released code and preprocessing** before it is
+  made anywhere.
+
+**What to expect next.** The honest post-fix numbers should be *much* lower. The
+localization task at its true difficulty is ~11% of lines flagged in train
+(6.4% in `val`, 2.6% in `clean_eval`), against three separately-recorded ceilings:
+~30% line-label noise (§1.6), 7.84% of flagged lines carrying no AST node (§7 #17), and
+the 512-line cap (§7 #26). A large drop is the fix working, not a regression.
+
+---
+
+## Threats to validity
+
+- **The tell list is not exhaustive.** Six surface features were tested. A leak carried
+  by something not on the list — token-level idiosyncrasies from the `flaw_line`
+  round-trip, say, or a lexical signature in the flagged lines themselves — would not
+  have been caught. The audit lowers the probability of an undetected leak; it does not
+  prove absence. The strongest available evidence that the remaining task is honest will
+  be the post-fix learning curve: a model that has to *learn* should start near chance
+  and improve, unlike run `1843412a…`.
+- **`is_blank` fires on 5,232 `val` lines at precision 0.0044**, well below base rate —
+  worth noting only because it confirms the audit is capable of reporting a non-leak.
+- **The 175 flagged lines the indentation rule misses** (`val`) are flagged lines that
+  genuinely began at column 0. They are not evidence against the mechanism.
+- **This ADR does not establish that published baselines are affected.** It establishes
+  it for the artefact as we consume it. See the claim-verification caveat above.

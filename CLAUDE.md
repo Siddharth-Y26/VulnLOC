@@ -17,7 +17,8 @@ the code wins; fix this file in the same session and note the drift.
 3. **`docs/Phases.md`** — the current phase only. Do not build ahead.
 4. **`docs/adr/`** — decisions that are expensive to reverse. ADR-003 supersedes
    ADR-001 §D1.2; read both. ADR-004 governs what is in the split at all. ADR-005 governs
-   which grammar every graph is built from.
+   which grammar every graph is built from. **ADR-006 is why every model input is
+   whitespace-normalized — read it before trusting any line-level number.**
 5. `docs/Architecture.md` §4 — only the interface you are implementing.
 
 Do **not** read the whole codebase. If you need to, `Memory.md` has failed and should be
@@ -40,17 +41,17 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ---
 
-## 3. Current state (2026-08-16)
+## 3. Current state (2026-09-08)
 
 | | |
 |---|---|
-| Branch | `phase-2/representation`. **`main` does not exist yet** — decide the branching model. |
+| Branch | `phase-2/representation`. **`main` exists**, with an `origin` remote — the old "`main` does not exist" note was stale. Branching model still undecided. |
 | Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker not installed). Blocks nothing downstream. |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
-| Phase 3 | 🟨 **3 / 4.** Tokenization, `LineAligner`, encoder, line head, losses, metrics and the training loop are built; **the overfit test passes** (Top-5 = 1.0). Remaining: LLM-only metrics over ≥3 seeds. |
+| Phase 3 | 🟨 **3 / 4.** Tokenization, `LineAligner`, encoder, line head, losses, metrics and the training loop are built; **the overfit test passes** (Top-5 = 1.0). **The one full run (`1843412a…`) is VOID — it learned a formatting artefact (ADR-006, landmine #28).** Remaining: LLM-only metrics over ≥3 seeds on normalized text. |
 | Phases 4–10 | ⬜ Not started. Phase 4 is unblocked. |
-| Tests | **568 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **585 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -61,7 +62,8 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
   `pipeline.py`, `cache.py`, `loaders/bigvul.py`
 - `training/` — `seeding.py`, `device.py`, `tracking.py`
 - `representation/` — `line_map.py`, `parser.py`, `units.py`, `to_pyg.py`,
-  `tokenization.py`, `visualize.py`, `graphs/{base,ast,cfg,dfg,cpg}.py`
+  `tokenization.py`, `visualize.py`, `normalization.py` (ADR-006),
+  `graphs/{base,ast,cfg,dfg,cpg}.py`
 - `models/` — `alignment.py` (the shared line axis), `semantic/{encoder,baseline}.py`,
   `heads/line_head.py`. Fusion and structural registries are still empty.
 - `training/` — plus `datasets.py`, `losses.py`, `metrics.py`, `loop.py`
@@ -130,6 +132,8 @@ python scripts/report_representation.py graph.builder=ast   # parse + graph corp
 python scripts/characterize_parse_failures.py               # the unparseable 10.86%
 python scripts/report_truncation.py                         # what 512 tokens costs
 python scripts/probe_vram.py                                # what fits in 4 GiB
+
+python scripts/audit_label_leakage.py                       # ADR-006 guard: is the label readable off the formatting?
 
 python scripts/train_semantic.py train=overfit              # RUN FIRST: 32-sample sanity
 python scripts/train_semantic.py train=semantic seed=42     # the LLM-only baseline
@@ -251,6 +255,8 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 25 | **One unit is not one forward pass.** `clean_eval` averages 4.17 windows and reaches 88; the longest function is 287 windows. Batch in windows, not units. |
 | 26 | **The 512-line cap (`llm.n_lines`) costs `val` 17.07% of its flagged lines and `train` 0.70%** — 24x. A third partition-specific ceiling after truncation and no-node coverage, landing on the reported split again. Never tune the cap on train. |
 | 27 | **Checkpoints are written at epoch boundaries only, and an epoch is >16 min.** A run stopped partway through epoch 0 leaves nothing on disk and restarts from scratch. Add per-N-steps checkpointing before starting a multi-hour run. |
+| 28 | **Big-Vul's LineVul release writes the flaw label into the indentation.** `processed_func` strips leading whitespace from every line *except* the flagged ones, pasted back verbatim from `flaw_line`. **"Line starts with a space" predicts the label at precision 1.0000 with ZERO false positives on all six partitions.** It voided the project's first training run (`1843412a…`), which matched that one-line rule to three decimals. Fixed by **ADR-006** — `CodeUnit` strips both ends of every line, default-on. Never train on un-normalized Big-Vul text; re-run `scripts/audit_label_leakage.py` after any corpus change. |
+| 29 | **A held-out number above the stated ceiling is a bug report, not a result.** §1.6 puts line-label noise at ~30%; run `1843412a…` reported line precision 0.985 and *flat* val F1 from epoch 0 through early stopping. Both were screaming. **Check the learning curve, not just the final metric** — a model that has nothing to learn is finished after one epoch. |
 | 21 | **The node-type vocabulary is a union over two grammars** (ADR-005 picks per unit). Build it by scanning the corpus, never from one grammar's symbol list, and never read node types as identifying a unit's language. |
 | 22 | **`graph.language` sat in the config unread for a whole phase.** A knob that nothing consumes looks exactly like a knob that works. If a config value governs a decision, a test should fail when it is ignored. |
 

@@ -138,6 +138,7 @@ def train(cfg: DictConfig) -> dict[str, Any]:
         n_lines=n_lines,
         limit=int(cfg.train.limit),
         line_labelled_only=bool(cfg.train.line_labelled_only),
+        normalize_whitespace=bool(cfg.representation.normalize_whitespace),
     )
     eval_split = str(cfg.train.eval_split)
     eval_set = (
@@ -150,6 +151,7 @@ def train(cfg: DictConfig) -> dict[str, Any]:
             n_lines=n_lines,
             limit=int(cfg.train.eval_limit),
             line_labelled_only=bool(cfg.train.line_labelled_only),
+            normalize_whitespace=bool(cfg.representation.normalize_whitespace),
         )
     )
 
@@ -184,6 +186,9 @@ def train(cfg: DictConfig) -> dict[str, Any]:
                 "train_units": len(train_set),
                 "eval_units": len(eval_set),
                 "flagged_beyond_line_cap": train_set.flagged_beyond_cap,
+                # Logged as a parameter because it is the difference between a real
+                # number and the ADR-006 leak; a run without it is not comparable.
+                "normalize_whitespace": bool(cfg.representation.normalize_whitespace),
             }
         )
         checkpoint_dir = Path(cfg.train.checkpoint_dir) / run_id

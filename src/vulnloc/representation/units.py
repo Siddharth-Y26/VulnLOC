@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from vulnloc.representation.line_map import LineMap, split_lines
+from vulnloc.representation.normalization import normalize_source_whitespace
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -68,6 +69,7 @@ class CodeUnit:
         target: int = 0,
         vulnerable_lines: frozenset[int] | None = None,
         metadata: Mapping[str, Any] | None = None,
+        normalize_whitespace: bool = True,
     ) -> CodeUnit:
         """Build a unit from raw text.
 
@@ -78,10 +80,17 @@ class CodeUnit:
             target: 1 if vulnerable.
             vulnerable_lines: 1-indexed flagged lines.
             metadata: Provenance.
+            normalize_whitespace: Strip edge whitespace from every line before anything
+                sees the text. **On by default because leaving it off leaks the label** —
+                Big-Vul's flagged lines keep their original indentation while every other
+                line has been stripped, which recovers the label at precision 1.0
+                (ADR-006). ``False`` reproduces every pre-ADR-006 number.
 
         Returns:
             The unit, with its line map built.
         """
+        if normalize_whitespace:
+            source = normalize_source_whitespace(source)
         return cls(
             unit_id=unit_id,
             source=source,
@@ -94,11 +103,16 @@ class CodeUnit:
         )
 
     @classmethod
-    def from_labelled_function(cls, unit: LabelledFunction) -> CodeUnit:
+    def from_labelled_function(
+        cls, unit: LabelledFunction, *, normalize_whitespace: bool = True
+    ) -> CodeUnit:
         """Lift an L0 record into L1.
 
         Args:
             unit: The record as the shards store it.
+            normalize_whitespace: See :meth:`from_source`. Defaults to ``True``; this is
+                the boundary where the ADR-006 leak is closed for every consumer, since
+                the shards store the corpus text verbatim.
 
         Returns:
             The corresponding :class:`CodeUnit`.
@@ -110,4 +124,5 @@ class CodeUnit:
             target=unit.target,
             vulnerable_lines=unit.vulnerable_lines,
             metadata=unit.metadata,
+            normalize_whitespace=normalize_whitespace,
         )

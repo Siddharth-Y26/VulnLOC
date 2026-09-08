@@ -13,6 +13,20 @@ defaults:
 
 seed: 42
 
+# L1 source normalization. `true` strips leading and trailing whitespace from every
+# source line before anything — tokenizer or graph builder — sees it.
+#
+# This is a LABEL LEAK fix, not cosmetics (ADR-006). The LineVul release of Big-Vul
+# strips indentation from `processed_func` but re-inserts flagged lines verbatim from
+# `flaw_line`, so "does this line start with a space?" recovers the line label at
+# precision 1.0000 with zero false positives on all four partitions. Run `1843412a…`
+# learned exactly that rule and nothing else.
+#
+# The transform preserves the line count exactly, so line labels stay attached.
+# `false` reproduces every pre-ADR-006 number and must never be used for a reported one.
+representation:
+  normalize_whitespace: true
+
 # `auto` uses CUDA when it is genuinely usable and warns loudly on CPU fallback.
 # Set `cuda` to make a missing GPU a hard failure, `cpu` to force CPU.
 device:

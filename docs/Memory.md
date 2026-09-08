@@ -25,12 +25,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Active phase** | **Phase 3 — LLM Branch, 3 / 4 exit criteria.** Model, loop and both design measurements are built and the overfit test passes. The ≥3-seed criterion is not started; no training result exists |
+| **Active phase** | **Phase 3 — LLM Branch, 3 / 4 exit criteria.** Model, loop and both design measurements are built and the overfit test passes. **The one full training run is VOID (ADR-006).** The ≥3-seed criterion is unstarted; no valid training result exists |
 | **Phase status** | ✅ **Phase 2 COMPLETE — 5 / 5** (2026-08-16). Phases 3 and 4 are both unblocked |
-| **Last updated** | 2026-08-16 |
-| **Open decision** | **None blocking.** Q8 closed 2026-08-16 by ADR-005 (`graph.language=best_of_two`). Q4/Q5 deferred to Phases 6–7 |
-| **Last commit** | `1ea2965` (Phase 1–2 docs) on `phase-2/representation` (`main` still does not exist) |
-| **Best model run ID** | — *(a model exists and passes its overfit test; **no trained result exists**, so no claims are permitted)* |
+| **Last updated** | 2026-09-08 |
+| **Open decision** | **Q9 — apply the ADR-006 normalization at L0 as well as L1?** Not blocking: the leak is closed at L1 either way. Q8 closed 2026-08-16 by ADR-005. Q4/Q5 deferred to Phases 6–7 |
+| **Last commit** | `bfe7631` (per-N-step checkpointing) on `phase-2/representation`. **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
+| **Best model run ID** | — *(a model exists and passes its overfit test; the only full run, `1843412a…`, is **void** — it learned a formatting artefact. **No valid trained result exists**, so no claims are permitted)* |
 | **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` (project-wise, 80/10/10, seed 42) |
 | **Blocking issues** | None. Q1/Q2/Q3/Q6/Q7/Q8 closed by ADR-001/002/003/004/005. Q4, Q5 deferred to Phases 6–7 |
 | **Biggest live constraint** | **~30% line-level label noise** (§1.6) — the ceiling on every line-level number this project will report |
@@ -42,7 +42,7 @@
 | 0 Foundation | 🟨 In progress | 3 / 4 | Docker criterion blocked — see §7 issue #1 |
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
-| 3 LLM Branch | 🟨 In progress | **3 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). Remaining: LLM-only metrics over ≥3 seeds |
+| 3 LLM Branch | 🟨 In progress | **3 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** Remaining: LLM-only metrics over ≥3 seeds, on whitespace-normalized text |
 | 4 GNN Branch | ⬜ Not started | 0 / 4 | |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
@@ -534,12 +534,112 @@ absence of an exception — is what `largest_batch_that_fits` means. See §7 #29
 
 ---
 
+---
+
+## 1.10 The formatting label leak — why the first training result was void (Phase 3)
+
+**Run `a57074914375490eb5ec774f41f9a959`, `scripts/audit_label_leakage.py`,
+artefact `artifacts/representation/label_leakage.json`. Decision: ADR-006.**
+
+### What happened
+
+The first full training run (`1843412a…`, seed 42, 2026-08-17) reported on held-out `val`:
+line precision **0.9847**, recall 0.9377, F1 0.9606, Top-1 0.9876, Top-5 0.9959,
+function F1 1.0000. Those numbers are far above the published line-level literature and
+**above this project's own stated ceiling** — §1.6 records that ~30% of Big-Vul's line
+labels point at the wrong lines, and no model can be 98% precise against labels that are
+30% wrong unless it is reproducing the *labelling process*.
+
+Two other signals said so before the cause was known:
+
+- **Flat from epoch 0.** Line F1 went 0.9596 → 0.9630 → 0.9603 → 0.9606 → 0.9628 →
+  0.9619 → 0.9614 over seven epochs. The model was finished after the first one.
+- **Function F1 exactly 1.0000** with `tp=488, fp=0, fn=0, tn=0` — degenerate because
+  `train.line_labelled_only=true` leaves every eval unit positive. A caveat, not the bug,
+  but the same category of mistake.
+
+**Leakage was ruled out and is genuinely absent.** Of the 488 line-labelled `val` units,
+**0** appear in `train` under exact match, whitespace-stripped match, or
+comment-and-whitespace-stripped match, and the two share **0 projects**. The split is
+clean. The problem was in the text.
+
+### The cause
+
+**Big-Vul's LineVul release encodes the label in the indentation.** `processed_func` has
+leading whitespace stripped from its lines — *except* the flagged ones, which are
+re-inserted verbatim from the `flaw_line` column with their original indentation.
+
+```
+     0| static void CloudPrintInfoCallback(bool enabled,
+>>   1|                                      const std::string& email,
+>>   2|                                      const std::string& proxy_id) {
+>>   3|     QuitMessageLoop();
+     4| }
+```
+
+This is reproducible **straight from `artifacts/data/raw/bigvul_test.csv`** with no
+VulnLoc code involved: precision 1.0000, 3,791 true positives, **0 false positives**.
+
+### The measurement — "does this line start with a space or tab?"
+
+| Partition | units | base rate | precision | recall | lift |
+|---|---|---|---|---|---|
+| `train` | 5,457 | 10.98% | **1.0000** | 0.9613 | 9.1× |
+| `val` | 488 | 6.44% | **1.0000** | 0.9302 | 15.5× |
+| `test` | 546 | 4.70% | **1.0000** | 0.9623 | 21.3× |
+| **`clean_eval`** | 1,393 | 2.63% | **1.0000** | 0.9862 | **38.1×** |
+| `excluded` | 331 | 11.85% | **1.0000** | 0.8266 | 8.4× |
+| `duplicate` | 28 | 25.81% | **1.0000** | 0.8261 | 3.9× |
+
+Zero false positives on every partition — 307,754 judged lines in `train` alone. Trailing
+whitespace is a second tell at precision 1.0000 (recall 0.027); `contains_tab` a third at
+0.9016, mostly an echo of leading tabs.
+
+**The model and the one-line rule are the same predictor** on `val`:
+
+| | precision | recall | F1 | Top-1 |
+|---|---|---|---|---|
+| run `1843412a…` | 0.9847 | 0.9377 | 0.9606 | 0.9876 |
+| "line starts with a space" | **1.0000** | **0.9302** | **0.9638** | **0.9855** |
+
+### Why our own checks passed
+
+§1.4 records "0 text mismatches" across 188,636 functions and that check is real — but
+`data/labeling.py:272` compares `lines[i].strip() != expected`. **It strips both sides**,
+which is exactly the difference carrying the leak. The check was blind to it by
+construction. A consistency check that normalizes away the thing it is checking will pass
+forever.
+
+### The fix
+
+`representation/normalization.py::normalize_source_whitespace` strips both ends of every
+line, applied in `CodeUnit` (L1) and **default-on**, so tokenizer and all four graph
+builders are covered by one change. It is **line-count preserving by construction**, so
+every 1-indexed label stays attached. Escape hatch:
+`representation.normalize_whitespace=false` reproduces pre-ADR-006 numbers and is logged
+as an MLflow parameter on every run. After the fix **no tell leaks on any partition**.
+
+The L1 placement leaves the L0 shards, the function hashes and the split fingerprint
+`0ade7483…` untouched — see Q9 for whether to push it to L0.
+
+### What to expect next
+
+**The honest numbers should be much lower, and that is the fix working.** The real task
+is ~11% of lines flagged in `train`, 6.4% in `val`, 2.6% in `clean_eval`, under three
+separately-recorded ceilings: ~30% label noise (§1.6), 7.84% of flagged lines with no AST
+node (§7 #17), and the 512-line cap (§7 #26). **A model that has to learn should start
+near chance and improve** — the shape of the curve is now the primary evidence that the
+task is honest, and a flat one is the alarm.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-09-08 | **Every source line is stripped of leading and trailing whitespace at the L0→L1 boundary, default-on.** The corpus encodes the flaw label in indentation; a one-line rule recovers it at precision 1.0000 with zero false positives on all six partitions | Re-indent with a formatter (changes line counts — destroys the labels); drop Big-Vul's line labels (ends the line-level project); normalize at L0 instead (new split fingerprint, full rebuild — deferred as Q9) | Stripping *restores the corpus's own intent* rather than imposing a convention: the non-flagged lines are already flush left. It preserves the line count exactly, so labels stay attached, and it costs only indentation — which this corpus never carried consistently, so nothing legitimate was learnable from it | **ADR-006 — proposed 2026-09-08** |
 | 2026-08-16 | **A unit is parsed with whichever of the two grammars parses it best.** Parse as C++; if damage remains, parse as C too and keep the less damaged tree. C++ is tried first and wins ties, so the grammar is a pure function of the source | Trust the `lang` column (37.01% clean); always C (35.74%); always C++ (88.24%) | **89.14% clean** — the corpus's own label is the worst option by more than 2×, because 98.6% of Big-Vul is labelled `C` and much of it (Chrome, 40.9%) is C++. The 1,712 units that separate this from always-C++ are *C that the C++ grammar actively misreads* — `class`, `new` and `this` are identifiers in C — so the choice is between a clean tree and a confidently wrong one, not between two parse rates | **ADR-005 — accepted 2026-08-16, closing Q8** |
 | 2026-08-11 | **Cross-split exact duplicates are withheld into a `duplicate` partition**, not reassigned or kept | Reassign every copy to one partition; keep them and report; drop them silently | A project-wise split constrains projects, not functions: forks and vendored copies put byte-identical code in different projects. Measured: 207 hashes / 426 functions across partitions with **zero shared projects**. Reassigning would break project disjointness; withholding preserves both invariants for 0.23% of the corpus | **ADR-004 — accepted 2026-08-11** |
 | 2026-08-11 | **Splits are an artefact with a fingerprint, not a function call.** `assignment.csv` + `split_report.json` are written once and re-running verifies rather than regenerates | Re-split inside every training run | A split that silently changes invalidates every comparison made against the previous one. `build_splits.py` refuses to overwrite a differing assignment unless told to | — |
@@ -918,6 +1018,8 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `a5707491…` | 2026-09-08 | `audit_label_leakage.py` | — | — | — | — | — | — | **THE ADR-006 EVIDENCE. "Line starts with a space" predicts the flaw label at precision 1.0000, ZERO false positives, on all six partitions** (recall 0.83–0.99; `clean_eval` lift 38×). No tell leaks after normalization. Data artefact, not a result. |
+| `1843412a…` | 2026-08-17 | `train_semantic.py train=semantic seed=42` | 42 | — | llm_only | ~~1.000~~ | ~~0.996~~ | ~~0.191~~ | 🟥 **VOID — DO NOT CITE. ADR-006.** It learned the indentation artefact, not the vulnerability: its val scores match the one-line whitespace rule to three decimals, and line F1 was flat at 0.960 from epoch 0 through early stopping at epoch 6. Function F1 = 1.000 is separately degenerate (`line_labelled_only` leaves `fp=tn=0`). Retained as the record of the mistake. |
 | `ffe3d03a…` | 2026-08-16 | `train_semantic.py train=overfit` (32 samples) | 42 | — | llm_only | — | **1.000** | 0.129 | **Phase 3 overfit test: PASSED.** Loss 1.237 → 0.0026. A debugging instrument — **never cite this as a result.** |
 | `1904c295…` | 2026-08-16 | `probe_vram.py` (CodeBERT, 512 tok, 24-point grid) | — | — | — | — | — | — | **AMP + checkpointing at batch 16 = 2,456 MiB / 22.9 win/s. 3 configs silently spilled past the 4 GiB card.** Closes §7 #7. |
 | `b7ccc9ca…` | 2026-08-16 | `report_truncation.py` (CodeBERT, 512/128) | — | — | — | — | — | — | **Truncation costs 38.1% of all flagged lines; 44.5% on `clean_eval`. Windowing keeps 100%.** Data artefact, not a result. |
@@ -951,6 +1053,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q5 | CWE-type classification required? | Binary only · binary + type | Deck's example output names a type ("Buffer Overflow") — implement type if labels exist, else derive from templates and say so | Phase 6 | 🟨 Deferred |
 | Q6 | CPG tooling: build ourselves vs. external generator? | In-house passes · external exporter | In-house — an external generator would take the line mapping out of our control. DeepDFA/MegaVul graphs used as offline validation oracles only | Phase 2 | ✅ **Closed — ADR-002** |
 | Q8 | **Which grammar parses a Big-Vul function?** Measured corpus-wide (§1.7): the dataset's own `lang` column yields **37.01%** clean parses, C **35.74%**, C++ **88.24%**, best-of-two per unit **89.14%** | Trust `lang` · always C · always C++ · **best of two per unit** | **Best of two per unit**, C++ first and C++ wins ties. The 1,712 units it gains over always-C++ are C that the C++ grammar *misreads* (`class`, `new`, `this` are identifiers in C), so the trade is a clean tree against a confidently wrong one. Cost: the grammar becomes data-dependent, and the node-type vocabulary is now a union over two grammars — a Phase 4 input | Phase 2 corpus build | ✅ **Closed 2026-08-16 — ADR-005 accepted by the project owner.** Reversible via `graph.language={cpp,c,declared}`; `declared` reproduces every pre-ADR-005 number |
+| Q9 | **Should the ADR-006 whitespace normalization also be applied at L0**, so `source` never carries the defect and duplicate detection stops being whitespace-sensitive? | L1 only (current) · L0 as well | **L1 for now.** The leak — the part that corrupts results — is closed either way, and L1 costs nothing. L0 is arguably more correct and would likely raise ADR-004's 207-hash duplicate floor, but it means a splits + cache rebuild and **a new split fingerprint**, invalidating every Phase 1 number citing `0ade7483…`. Fold it into the near-duplicate re-check (§6 #7) | Nothing in Phases 3–5 | 🟨 **Open, not blocking — ADR-006** |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -961,17 +1064,23 @@ Ordered. Top item is what the next session starts with.
 
 **Phases 1 and 2 are closed, Q8 with them (ADR-005), and Phase 3's two design gates are
 measured** (§1.8 truncation, §1.9 VRAM). The data, the parser, the line map, all four
-graph builders, line-safe tokenization and the shared line aligner exist. **No model
-exists.**
+graph builders, line-safe tokenization, the shared line aligner, the model and the
+training loop all exist. Per-N-step checkpointing landed in `bfe7631`. **The one full
+training run is void (§1.10) and no valid trained result exists.**
 
-1. **Add per-N-steps checkpointing** (`training/loop.py`). Epoch-boundary checkpoints made
-   a stopped run unrecoverable — measured: >16 min of GPU work lost with nothing on disk.
-   Do this *before* committing to a multi-hour run.
-2. **Close Phase 3's last exit criterion: LLM-only metrics over ≥3 seeds.** Everything
-   else is built and the overfit test passes. `python scripts/train_semantic.py
-   train=semantic seed=<n>`. Budget **>16 min/epoch**, up to 10 epochs, per seed. Report
-   the three partition-specific ceilings beside every line number: truncation (§1.8),
-   no-node coverage (§7 #21) and the line cap (§7 #30).
+1. **Re-run Phase 3's last exit criterion on normalized text: LLM-only metrics over ≥3
+   seeds.** `python scripts/train_semantic.py train=semantic seed=<42|1|2>`. Budget
+   **~2.3 h per seed** (the void run early-stopped at epoch 6 of 10 after 2 h 21 m).
+   Confirm `normalize_whitespace=true` in the logged params before trusting anything.
+   **Watch the learning curve, not just the final number** — after ADR-006 a model that
+   has to learn should start near chance and improve; a flat curve from epoch 0 is the
+   alarm that caught this leak (§1.10). Report the three partition-specific ceilings
+   beside every line number: truncation (§1.8), no-node coverage (§7 #21) and the line
+   cap (§7 #30). **Expect much lower numbers than the void run — that is the fix
+   working.**
+2. **Re-run `scripts/audit_label_leakage.py` after any corpus or preprocessing change**,
+   and before quoting any line-level result. It is cheap (~30 s) and it is the standing
+   guard for this class of bug (ADR-006 D6.5).
 3. **Phase 4 (GNN branch) is equally unblocked.** Size batches against §7 #22 (55,486-node
    worst case), not the 252-node mean; build the node-type vocabulary from the corpus, not
    from one grammar's symbol list (§7 #27); read §7 #23-24 before claiming what the graphs
@@ -1017,6 +1126,8 @@ Things that cost time once and should not cost time twice.
 | 13 | **The clean evaluation set is not project-disjoint from training.** ADR-003 selects it by label confidence, so it contains Chrome/linux functions whose projects are also in train | Easy to misread as a generalization result. It is not one | Keep the two claims separate: `clean_eval` measures **line-localization quality under trustworthy labels**; the project-wise test split measures **generalization to unseen projects**. Never report one as the other | 🟨 Known — document |
 | 10 | **24.4% of Big-Vul's vulnerable functions have no line labels** (2,657 of 10,900): `flaw_line_index` is empty | The real line-level corpus is 8,243 functions, not the 10,900 vulnerable ones. Function-level and line-level denominators differ and must never be conflated | Loader marks these explicitly; they are usable for the unit-level task only. Report both denominators in `DATA_CARD.md` | 🟨 Known |
 | 11 | Our measured Big-Vul line counts **differ from the commonly quoted figures** | Literature quotes "44,603 lines / 11,823 functions"; we measure **46,513 lines / 8,243 functions** on the LineVul release | **Narrowed 2026-08-11:** it is *not* a parsing artefact — out-of-range, duplicate-index, text-mismatch and count-mismatch are all **zero** corpus-wide, so 46,513 is exactly the corpus's own flagged-line set. Remaining candidates: a different release, a different notion of "function", or their counting convention. `Rules.md` §5.7: cite ours, name the gap | 🟥 Open — narrowed |
+| 32 | **Big-Vul's LineVul release encodes the flaw label in the indentation.** `processed_func` strips leading whitespace from every line *except* the flagged ones, which are pasted back verbatim from `flaw_line`. "Line starts with a space" predicts the label at **precision 1.0000, zero false positives**, on all six partitions (§1.10, run `a5707491…`) | **It voided the project's first training result.** Run `1843412a…` learned the whitespace rule and matched it to three decimals, scoring line F1 0.96 on held-out projects — *above* the ~30% label-noise ceiling that made it impossible. Our own "0 text mismatches" check could not see it: `labeling.py:272` compares `lines[i].strip()`, stripping away the very difference that leaks | **Fixed by ADR-006**: `normalize_source_whitespace` strips both ends of every line in `CodeUnit`, default-on, line-count preserving. `scripts/audit_label_leakage.py` is the standing guard — re-run it after any corpus or preprocessing change. **A flat learning curve from epoch 0 is the symptom to watch for** | ✅ Fixed — ADR-006, guard script in place |
+| 33 | **A consistency check that normalizes away the thing it checks passes forever.** The label-derivation audit compared stripped text and reported 0 mismatches across 188,636 functions — correctly, and uselessly, for this purpose | Gave documented, corpus-wide confidence in exactly the dimension that was broken. §1.4's "0 text mismatches" is still true and still means less than it reads like | When a check normalizes before comparing, record **what the normalization hides**. Byte-level equality should be checked somewhere, even if only as a reported statistic rather than a failure | 🟨 Known — generalise before Phase 8 |
 | 18 | **~30% of line labels point at the wrong lines** (§1.6, human audit, 6/20, CI [14.5%, 51.9%]) | This is the **ceiling on every line-level metric** the project reports. A model scoring far above ~70% line precision is more likely fitting label noise than localizing. Also easily confused with the 19.2% *function*-level rate — they are different quantities | Phase 6: do not treat line labels as clean. Phase 8: report the ceiling alongside every line-level number. Widen the audit with a second reviewer before the figure carries paper weight | 🟥 Open — inherent to `labels_v1` |
 | 14 | **The clean evaluation set averages 138.3 lines/function against the corpus's 31.0** — 4.5× longer, and **1,502 CodeBERT tokens against train's 358**. **Measured 2026-08-16 (§1.8, run `b7ccc9ca…`): truncation destroys 38.1% of all flagged lines corpus-wide, 44.5% on `clean_eval`**, and 38.05% of `clean_eval`'s line-labelled functions lose a label they are graded on | The 512-token limit lands hardest on precisely the partition that carries the headline line-level numbers. A corpus-wide statistic would have been reassuring and wrong — and the estimate it replaced (§1.4, "≈250 tokens") was wrong in the same direction | **Fixed: windowing is the default** (`llm.windowing=true`), and it recovers 100% of flagged lines in every partition. `false` reproduces the published-baseline behaviour and must be labelled as truncated wherever it is used | ✅ Measured and fixed — report the gap, never hide it |
 | 15 | **A project-wise split does not prevent function-level leakage.** 207 hashes / 426 functions spanned partitions with **zero shared projects** — forks and vendored copies (Chrome/Android, php/php-src, ImageMagick/ImageMagick6, libxml2) | Byte-identical functions on both sides of the train/test boundary: exactly the criticism levelled at published Big-Vul results | **Fixed** — withheld into a `duplicate` partition (ADR-004), 0.23% of the corpus. **Exact match only**, so 207 is a *floor*: re-run with near-duplicate detection in Phase 2 and expect it to grow | ✅ Fixed — floor only |

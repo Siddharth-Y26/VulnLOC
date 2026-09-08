@@ -89,6 +89,11 @@ class LineLabelledDataset(Dataset[EncodedUnit]):
             line-level task: 24.4% of Big-Vul's positives have no line labels at all
             (``Memory.md`` §7 #10), and training a line head against an all-zero label
             vector for a function known to be vulnerable teaches it the wrong thing.
+        normalize_whitespace: Strip edge whitespace from every source line before
+            tokenizing. **On by default: leaving it off leaks the label.** Big-Vul's
+            flagged lines keep their original indentation while every other line is
+            stripped, so "line starts with a space" recovers the label at precision
+            1.0000 (ADR-006, ``Memory.md`` §1.10). ``False`` reproduces pre-ADR-006 runs.
 
     Raises:
         DataError: If the shard yields no units.
@@ -103,9 +108,11 @@ class LineLabelledDataset(Dataset[EncodedUnit]):
         n_lines: int = 512,
         limit: int = 0,
         line_labelled_only: bool = False,
+        normalize_whitespace: bool = True,
     ) -> None:
         self.split = split
         self.n_lines = n_lines
+        self.normalize_whitespace = normalize_whitespace
         self.units: list[EncodedUnit] = []
         flagged_lost = 0
 
@@ -115,7 +122,9 @@ class LineLabelledDataset(Dataset[EncodedUnit]):
             del index
             if line_labelled_only and not labelled.vulnerable_lines:
                 continue
-            unit = CodeUnit.from_labelled_function(labelled)
+            unit = CodeUnit.from_labelled_function(
+                labelled, normalize_whitespace=normalize_whitespace
+            )
             encoded = tokenizer.encode(unit)
             labels = [0] * n_lines
             beyond = 0
@@ -156,6 +165,7 @@ class LineLabelledDataset(Dataset[EncodedUnit]):
                 "flagged_lines": total_flagged,
                 "flagged_beyond_line_cap": flagged_lost,
                 "n_lines_cap": n_lines,
+                "normalize_whitespace": normalize_whitespace,
             },
         )
 
