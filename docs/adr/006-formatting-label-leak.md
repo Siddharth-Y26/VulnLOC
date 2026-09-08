@@ -178,9 +178,13 @@ blocked by it, and the leak — the part that corrupts results — is closed eit
   seeds must be run against normalized text. Roughly 2.3 h per seed on the 4 GiB card.
 - **The overfit test (`ffe3d03a…`) is unaffected as a debugging instrument** — it proves
   the head can memorise 32 samples, and that remains true — but it never was a result.
-- **Nothing in Phases 1–2 is invalidated.** The parse rates, graph statistics and
-  grammar comparison of ADR-005 do not depend on edge whitespace; Tree-sitter ignores it.
-  The corpus statistics, the split and the label audit are likewise untouched.
+- **Nothing in Phases 1–2 is invalidated — measured, not assumed.** Tree-sitter ignores
+  edge whitespace, but stripping after a trailing backslash could in principle revive a
+  dead line continuation and change a parse. Checked on 3,000 `val` units under
+  `best_of_two`: **83.00% clean either way, zero units changed cleanliness, and zero
+  units had trailing whitespace after a backslash at all.** ADR-005's parse rates and
+  graph statistics stand. The corpus statistics, the split and the label audit are
+  untouched by construction — the fix is at L1 and does not reach them.
 
 **What this buys.**
 
