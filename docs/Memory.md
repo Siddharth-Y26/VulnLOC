@@ -648,6 +648,41 @@ task is honest, and a flat one is the alarm.
 
 ---
 
+---
+
+## 1.11 The node-type vocabulary — why it is scanned, not read off a grammar (Phase 4)
+
+**Run `2c9ce1b1…`, `scripts/build_node_vocab.py`, artefact
+`artifacts/representation/node_vocab_ast.json`, digest `a0643c4e…`.**
+
+ADR-002 §D2.5 embeds node type, so Phase 4 needs a lookup table. Landmine §7 #21 says to
+build it by scanning the corpus rather than from a grammar's symbol list. That is now
+measured rather than assumed:
+
+| Source | Types | Corpus types it would miss | Symbols that never occur |
+|---|---|---|---|
+| **Corpus scan, all 188,636 units** | **304** (+1 unknown slot) | — | — |
+| `tree-sitter-c` symbol list | 327 | **85** | 108 |
+| `tree-sitter-cpp` symbol list | 489 | 3 | 188 |
+
+**Sizing the embedding from `tree-sitter-c` would fold 85 real grammar symbols into slot 0
+and never learn them** — silently, because slot 0 is a legitimate value. Among the 85 are
+`access_specifier`, `abstract_reference_declarator`, `->*`, `.*` and `ERROR` itself. The
+cpp list is closer but still wrong in both directions. This is a direct consequence of
+ADR-005: the corpus is parsed under whichever grammar parses best, so its symbol set is a
+**union** over the two and matches neither.
+
+0 units failed to build a graph, so the vocabulary covers the corpus completely. Only 3
+types occur exactly once (`__thread`, `requires`, `requires_clause`). The distribution is
+extremely skewed — `identifier` alone occurs 7,242,519 times against a median in the
+hundreds — which Phase 4 should expect when it initialises the embedding.
+
+The artefact carries a digest for the same reason the split carries a fingerprint: an
+embedding table whose indices shift between runs makes two checkpoints incomparable
+without anything raising.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -698,6 +733,51 @@ Next:
 ```
 
 ---
+
+### 2026-09-12 (session 10) — the inspector, Phase 4's foundation, and seed 42 restarted
+
+**Frontend.** `frontend/` is a pipeline inspector: paste a C/C++ function and every built
+stage runs on it live — ADR-006 normalization, ADR-005 grammar selection, all four graph
+builders, windowing, and the shared line axis. FastAPI + vanilla JS, no build step. It is
+**not** the Phase 9 serving API (unstarted, and `Phases.md` forbids building ahead), so it
+sits outside `src/vulnloc` and outside the import-linter graph. **It shows no
+vulnerability scores** — there is no valid model, and `Rules.md` does not exempt demos.
+`/api/model` is the single place that changes when seeds land. `frontend/phases.json`
+mirrors CLAUDE.md §3 and must be updated when a phase changes.
+
+**Phase 4 foundation** (not the phase — its exit criteria need GPU work):
+- **Node-type vocabulary, run `2c9ce1b1…`** — 304 types + unknown slot over all 188,636
+  units, 0 build failures, digest `a0643c4e…`. §1.11 records the measurement that closes
+  landmine §7 #21: `tree-sitter-c`'s own symbol list would **miss 85** of these types.
+- `StructuralEncoder` puts GCN/GAT/GGNN behind one scaffold, so the Phase 4 comparison is
+  between convolutions and the 2/4/6 over-smoothing sweep is a config change. Residual +
+  layer norm default on; a test pins that the residual actually preserves node
+  distinctness at depth 6.
+- **Gap, recorded not skipped:** ADR-002 §D2.5 wants node-type **+ subtoken** embedding.
+  Only the first exists — `to_pyg` emits no subtoken ids, so the second is an L1
+  tensor-layout change plus a vocabulary (an ADR-002 amendment). `TODO(decision)` on
+  `NodeFeatures`. **A4 must not be read as measuring the full D2.5 feature set.**
+
+**Seed 42 restarted on the normalized corpus** — run `fc902107…`, `normalize_whitespace=True`
+confirmed in the logged params, peak 2,467.7 MiB / 4,095.5 (60.3%), matching the §1.9 probe
+to within 0.5%. **Still running at session end; no result yet.**
+
+**Paper work committed.** `docs/paper/` and 8 `scripts/make_*` files had been untracked
+since 2026-08-18. They carry no results numbers, so ADR-006 invalidated nothing in them —
+but the draft **predates ADR-006 and has no preprocessing subsection at all**; §3.4 and
+§3.15 both need the indentation leak.
+
+**A test bug ADR-006 created, found by hypothesis.** `test_tokenization.py`'s property
+test compared token offsets derived from the *raw* input against line indices derived
+from `CodeUnit.source`, which ADR-006 normalizes. The two differ for any whitespace-
+bearing input, so the pairing was off by one. **`CodeUnit.source` is not the string you
+passed in** — see §7 #34. The helper also zipped a filtered line list against a prefix of
+the offsets, which misaligns as soon as a body token maps to `NO_LINE`; both are fixed.
+LineMap itself was verified correct and is not implicated.
+
+**Watch:** `test_graphs_ast.py::test_graph_invariants_hold_on_random_input` failed once
+under hypothesis and did not reproduce. Not chased. If it recurs, it is a real AST
+invariant violation and takes priority over anything else in flight.
 
 ### 2026-08-16 (session 8) — Phase 3: the model, the loop, and the first thing that learns
 Phase: 3 (3 of 4 exit criteria met)
@@ -1033,6 +1113,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `2c9ce1b1…` | 2026-09-12 | `build_node_vocab.py` (`ast`, `best_of_two`) | — | — | — | — | — | — | **The node-type vocabulary of record, Phase 4's prerequisite.** 304 types + unknown slot over all 188,636 units, 0 graph-build failures, digest `a0643c4e…`. **Measured: `tree-sitter-c`'s own symbol list would miss 85 of these types; `tree-sitter-cpp`'s would miss 3 and carry 188 that never occur.** Data artefact, not a result. |
 | `1d89fe71…` | 2026-09-08 | `audit_label_leakage.py` (post-L0 rebuild) | — | — | — | — | — | — | **Confirms the corpus is clean at rest**: 0 partitions leak, the leading-whitespace tell fires on 0 lines. `shards_normalized_at_l0=true` — this reads the rebuilt shards, so it is evidence the fix landed, *not* evidence the leak was imaginary (compare `a5707491…`). Data artefact, not a result. |
 | `8c1cccdd…` | 2026-09-08 | `build_cache.py` (ADR-006 D6.6, `data.normalize_whitespace=true`) | — | — | — | — | — | — | **The shards of record.** Rebuilt with normalized source. Every count identical to `1f716614…` (188,636 functions; train 148,983 / 5,457 line-labelled / 34,027 flagged); only the digests differ. Supersedes `1f716614…`. Data artefact, not a result. |
 | `a5707491…` | 2026-09-08 | `audit_label_leakage.py` | — | — | — | — | — | — | **THE ADR-006 EVIDENCE. "Line starts with a space" predicts the flaw label at precision 1.0000, ZERO false positives, on all six partitions** (recall 0.83–0.99; `clean_eval` lift 38×). No tell leaks after normalization. Data artefact, not a result. |
@@ -1148,6 +1229,7 @@ Things that cost time once and should not cost time twice.
 | 13 | **The clean evaluation set is not project-disjoint from training.** ADR-003 selects it by label confidence, so it contains Chrome/linux functions whose projects are also in train | Easy to misread as a generalization result. It is not one | Keep the two claims separate: `clean_eval` measures **line-localization quality under trustworthy labels**; the project-wise test split measures **generalization to unseen projects**. Never report one as the other | 🟨 Known — document |
 | 10 | **24.4% of Big-Vul's vulnerable functions have no line labels** (2,657 of 10,900): `flaw_line_index` is empty | The real line-level corpus is 8,243 functions, not the 10,900 vulnerable ones. Function-level and line-level denominators differ and must never be conflated | Loader marks these explicitly; they are usable for the unit-level task only. Report both denominators in `DATA_CARD.md` | 🟨 Known |
 | 11 | Our measured Big-Vul line counts **differ from the commonly quoted figures** | Literature quotes "44,603 lines / 11,823 functions"; we measure **46,513 lines / 8,243 functions** on the LineVul release | **Narrowed 2026-08-11:** it is *not* a parsing artefact — out-of-range, duplicate-index, text-mismatch and count-mismatch are all **zero** corpus-wide, so 46,513 is exactly the corpus's own flagged-line set. Remaining candidates: a different release, a different notion of "function", or their counting convention. `Rules.md` §5.7: cite ours, name the gap | 🟥 Open — narrowed |
+| 34 | **`CodeUnit.source` is not the string you passed to it.** ADR-006 strips edge whitespace from every line at construction, so for any input carrying it the unit's text differs from the input. Anything deriving character offsets, byte spans or line indices must use `unit.source`, never the original. This broke a property test silently and only for whitespace-bearing input — it had passed for weeks | ✅ Understood — test fixed 2026-09-12 |
 | 32 | **Big-Vul's LineVul release encodes the flaw label in the indentation.** `processed_func` strips leading whitespace from every line *except* the flagged ones, which are pasted back verbatim from `flaw_line`. "Line starts with a space" predicts the label at **precision 1.0000, zero false positives**, on all six partitions (§1.10, run `a5707491…`) | **It voided the project's first training result.** Run `1843412a…` learned the whitespace rule and matched it to three decimals, scoring line F1 0.96 on held-out projects — *above* the ~30% label-noise ceiling that made it impossible. Our own "0 text mismatches" check could not see it: `labeling.py:272` compares `lines[i].strip()`, stripping away the very difference that leaks | **Fixed by ADR-006**: `normalize_source_whitespace` strips both ends of every line in `CodeUnit`, default-on, line-count preserving. `scripts/audit_label_leakage.py` is the standing guard — re-run it after any corpus or preprocessing change. **A flat learning curve from epoch 0 is the symptom to watch for** | ✅ Fixed — ADR-006, guard script in place |
 | 33 | **A consistency check that normalizes away the thing it checks passes forever.** The label-derivation audit compared stripped text and reported 0 mismatches across 188,636 functions — correctly, and uselessly, for this purpose | Gave documented, corpus-wide confidence in exactly the dimension that was broken. §1.4's "0 text mismatches" is still true and still means less than it reads like | When a check normalizes before comparing, record **what the normalization hides**. Byte-level equality should be checked somewhere, even if only as a reported statistic rather than a failure | 🟨 Known — generalise before Phase 8 |
 | 18 | **~30% of line labels point at the wrong lines** (§1.6, human audit, 6/20, CI [14.5%, 51.9%]) | This is the **ceiling on every line-level metric** the project reports. A model scoring far above ~70% line precision is more likely fitting label noise than localizing. Also easily confused with the 19.2% *function*-level rate — they are different quantities | Phase 6: do not treat line labels as clean. Phase 8: report the ceiling alongside every line-level number. Widen the audit with a second reviewer before the figure carries paper weight | 🟥 Open — inherent to `labels_v1` |

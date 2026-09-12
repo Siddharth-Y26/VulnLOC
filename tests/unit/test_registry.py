@@ -36,7 +36,6 @@ ALL_REGISTRIES = [
 # an entry appearing in one of these is a real failure, not a stale test. Move a
 # registry out of this list only when its phase legitimately lands.
 UNPOPULATED_REGISTRIES = [
-    STRUCTURAL_REGISTRY,  # Phase 4
     FUSION_REGISTRY,  # Phase 5
     EXPLAINER_REGISTRY,  # Phase 7
     METRIC_REGISTRY,  # Phase 8
@@ -135,6 +134,16 @@ def test_every_extension_point_exists(reg):
 @pytest.mark.parametrize("reg", UNPOPULATED_REGISTRIES, ids=lambda r: r.name)
 def test_registries_for_unstarted_phases_are_empty(reg):
     assert reg.keys() == [], f"{reg.name} was populated before its phase (Rules.md §1)"
+
+
+def test_structural_registry_holds_exactly_the_encoders_that_exist():
+    # Phase 4. GCN, GAT and GGNN are one scaffold behind three keys, so the Phase 4
+    # comparison is between convolutions rather than between three wrappers. A key
+    # without an encoder behind it would make the over-smoothing sweep selectable
+    # against code that does not exist.
+    import vulnloc.models.structural  # noqa: F401  (registration happens on import)
+
+    assert STRUCTURAL_REGISTRY.keys() == ["gat", "gcn", "ggnn"]
 
 
 def test_semantic_registry_holds_exactly_the_encoders_that_exist():

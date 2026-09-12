@@ -115,7 +115,7 @@ def test_non_ascii_source_uses_character_offsets_not_byte_offsets(line_tokenizer
 
     encoded = line_tokenizer.encode(unit)
 
-    assert_lines_match_offsets(encoded.windows[0], source, hf_tokenizer)
+    assert_lines_match_offsets(encoded.windows[0], unit.source, hf_tokenizer)
     # Line 3 sits past the accent's byte/character divergence; a byte-based reading of
     # the tokenizer's character offsets lands short of it.
     assert 3 in encoded.lines_covered
@@ -292,4 +292,4 @@ def test_property_every_token_line_is_in_range_and_matches_its_offset(hf_tokeniz
         for line in window.token_to_line[: window.n_real_tokens]:
             if line != NO_LINE:
                 assert 1 <= line <= unit.n_lines
-    assert_lines_match_offsets(encoded.windows[0], source, hf_tokenizer)
+    assert_lines_match_offsets(encoded.windows[0], unit.source, hf_tokenizer)
