@@ -200,15 +200,17 @@ allowed to attend to each other before any final decision is made.
 The design follows one rule throughout: **the line index is the atomic unit, and it must
 never be lost.** Every stage of the pipeline is built to preserve it.
 
-The full pipeline has seven stages:
+The full pipeline has eight stages:
 
-1. Parse the function into a syntax tree.
-2. Build the AST, CFG and DFG over a shared set of nodes; the CPG is their union.
-3. Encode the code as text (semantic branch) and as a graph (structural branch).
-4. Convert both to one vector per source line.
-5. Fuse the two using bidirectional cross-attention.
-6. Predict a score per line and a score per function, and train on both.
-7. Generate an explanation that is required to cite real evidence.
+1. Normalize the source text, removing the formatting artefact described in Section 3.5
+   without changing the number of lines.
+2. Parse the function into a syntax tree.
+3. Build the AST, CFG and DFG over a shared set of nodes; the CPG is their union.
+4. Encode the code as text (semantic branch) and as a graph (structural branch).
+5. Convert both to one vector per source line.
+6. Fuse the two using bidirectional cross-attention.
+7. Predict a score per line and a score per function, and train on both.
+8. Generate an explanation that is required to cite real evidence.
 
 ### 3.2 Problem formulation
 
@@ -220,7 +222,7 @@ function-level score *y ∈ [0, 1]*.
 This is a ranking problem more than a classification problem. In practice a developer looks
 at the highest-scoring lines first, so what matters is whether the true vulnerable line
 appears near the top of the list, not whether its score crosses some fixed threshold. Our
-choice of evaluation metrics in Section 3.11 follows from this.
+choice of evaluation metrics in Section 3.13 follows from this.
 
 ### 3.3 Datasets
 
@@ -278,7 +280,45 @@ byte-identical across different projects, because open-source code is copied and
 between repositories. These were withheld. Since only exact matches are detected, this
 number is a lower bound.
 
-### 3.5 Code representation
+### 3.5 Preprocessing: a formatting artefact in the training corpus
+
+The widely used release of Big-Vul distributed with LineVul [5] carries a defect that makes
+line-level results on it meaningless unless it is removed first, and we document it here
+because it is not specific to our work.
+
+The release provides each function as a `processed_func` field. That field is assembled by
+stripping leading whitespace from every line **except** the flagged ones, which are pasted
+back verbatim from the `flaw_line` field and therefore keep their original indentation. The
+label is consequently written into the formatting. We measured the resulting shortcut with
+a single rule — *does this line begin with a space or a tab?* — used as a classifier. It
+predicts the line label at **precision 1.0000 with zero false positives on all six
+partitions of our split**, at recall between 0.83 and 0.99, a 38-fold lift over the base
+rate on the manually confirmed evaluation set.
+
+A model given that text does not need to read the code. Our first full training run
+reported line-level precision 0.985 and F1 0.961. A line-label error rate of roughly 30%
+(Section 3.4) does not permit scores anywhere near that, so the result was impossible
+before it was suspicious. Its validation F1 was also flat from the first epoch onwards,
+because there was nothing left to learn after the first. We discarded that run. Both
+signals generalise as diagnostics: **a held-out score above a stated noise ceiling is a
+bug report rather than a result, and a learning curve that is flat from epoch zero is the
+more sensitive of the two alarms.**
+
+The correction is to strip whitespace from both ends of every line, applied at corpus load
+time and again when a function is turned into an analysis unit. The transform is idempotent
+and preserves the number of lines, so the line index — the atomic unit of this work —
+is untouched. It also leaves the data split bit-identical: assignment is keyed on a
+function hash that already removes every whitespace character, so the split fingerprint is
+unchanged and no re-partitioning was required. Only the stored source text differs.
+
+We re-ran the same detector-as-audit over the corrected corpus and it now fires on zero
+lines in every partition. That audit is retained as a standing check and is re-run before
+any line-level number is quoted; the code and the decision record are released with the
+artefact. **Every result in this paper is computed on normalized text.** We note that
+published line-level results on this release of Big-Vul which do not describe an equivalent
+normalization step may be measuring the same artefact.
+
+### 3.6 Code representation
 
 **Parsing.** We parse with Tree-sitter [36]. Conventional program analysis tools require
 code that compiles, but our corpus consists of isolated functions with no headers and no
@@ -320,7 +360,7 @@ wide, 7.84% of flagged lines carry no node at all, and 84.8% of those lie in fun
 no grammar parses cleanly. The structural branch cannot score those lines, which is a second
 ceiling, separate from label noise.
 
-### 3.6 Semantic branch
+### 3.7 Semantic branch
 
 The semantic branch uses a pre-trained code model — CodeBERT [3] or GraphCodeBERT [4] — to
 produce a contextual representation of each token.
@@ -339,9 +379,9 @@ function.
 Tokenization is line-aware: each token records the byte range it came from, so it can later
 be attributed to a line.
 
-### 3.7 Structural branch
+### 3.8 Structural branch
 
-The structural branch runs a graph neural network over the graph produced in Section 3.5.
+The structural branch runs a graph neural network over the graph produced in Section 3.6.
 Each node is initialised with an embedding of its node type together with features derived
 from its source text, and the network updates each node using information from its
 neighbours.
@@ -355,7 +395,7 @@ Graph size varies enormously. AST graphs average 252 nodes across the corpus but
 use in a batch is determined by the largest graph rather than the average, batching is
 sized against observed maxima.
 
-### 3.8 Line alignment
+### 3.9 Line alignment
 
 This module is the point on which the whole design depends. The semantic branch produces
 one vector per token; the structural branch produces one vector per graph node. These two
@@ -370,7 +410,7 @@ experimentally.
 Both poolings rely on the byte-to-line map established at parse time, which is why the line
 index is preserved so carefully at every earlier stage.
 
-### 3.9 Cross-attention fusion
+### 3.10 Cross-attention fusion
 
 With both branches expressed per line, we apply **bidirectional cross-attention**. In one
 direction, the semantic representation of each line forms queries and the structural
@@ -385,9 +425,9 @@ alarming alone; together they describe a buffer overflow. Concatenation asks a f
 classifier to notice such combinations from two compressed summaries. Cross-attention
 allows the combination to be formed per line, while the detail still exists.
 
-We do not assume this works. Section 3.12 describes the experiment designed to test it.
+We do not assume this works. Section 3.14 describes the experiment designed to test it.
 
-### 3.10 Prediction heads and training objective
+### 3.11 Prediction heads and training objective
 
 Two heads sit on top of the fused representation. The **line head** produces a score for
 each line. The **unit head** pools across lines and produces one score for the function.
@@ -399,7 +439,7 @@ Because only 0.795% of lines are vulnerable, a model trained with plain binary c
 can achieve very high accuracy by predicting "clean" everywhere. We therefore compare plain,
 class-weighted and focal losses, and we exclude accuracy from our headline metrics.
 
-### 3.11 Explanation
+### 3.12 Explanation
 
 For the highest-scoring lines the system produces a short explanation with a fixed
 structure: the vulnerability type, the line, a one-sentence reason, and the evidence.
@@ -409,7 +449,7 @@ line numbers and symbol names that appear in the code and were used by the model
 grounding cannot be established, no explanation is shown. This is a direct response to the
 finding that fluent explanations may not reflect the model's actual reasoning [18, 25].
 
-### 3.12 Evaluation
+### 3.13 Evaluation
 
 We fixed our headline metrics before running experiments, to avoid selecting metrics after
 seeing results.
@@ -436,7 +476,7 @@ random lines should not. We also measure agreement between attention weights and
 gradient-based attribution. Attention is treated as a hypothesis to be tested, not as an
 explanation in itself [25].
 
-### 3.13 Experimental design and ablations
+### 3.14 Experimental design and ablations
 
 The central experiment, which we label **A1**, compares five fusion strategies:
 cross-attention, concatenation, summation, gating, and no fusion. All five are run with
@@ -461,7 +501,7 @@ concatenation under these matched conditions, we will report that result. In tha
 contribution becomes the controlled comparison itself, together with the evaluation
 protocol and the label-quality analysis.
 
-### 3.14 Implementation
+### 3.15 Implementation
 
 The system is implemented in Python 3.12 using PyTorch. The code is organised into layers —
 data, representation, models, training, evaluation, explanation and serving — with imports
@@ -473,11 +513,16 @@ Experiments are configured with Hydra and tracked with MLflow, and every reporte
 tied to a logged run identifier. Training runs on a single 4 GB GPU using mixed precision
 and gradient checkpointing, measured at a peak of 2,456 MiB with a batch of 16 windows.
 
-### 3.15 Threats to validity
+### 3.16 Threats to validity
 
 **Internal.** Label noise of approximately 30% at the line level limits every line-level
 result; we report it explicitly and use a manually confirmed evaluation set to separate
-model error from label error. Unequal tuning effort between fusion strategies would
+model error from label error. A second, sharper threat is the formatting artefact of
+Section 3.5: on the uncorrected corpus a line-level score is dominated by indentation
+rather than by code, and the failure is silent — the model trains normally and reports
+near-perfect numbers. We removed it, verified the removal with a standing audit, and
+discarded the run that preceded the fix; we treat any held-out score above the stated
+noise ceiling as evidence of a defect rather than of performance. Unequal tuning effort between fusion strategies would
 invalidate our main claim, which is why the search budget is fixed in advance.
 
 **External.** Our results apply to C and C++ functions analysed one at a time, with no
