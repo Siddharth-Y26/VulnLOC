@@ -1,0 +1,1071 @@
+<title>VulnLoc Panel Prep</title>
+<style>
+  :root {
+    --brand: #0B76B8;
+    --brand-dark: #075C90;
+    --surface-soft: #E8F4FC;
+    --border-brand: #9CCDE8;
+    --bg-page: #FAFBFC;
+    --bg-elevated: #FFFFFF;
+    --bg-sunken: #F1F4F7;
+    --text-primary: #111418;
+    --text-body: #2E353D;
+    --text-muted: #697682;
+    --border-subtle: #DEE4EA;
+    --risk-high: #D1495B;
+    --risk-critical: #A4243B;
+    --warn: #E08A2E;
+    --ok: #3F8F5C;
+    --ast: #5B8FF9;
+    --cfg: #2FA37A;
+    --dfg: #B58406;
+    --call: #7262FD;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: "Segoe UI", -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: Consolas, "Cascadia Mono", "SF Mono", monospace;
+    --measure: 70ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --brand: #57B4E8; --brand-dark: #8FCDF2; --surface-soft: #12212C;
+      --border-brand: #2A4A61; --bg-page: #0E1216; --bg-elevated: #161C22;
+      --bg-sunken: #11161B; --text-primary: #E6EBF0; --text-body: #C4CDD6;
+      --text-muted: #8B98A5; --border-subtle: #262E36; --risk-high: #EC7E90;
+      --risk-critical: #E0697F; --warn: #F0AC5E; --ok: #6FBE8C;
+      --ast: #86ADFA; --cfg: #61DDAA; --dfg: #F6BD16; --call: #9D91FF;
+    }
+  }
+  :root[data-theme="dark"] {
+    --brand: #57B4E8; --brand-dark: #8FCDF2; --surface-soft: #12212C;
+    --border-brand: #2A4A61; --bg-page: #0E1216; --bg-elevated: #161C22;
+    --bg-sunken: #11161B; --text-primary: #E6EBF0; --text-body: #C4CDD6;
+    --text-muted: #8B98A5; --border-subtle: #262E36; --risk-high: #EC7E90;
+    --risk-critical: #E0697F; --warn: #F0AC5E; --ok: #6FBE8C;
+    --ast: #86ADFA; --cfg: #61DDAA; --dfg: #F6BD16; --call: #9D91FF;
+  }
+
+  body {
+    background: var(--bg-page); color: var(--text-body); font-family: var(--sans);
+    font-size: 17px; line-height: 1.65; margin: 0; padding: 0 22px 100px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+
+  h1,h2 { font-family: var(--serif); color: var(--text-primary); text-wrap: balance; }
+  h1 { font-size: 42px; line-height: 1.12; margin: 0 0 14px; }
+  h2 { font-size: 30px; line-height: 1.2; margin: 0; }
+  h3 {
+    font-family: var(--sans); font-size: 21px; font-weight: 650; color: var(--text-primary);
+    margin: 42px 0 12px; text-wrap: balance;
+  }
+  h4 { font-family: var(--sans); font-size: 17px; margin: 26px 0 8px; color: var(--text-primary); }
+  p { margin: 0 0 16px; max-width: var(--measure); }
+  ul, ol { max-width: var(--measure); padding-left: 22px; }
+  li { margin-bottom: 9px; }
+  a { color: var(--brand); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 3px; }
+  code { font-family: var(--mono); font-size: .86em; }
+  strong { color: var(--text-primary); font-weight: 650; }
+
+  header.top { padding: 60px 0 34px; border-bottom: 1px solid var(--border-subtle); }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--brand); margin: 0 0 14px;
+  }
+  .lede { font-size: 19px; line-height: 1.6; }
+
+  nav.toc {
+    background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    border-radius: 10px; padding: 20px 24px; margin: 30px 0 0;
+  }
+  nav.toc p { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--text-muted); margin: 0 0 10px; }
+  nav.toc ol { columns: 2; column-gap: 32px; margin: 0; font-size: 15px; }
+  @media (max-width: 620px) { nav.toc ol { columns: 1; } }
+
+  section { padding: 46px 0 4px; border-top: 1px solid var(--border-subtle); }
+  .shead { border-left: 4px solid var(--brand); padding-left: 18px; margin-bottom: 24px; }
+  .shead .n {
+    font-family: var(--mono); font-size: 12px; color: var(--brand-dark); letter-spacing: .08em;
+    display: block; margin-bottom: 4px;
+  }
+
+  /* plain-language explainer block */
+  .plain {
+    background: var(--surface-soft); border: 1px solid var(--border-brand);
+    border-radius: 10px; padding: 20px 24px; margin: 20px 0;
+  }
+  .plain h4 { margin-top: 0; color: var(--brand-dark); font-size: 14px;
+    letter-spacing: .06em; text-transform: uppercase; }
+  .plain p:last-child, .plain ul:last-child { margin-bottom: 0; }
+
+  /* question / answer */
+  .qa {
+    border: 1px solid var(--border-subtle); border-left: 4px solid var(--brand);
+    border-radius: 0 10px 10px 0; background: var(--bg-elevated);
+    padding: 18px 22px; margin: 16px 0;
+  }
+  .qa .q {
+    font-weight: 650; color: var(--text-primary); font-size: 17px; margin: 0 0 10px;
+    display: flex; gap: 10px; align-items: baseline;
+  }
+  .qa .q::before {
+    content: "Q"; font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: #fff; background: var(--brand); border-radius: 4px; padding: 2px 6px;
+    flex: none; line-height: 1.3;
+  }
+  .qa .a { margin: 0; }
+  .qa .a + .a { margin-top: 12px; }
+  .qa.hard { border-left-color: var(--risk-high); }
+  .qa.hard .q::before { content: "!"; background: var(--risk-high); }
+
+  .kv { display: grid; grid-template-columns: 92px 1fr; gap: 6px 14px; margin: 14px 0 0;
+    max-width: var(--measure); font-size: 16px; }
+  .kv dt { font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--brand-dark); padding-top: 5px; }
+  .kv dd { margin: 0; }
+
+  .cols { display: grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr)); gap: 16px; margin: 18px 0; }
+  .card { background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    border-radius: 10px; padding: 18px 20px; }
+  .card h4 { margin: 0 0 6px; }
+  .card p { font-size: 15px; margin-bottom: 0; }
+
+  .warnbox { border-left: 4px solid var(--warn); background: var(--bg-elevated);
+    border-radius: 0 10px 10px 0; padding: 18px 22px; margin: 22px 0; }
+  .warnbox h4 { margin-top: 0; color: var(--warn); }
+  .warnbox p:last-child, .warnbox ul:last-child { margin-bottom: 0; }
+
+  .scroll { overflow-x: auto; margin: 20px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; min-width: 560px; }
+  th, td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--border-subtle);
+    vertical-align: top; }
+  th { background: var(--surface-soft); color: var(--text-primary); font-size: 12px;
+    font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    border-bottom: 1px solid var(--border-brand); }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* figure */
+  .figwrap { display: grid; grid-template-columns: minmax(260px,360px) 1fr; gap: 22px;
+    align-items: start; margin: 20px 0; }
+  @media (max-width: 820px) { .figwrap { grid-template-columns: 1fr; } }
+  .codeview { background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    border-radius: 10px; overflow: hidden; font-family: var(--mono); font-size: 12px; }
+  .codeview .vhead { display: flex; justify-content: space-between; gap: 10px;
+    padding: 10px 13px; background: var(--surface-soft); border-bottom: 1px solid var(--border-brand);
+    font-family: var(--sans); font-size: 12px; font-weight: 650; color: var(--text-primary); }
+  .codeview .body { padding: 9px 0; overflow-x: auto; }
+  .crow { display: flex; align-items: flex-start; line-height: 17px; }
+  .crow code { white-space: pre; padding-right: 14px; color: var(--text-body); }
+  .cnum { width: 34px; flex: none; text-align: right; padding-right: 10px;
+    color: var(--text-muted); font-variant-numeric: tabular-nums; user-select: none; }
+  .crow.flag { background: color-mix(in srgb, var(--risk-high) 13%, transparent);
+    box-shadow: inset 3px 0 0 var(--risk-high); }
+  .crow.flag .cnum { color: var(--risk-critical); font-weight: 700; }
+
+  .gpanels { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: 16px; }
+  .gpanel { margin: 0; background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    border-radius: 10px; padding: 16px 16px 8px; color: var(--text-muted); }
+  .gpanel figcaption p { font-size: 13px; line-height: 1.45; margin: 0 0 6px; max-width: none; }
+  .gpanel h4 { margin: 0 0 5px; font-size: 15px; }
+  .gpanel .counts { font-size: 12px; font-variant-numeric: tabular-nums;
+    border-top: 1px solid var(--border-subtle); padding-top: 7px; margin-bottom: 6px; }
+  .tag { font-family: var(--mono); font-size: 11px; color: var(--brand-dark);
+    background: var(--surface-soft); border: 1px solid var(--border-brand);
+    border-radius: 4px; padding: 1px 6px; vertical-align: 2px; }
+  svg.gfig { display: block; height: auto; }
+  svg.gfig .gnum { font-family: var(--mono); font-size: 9px; fill: var(--text-muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 6px 0 0; font-size: 14px; }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); }
+  .legend i { width: 16px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  .numbers { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 12px; margin: 20px 0; }
+  .numbers div { background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    border-radius: 10px; padding: 14px 16px; }
+  .numbers b { display: block; font-family: var(--serif); font-size: 26px; font-weight: 700;
+    color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .numbers span { display: block; font-size: 13px; color: var(--text-muted); margin-top: 5px; line-height: 1.35; }
+
+  footer.end { border-top: 1px solid var(--border-subtle); margin-top: 60px; padding-top: 24px;
+    font-size: 14px; color: var(--text-muted); }
+
+  /* ── print / PDF ──────────────────────────────────────── */
+  @page { size: A4; margin: 16mm 14mm; }
+  @media print {
+    /* Chrome headless renders whichever theme the host reports. A PDF is ink on
+       paper, so the light palette is forced regardless. */
+    :root, :root[data-theme="dark"] {
+      --brand: #0B76B8; --brand-dark: #075C90; --surface-soft: #E8F4FC;
+      --border-brand: #9CCDE8; --bg-page: #FFFFFF; --bg-elevated: #FFFFFF;
+      --bg-sunken: #F1F4F7; --text-primary: #111418; --text-body: #23292F;
+      --text-muted: #5C6874; --border-subtle: #D3DAE1; --risk-high: #C23A4C;
+      --risk-critical: #A4243B; --warn: #B36A12; --ok: #2F7A4A;
+      --ast: #3B72D9; --cfg: #1F8A63; --dfg: #8F6604; --call: #5A48D6;
+    }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-size: 10.5pt; line-height: 1.5; padding: 0; background: #fff; }
+    .wrap { max-width: none; }
+    :root { --measure: none; }
+    p, ul, ol, .kv, table { max-width: none; }
+
+    h1 { font-size: 26pt; }
+    h2 { font-size: 17pt; }
+    h3 { font-size: 12.5pt; margin-top: 20pt; }
+    h4 { font-size: 11pt; }
+    h1, h2, h3, h4 { break-after: avoid; page-break-after: avoid; }
+
+    /* A question split across a page break is unusable in a printed brief. */
+    .qa, .card, .plain, .warnbox, .note, .gpanel, .tile, .numbers > div,
+    figure, tr { break-inside: avoid; page-break-inside: avoid; }
+    section, section.rubric { break-before: page; page-break-before: always;
+      padding-top: 0; border-top: 0; }
+    header.top { break-after: page; page-break-after: always; }
+    nav.toc { break-inside: avoid; }
+
+    /* Horizontal scrolling has no meaning on paper. */
+    .scroll, .codeview .body { overflow: visible; }
+    table { min-width: 0; font-size: 9pt; }
+    th, td { padding: 5pt 7pt; }
+    thead { display: table-header-group; }
+
+    .codeview { font-size: 8pt; }
+    .crow { line-height: 13px; }
+    .figwrap { grid-template-columns: 1fr; gap: 14pt; }
+    .gpanels { grid-template-columns: 1fr 1fr; }
+    svg.gfig { max-height: 150mm; }
+
+    a { color: var(--brand-dark); text-decoration: none; }
+    a[href^="http"]::after {
+      content: " (" attr(href) ")"; font-size: 7pt; color: var(--text-muted);
+      word-break: break-all;
+    }
+    nav.toc a::after { content: ""; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Panel Preparation · Plain-Language Guide</p>
+  <h1>VulnLoc, explained from scratch</h1>
+  <p class="lede">
+    Everything the project is, in ordinary words &mdash; followed by the questions a panel is
+    likely to ask, each answered as <strong>what it is, why we did it, and how it works</strong>.
+    Read top to bottom once. After that, section 11 is the only page you need on the day.
+  </p>
+  <nav class="toc">
+    <p>Contents</p>
+    <ol>
+      <li><a href="#one">The project in one minute</a></li>
+      <li><a href="#words">The words you must be able to define</a></li>
+      <li><a href="#problem">The problem we are solving</a></li>
+      <li><a href="#data">The datasets</a></li>
+      <li><a href="#labels">Labels, noise, and honesty</a></li>
+      <li><a href="#graphs">The graphs, seen and explained</a></li>
+      <li><a href="#method">The methodology, step by step</a></li>
+      <li><a href="#novel">The novelty: cross-attention</a></li>
+      <li><a href="#system">The system and its modules</a></li>
+      <li><a href="#eval">How we will judge it</a></li>
+      <li><a href="#cheat">Cheat sheet &amp; hard questions</a></li>
+    </ol>
+  </nav>
+</header>
+
+<!-- 1 -->
+<section id="one">
+  <div class="shead"><span class="n">SECTION 01</span><h2>The project in one minute</h2></div>
+
+  <p>
+    Programs contain security bugs. Tools exist to find them, but almost every tool answers the
+    wrong question. They say <em>&ldquo;this function is risky.&rdquo;</em> A function can be 200
+    lines long. The developer still has to find the bug by hand.
+  </p>
+  <p><strong>We are building a tool that says: the bug is on line 45, and here is why.</strong></p>
+
+  <div class="plain">
+    <h4>The idea in everyday terms</h4>
+    <p>
+      Imagine two specialists reviewing the same code.
+    </p>
+    <ul>
+      <li>The <strong>first specialist reads the code like text.</strong> They have read millions of
+      lines, so they recognise phrasing that usually means trouble. They do not really understand
+      how the program runs &mdash; they recognise patterns. This is the <strong>LLM</strong>.</li>
+      <li>The <strong>second specialist ignores the words and draws diagrams</strong> &mdash; what
+      runs after what, and where each value travels. They understand structure, but they miss
+      meaning. This is the <strong>GNN</strong>.</li>
+    </ul>
+    <p>
+      Almost every existing system takes one report from each specialist and staples them together.
+      <strong>We put the two specialists in a room and make them discuss the code line by line
+      before either writes anything down.</strong> That conversation is called
+      <em>cross-attention</em>, and proving it beats stapling is the entire point of the project.
+    </p>
+  </div>
+
+  <p>
+    For them to talk to each other, they need to agree on what they are pointing at. So both are
+    forced to describe everything in terms of <strong>line numbers</strong>. We call this the
+    <strong>shared line axis</strong>. It sounds like a small engineering detail. It is actually the
+    foundation the whole design rests on, and most of our work so far has been making sure the line
+    number never gets lost.
+  </p>
+</section>
+
+<!-- 2 -->
+<section id="words">
+  <div class="shead"><span class="n">SECTION 02</span><h2>The words you must be able to define</h2></div>
+  <p>
+    If a panel member stops you on a term, you should be able to define it in one sentence without
+    hesitating. These are those sentences.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Term</th><th>One-sentence definition</th><th>Everyday comparison</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Vulnerability</strong></td><td>A coding mistake an attacker can abuse to do something they should not be able to do.</td><td>A door that looks locked but isn't.</td></tr>
+      <tr><td><strong>CVE</strong></td><td>A public ID given to one specific confirmed vulnerability in real software.</td><td>A case number.</td></tr>
+      <tr><td><strong>CWE</strong></td><td>The <em>category</em> of the mistake, e.g. CWE-119 buffer overflow.</td><td>The type of crime, not the case.</td></tr>
+      <tr><td><strong>Function-level</strong></td><td>The model says only whether a whole function is vulnerable.</td><td>&ldquo;There's a typo on this page.&rdquo;</td></tr>
+      <tr><td><strong>Line-level</strong></td><td>The model gives every single line its own risk score.</td><td>&ldquo;The typo is the 5th word of line 3.&rdquo;</td></tr>
+      <tr><td><strong>Localization</strong></td><td>Pointing at <em>where</em> the problem is, not just that one exists.</td><td>The X on the map.</td></tr>
+      <tr><td><strong>LLM</strong></td><td>A large model pre-trained on huge amounts of code that turns text into meaning-carrying numbers.</td><td>A very well-read reviewer.</td></tr>
+      <tr><td><strong>CodeBERT</strong></td><td>The specific LLM we use &mdash; a model pre-trained on source code.</td><td>The reviewer's qualification.</td></tr>
+      <tr><td><strong>GNN</strong></td><td>A neural network that runs over a graph, letting each node learn from its neighbours.</td><td>Gossip spreading through a social network.</td></tr>
+      <tr><td><strong>Node / edge</strong></td><td>A node is a thing; an edge is a relationship between two things.</td><td>People and friendships.</td></tr>
+      <tr><td><strong>Embedding</strong></td><td>A list of numbers representing something's meaning, so a computer can compare meanings.</td><td>GPS coordinates for ideas.</td></tr>
+      <tr><td><strong>Token</strong></td><td>The small pieces a model chops text into before reading it.</td><td>Syllables.</td></tr>
+      <tr><td><strong>Attention</strong></td><td>A mechanism that lets a model decide which parts of the input matter most right now.</td><td>Highlighting while reading.</td></tr>
+      <tr><td><strong>Cross-attention</strong></td><td>Attention where one source looks at a <em>different</em> source instead of at itself.</td><td>Checking your notes against someone else's.</td></tr>
+      <tr><td><strong>Fusion</strong></td><td>Any method of combining two kinds of information into one.</td><td>Merging two reports.</td></tr>
+      <tr><td><strong>Concatenation</strong></td><td>The simplest fusion: just place both lists of numbers end to end.</td><td>Stapling two reports together.</td></tr>
+      <tr><td><strong>Ablation</strong></td><td>Removing or swapping one component to measure how much it actually contributed.</td><td>Cooking without the salt to see if it mattered.</td></tr>
+      <tr><td><strong>Baseline</strong></td><td>A simpler method you must beat for your result to mean anything.</td><td>The score to beat.</td></tr>
+      <tr><td><strong>Ground truth</strong></td><td>The known correct answer used to train and to grade the model.</td><td>The answer key.</td></tr>
+      <tr><td><strong>Label noise</strong></td><td>The fraction of the answer key that is itself wrong.</td><td>A teacher's key with mistakes in it.</td></tr>
+      <tr><td><strong>Data leakage</strong></td><td>When test data secretly appears in training, inflating the score.</td><td>Studying the exam paper.</td></tr>
+      <tr><td><strong>Overfitting</strong></td><td>The model memorises training examples instead of learning the pattern.</td><td>Memorising answers, not the subject.</td></tr>
+      <tr><td><strong>Parsing</strong></td><td>Reading source text and working out its grammatical structure.</td><td>Sentence diagramming.</td></tr>
+      <tr><td><strong>Tree-sitter</strong></td><td>The parsing library we use; it is fast and tolerates broken code.</td><td>The grammar tool.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="problem">
+  <div class="shead"><span class="n">SECTION 03</span><h2>The problem we are solving</h2></div>
+
+  <div class="qa">
+    <p class="q">What exactly is the problem?</p>
+    <p class="a">Existing vulnerability detectors mostly work at the level of a whole function.
+    They output one yes/no answer for a block of code that may be hundreds of lines long. That
+    output is not actionable: a developer who is told &ldquo;something here is wrong&rdquo; still
+    has to do the hard part themselves.</p>
+    <p class="a">On top of that, when these tools <em>do</em> try to explain themselves, they
+    produce a heatmap of which words the model looked at. Looking at a word is not the same as
+    having a reason. Developers do not trust it, so they ignore it.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">Why does this matter enough to be a project?</p>
+    <p class="a">Because trust is the bottleneck, not accuracy. Security teams already have tools
+    that produce huge numbers of alerts. The reason those tools get switched off is that checking
+    each alert costs more than it saves. A tool that points at one line and gives a reason changes
+    the economics of the review. A tool that flags a function does not.</p>
+    <p class="a">There is also a research gap, which is what makes it a <em>project</em> and not
+    just engineering: the two useful sources of evidence &mdash; what code <em>means</em> and how
+    code <em>behaves</em> &mdash; are almost never made to interact properly. They are combined by
+    stapling. Nobody has run a fair, controlled test of whether a deeper interaction is better.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">How do we solve it?</p>
+    <p class="a">Three moves, in order:</p>
+    <p class="a"><strong>1. Force everything onto line numbers.</strong> The text model and the
+    graph model both report per line, so their outputs are directly comparable.<br>
+    <strong>2. Let them interact before deciding.</strong> Bidirectional cross-attention on that
+    shared line axis, rather than concatenation after the fact.<br>
+    <strong>3. Only explain what we can point at.</strong> An explanation must cite lines and
+    symbols that actually exist in the code and were actually used by the model. If we cannot
+    ground it, we do not show it.</p>
+  </div>
+
+  <div class="plain">
+    <h4>The five gaps we are addressing (memorise these five words)</h4>
+    <ol>
+      <li><strong>Granularity</strong> &mdash; function-level output is not usable.</li>
+      <li><strong>Explainability</strong> &mdash; heatmaps are not reasons.</li>
+      <li><strong>Fusion</strong> &mdash; semantic and structural views never truly interact.</li>
+      <li><strong>Ground truth</strong> &mdash; line-level labelled data barely exists.</li>
+      <li><strong>Trust</strong> &mdash; developers ignore output they cannot verify.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- 4 -->
+<section id="data">
+  <div class="shead"><span class="n">SECTION 04</span><h2>The datasets</h2></div>
+
+  <p>
+    This is the section panels probe hardest, because it is where projects usually cut corners.
+    We use <strong>five datasets, each with exactly one job</strong>, and they never share data.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Dataset</th><th>Its one job</th><th>Why this one</th><th class="num">Line labels?</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Big-Vul</strong></td><td>Train the model</td><td>The only public C/C++ set that ships per-line flaw indices</td><td class="num">Yes</td></tr>
+      <tr><td><strong>PrimeVul</strong> (confirmed)</td><td>Clean evaluation</td><td>Manually verified labels; measures how much our score is limited by bad labels</td><td class="num">No</td></tr>
+      <tr><td><strong>DiverseVul</strong></td><td>Generalization test</td><td>Projects that do not appear in Big-Vul at all</td><td class="num">No</td></tr>
+      <tr><td><strong>PrimeVul paired</strong></td><td>Sanity validation</td><td>Same function before and after the fix &mdash; a real test of understanding</td><td class="num">No</td></tr>
+      <tr><td><strong>Juliet 1.3.1</strong></td><td>Pipeline testing only</td><td>Artificial code with perfect labels; good for unit tests, never for headline claims</td><td class="num">Yes</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="qa">
+    <p class="q">What is Big-Vul, and why is it the main dataset?</p>
+    <p class="a"><strong>What:</strong> 188,636 real C/C++ functions collected from real projects,
+    linked to real published CVEs. 10,900 of them are vulnerable (5.78%).</p>
+    <p class="a"><strong>Why:</strong> One hard requirement drove the choice &mdash; we need to know
+    <em>which lines</em> are vulnerable, not just which functions. Big-Vul is effectively the only
+    public C/C++ distribution that provides that. Without it there is no project. Everything else
+    was secondary.</p>
+    <p class="a"><strong>How the line labels exist at all:</strong> when a project fixes a security
+    bug, it commits a patch. The lines that patch removed or changed are, by reasonable inference,
+    the vulnerable lines. Big-Vul recorded those positions.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">Why C and C++ and not Python or Java?</p>
+    <p class="a">Two reasons. First, the data: line-labelled vulnerability corpora are
+    overwhelmingly C/C++, so the choice was largely made for us by the ground-truth requirement.
+    Second, the language: C and C++ have manual memory management, so the classic serious
+    vulnerability classes &mdash; buffer overflows, use-after-free &mdash; are exactly the ones
+    that structural analysis of data flow is good at catching. It is the right domain for the
+    method, not just the convenient one.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">How did you split the data into train, validation and test?</p>
+    <p class="a"><strong>What we did:</strong> a <strong>project-wise</strong> 80/10/10 split.
+    Every function from a given project goes entirely into one split. Result: 148,983 train /
+    18,593 validation / 18,442 test, plus withheld sets.</p>
+    <p class="a"><strong>Why not a random split:</strong> code repeats itself. The same function
+    appears many times across a project's history. A random split would put near-identical
+    functions in both train and test, and the model would score brilliantly by memorising. That is
+    data leakage, and much of the published literature suffers from it. Project-wise splitting is
+    the harder, honest number, and we lead with it.</p>
+    <p class="a"><strong>How we made it reproducible:</strong> we assign each function by
+    <strong>hashing its content</strong>, not by shuffling with a random seed. A shuffle gives a
+    different answer if the input file order ever changes; a content hash does not. Re-running the
+    split script <em>verifies</em> the previous result byte for byte &mdash; a different answer is
+    treated as a bug, not as a new experiment. The split has a fingerprint:
+    <code>0ade7483&hellip;</code></p>
+  </div>
+
+  <div class="qa">
+    <p class="q">How do you know there is no leakage?</p>
+    <p class="a">We measured it, and we report three numbers: <strong>0</strong> projects shared
+    across splits, <strong>0</strong> duplicate function hashes across splits, <strong>0</strong>
+    clean-evaluation functions present in training.</p>
+    <p class="a">We also found something worth mentioning, because it shows we looked properly:
+    <strong>a project-wise split does not fully stop leakage.</strong> Open-source code gets forked
+    and copied between projects, so 426 functions were byte-identical across different projects.
+    We removed them. And because we only detect <em>exact</em> matches, that number is a floor, not
+    a ceiling &mdash; near-duplicates certainly remain.</p>
+  </div>
+
+  <div class="warnbox">
+    <h4>Do not say this by mistake</h4>
+    <p>
+      Do <strong>not</strong> describe PrimeVul as an independent dataset. PrimeVul was
+      <em>built from</em> Big-Vul and others, so it is not disjoint from our training data. It
+      measures <strong>label quality</strong>, not generalization. DiverseVul is the generalization
+      test. Mixing these two up is the single easiest way to lose credibility in this section.
+    </p>
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="labels">
+  <div class="shead"><span class="n">SECTION 05</span><h2>Labels, noise, and honesty</h2></div>
+
+  <p>
+    Our strongest section, and counter-intuitively it is a section about our data being
+    <em>bad</em>. Panels reward a team that knows the limits of its own evidence.
+  </p>
+
+  <div class="qa">
+    <p class="q">What is label noise here, and how bad is it?</p>
+    <p class="a"><strong>What:</strong> the labels say which lines are vulnerable. They were derived
+    from fix commits. But a fix commit often does more than fix &mdash; it renames variables,
+    reformats code, tidies up. All those lines get marked vulnerable too, even though they are not.</p>
+    <p class="a"><strong>How bad:</strong> we hand-checked a sample of 20 labelled functions
+    ourselves. <strong>6 of 20 were wrong &mdash; about 30%.</strong> Because the sample is small,
+    the honest range is 14.5% to 51.9%.</p>
+    <p class="a"><strong>Why it matters:</strong> this is a <strong>ceiling on every line-level
+    number we will ever report</strong>. If roughly a third of the answer key is wrong, a perfect
+    model cannot score 100%. We will state this next to our results rather than quietly hoping
+    nobody asks.</p>
+  </div>
+
+  <div class="plain">
+    <h4>The three ceilings &mdash; keep them separate, never add them up</h4>
+    <p>A panel may try to merge these. They are different measurements of different things:</p>
+    <ol>
+      <li><strong>~30% of line labels are wrong</strong> (from our own audit of 20 functions).
+      This is different from, and larger than, the 19.2% <em>function-level</em> noise rate.</li>
+      <li><strong>7.84% of flagged lines have no graph node</strong>, so the structural branch
+      physically cannot score them. 84.8% of those are in code our parser could not fully parse
+      &mdash; so it is parse damage, not empty lines.</li>
+      <li><strong>Cutting input at 512 tokens loses 38.1% of flagged lines</strong> (44.5% on the
+      evaluation set). We fixed this with windowing, which keeps 100%.</li>
+    </ol>
+  </div>
+
+  <div class="qa">
+    <p class="q">Why did you audit the labels yourselves instead of trusting the dataset?</p>
+    <p class="a">Because published work already warned us. One study found 20&ndash;71% label
+    inaccuracy across public vulnerability datasets; another independently estimated 40&ndash;75%.
+    We could have cited those and moved on. Instead we measured our <em>own</em> corpus, because a
+    number from someone else's dataset is not evidence about ours.</p>
+    <p class="a">We also checked the labels for <em>consistency</em> and found it perfect: zero
+    out-of-range line numbers, zero text mismatches, zero labels on non-vulnerable functions. That
+    is worth saying carefully &mdash; <strong>consistency is not correctness.</strong> The labels
+    are internally coherent and still about 30% wrong.</p>
+  </div>
+
+  <div class="qa hard">
+    <p class="q">If the labels are 30% wrong, is the project worth doing?</p>
+    <p class="a">Yes, and the noise is part of the contribution. Three points:</p>
+    <p class="a"><strong>One:</strong> our core experiment is a <em>comparison</em> &mdash;
+    cross-attention versus concatenation on identical data. Both sides face the same noisy labels,
+    so the comparison stays valid even though the absolute numbers are capped.<br>
+    <strong>Two:</strong> that is exactly why we hold out a manually confirmed clean evaluation set
+    &mdash; to see how much of our error is the model and how much is the answer key.<br>
+    <strong>Three:</strong> most papers in this area report absolute numbers on this same data
+    <em>without</em> mentioning the ceiling. Quantifying it is a stated contribution, not an excuse.</p>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="graphs">
+  <div class="shead"><span class="n">SECTION 06</span><h2>The graphs, seen and explained</h2></div>
+
+  <p>
+    Yes &mdash; the graphs are real and they are visualizable. What follows is one genuine function
+    from our test set, drawn four different ways. This is generated directly from our pipeline, not
+    illustrated by hand.
+  </p>
+
+  <div class="plain">
+    <h4>How to read the pictures</h4>
+    <p>
+      These are not the usual tangled ball-of-string graph drawings. We laid them out deliberately:
+    </p>
+    <ul>
+      <li><strong>Going down = the source lines</strong>, in order. Row 5 in the picture is line 5
+      of the code beside it.</li>
+      <li><strong>Going across = position within that line</strong>, roughly where the code sits.</li>
+      <li><strong>Dots are nodes</strong> &mdash; pieces of the program.</li>
+      <li><strong>Curves are edges</strong> &mdash; relationships between those pieces.</li>
+      <li><strong>The red row is the known vulnerable line</strong> from the ground truth.</li>
+    </ul>
+    <p>
+      Drawing it this way is the point: it makes our central claim visible. <strong>Every dot sits
+      on the line it belongs to.</strong> That is the shared line axis, shown rather than asserted.
+      It is also a debugging tool &mdash; if our line mapping ever broke, a dot would appear on the
+      wrong row and we would see it immediately.
+    </p>
+  </div>
+
+  <p style="font-size:14px;color:var(--text-muted)">
+    Unit: <!--UNITCAPTION-->
+  </p>
+
+  <div class="figwrap">
+    <div class="codeview">
+      <div class="vhead"><span>problem_data_save()</span><span>1 of 17 lines flagged</span></div>
+      <div class="body"><!--CODE--></div>
+    </div>
+    <div class="gpanels"><!--PANELS--></div>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--ast)"></i> AST edge</span>
+    <span><i style="background:var(--cfg)"></i> CFG edge</span>
+    <span><i style="background:var(--dfg)"></i> DFG edge</span>
+    <span><i style="background:var(--call)"></i> call edge</span>
+    <span><i style="background:var(--risk-high)"></i> known vulnerable line</span>
+  </div>
+
+  <h3>The four graph types, in plain language</h3>
+
+  <div class="qa">
+    <p class="q">AST &mdash; what, why, how?</p>
+    <p class="a"><strong>What:</strong> the Abstract Syntax Tree. Every symbol and every construct
+    in the code becomes a node, arranged by grammar. It is a sentence diagram for code.</p>
+    <p class="a"><strong>Why:</strong> it is complete &mdash; nothing in the code is missing from
+    it &mdash; and it is the base every other graph is built from.</p>
+    <p class="a"><strong>How to read the picture:</strong> dense and even. That density is also its
+    weakness. Syntax exists on every line whether or not anything is wrong, so the AST alone gives
+    the model little reason to prefer one line over another. 101 nodes for 17 lines of code.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">CFG &mdash; what, why, how?</p>
+    <p class="a"><strong>What:</strong> the Control Flow Graph. It records what can run after what.
+    An <code>if</code> statement creates a fork; a loop creates a cycle.</p>
+    <p class="a"><strong>Why:</strong> it answers &ldquo;can execution actually get from this line
+    to that one?&rdquo; A bug that is unreachable is not a bug.</p>
+    <p class="a"><strong>How to read the picture:</strong> sparse and mostly vertical, because
+    code mostly runs top to bottom. The branch at line 8 (<code>if (dd)</code>) is visible as the
+    place the flow splits. Only 9 edges &mdash; that sparseness is the information.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">DFG &mdash; what, why, how?</p>
+    <p class="a"><strong>What:</strong> the Data Flow Graph. It connects the place a value is
+    created to every place that value is used.</p>
+    <p class="a"><strong>Why:</strong> this is the one that matters most for security. Nearly every
+    serious vulnerability is a story about a value travelling from where it enters the program to
+    somewhere it should not reach. Buffer overflows, information leaks, injection &mdash; all data
+    flow stories.</p>
+    <p class="a"><strong>How to read the picture:</strong> its edges jump across lines rather than
+    running straight down, connecting the allocation on line 5 to the uses below it. That jump is
+    the shape of the CWE-200 information-exposure bug in this very function.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">CPG &mdash; what, why, how?</p>
+    <p class="a"><strong>What:</strong> the Code Property Graph &mdash; all three of the above
+    combined into one picture.</p>
+    <p class="a"><strong>Why:</strong> real reasoning needs all three at once. &ldquo;This value
+    comes from there (data flow), execution can reach here (control flow), and this is a memory
+    copy (syntax)&rdquo; is a complete argument; any one alone is not.</p>
+    <p class="a"><strong>How, and this is the clever part:</strong> all four graphs share
+    <strong>the same 101 nodes</strong>. Only the edges differ. So the CPG is not a new
+    construction &mdash; it is literally the union of the others. Practically, that means testing
+    &ldquo;which graph type matters most?&rdquo; is a <em>single setting change</em>, not four
+    separate pipelines.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">How do you build these graphs? Why not use an existing tool?</p>
+    <p class="a"><strong>How:</strong> we parse with Tree-sitter, then build the graphs ourselves
+    on top of the parse tree, with the line number attached to every node from the start.</p>
+    <p class="a"><strong>Why not an off-the-shelf tool:</strong> standard analysis tools need code
+    that compiles. Our corpus is 188,636 isolated functions with no headers and no build system
+    &mdash; almost none of it compiles. Tree-sitter parses broken code and recovers, which is the
+    only way to work at this scale. The trade-off is honest and we state it: our data flow analysis
+    is <strong>name-based</strong>. It matches variables by name, so it does not track pointer
+    aliasing or scoping precisely. We will never claim the model &ldquo;follows data flow&rdquo;
+    without that caveat.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">Which grammar do you parse with &mdash; C or C++?</p>
+    <p class="a">A question that sounds trivial and was one of our most important findings.</p>
+    <p class="a"><strong>What we found:</strong> the dataset has a language column, and 98.6% of it
+    says &ldquo;C&rdquo;. Trusting it gives a clean parse rate of only <strong>37.01%</strong>.
+    Parsing everything as C gives 35.74%. Parsing everything as <strong>C++ gives 88.24%</strong>.</p>
+    <p class="a"><strong>What we do now:</strong> try C++ first, and if damage remains, try C too,
+    and keep whichever tree is less damaged. That reaches <strong>89.14%</strong>. Ties go to C++,
+    so the choice depends only on the source code &mdash; making it fully reproducible.</p>
+    <p class="a"><strong>Why it matters:</strong> we more than doubled our usable data by
+    questioning one column. The lesson we would offer a panel: the dataset's own metadata was the
+    <em>worst</em> available way to make this decision, and we only found that out by measuring
+    all the options instead of assuming.</p>
+  </div>
+
+  <div class="warnbox">
+    <h4>The honest caveat about the example above</h4>
+    <p>
+      This function was picked by a filter, not by eye: first one in the test set between 12 and 34
+      lines, parsing cleanly, with both control and data flow present, and with under 35% of lines
+      flagged. That last condition was added <em>after</em> the first candidate came back with
+      <strong>19 of its 21 lines marked vulnerable</strong> &mdash; a whole function flagged because
+      the fix commit rewrote all of it. If asked whether we cherry-picked: we filtered, we can state
+      the filter exactly, and the rejected example is itself evidence of the label-noise problem.
+    </p>
+  </div>
+</section>
+
+<!-- 7 -->
+<section id="method">
+  <div class="shead"><span class="n">SECTION 07</span><h2>The methodology, step by step</h2></div>
+
+  <p>Seven stages. Be able to say these in order.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th class="num">Step</th><th>What happens</th><th>Why it is there</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>Parse the function into a syntax tree</td><td>Nothing structural is possible without this</td></tr>
+      <tr><td class="num">2</td><td>Build AST, CFG and DFG over one shared node set</td><td>Gives us the structural view, and makes the CPG a free union</td></tr>
+      <tr><td class="num">3a</td><td><strong>Semantic branch:</strong> chop code into tokens, feed to CodeBERT</td><td>Produces meaning-aware numbers per token</td></tr>
+      <tr><td class="num">3b</td><td><strong>Structural branch:</strong> run a GNN over the graph</td><td>Produces structure-aware numbers per node</td></tr>
+      <tr><td class="num">4</td><td><strong>LineAligner:</strong> pool tokens by line, pool nodes by line</td><td>The two branches now speak the same language: one vector per line, each</td></tr>
+      <tr><td class="num">5</td><td><strong>Bidirectional cross-attention</strong> between the two</td><td><strong>The novelty.</strong> The two views interact before any decision</td></tr>
+      <tr><td class="num">6</td><td>Score every line, and score the function; train on both</td><td>Line scores are the goal; the function score is extra supervision</td></tr>
+      <tr><td class="num">7</td><td>Generate an explanation that must cite real lines and symbols</td><td>Prevents a fluent, confident, invented answer</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="qa">
+    <p class="q">What is the LineAligner and why is it the most important module?</p>
+    <p class="a"><strong>What:</strong> a component that takes token-level output from the LLM and
+    node-level output from the GNN, and converts both into <em>one vector per source line</em>.</p>
+    <p class="a"><strong>Why:</strong> without it the two branches cannot be compared at all. The
+    LLM's units are token positions; the GNN's units are graph nodes; these do not correspond. The
+    only thing both agree on is the line number. Everything before this module exists to keep the
+    line number intact; everything after exists because it survived.</p>
+    <p class="a"><strong>How:</strong> every token knows which byte range it came from, and every
+    node knows which byte it starts at; a line map converts bytes to line numbers. Then all tokens
+    on line 5 are pooled together, and all nodes on line 5 are pooled together.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">What is &ldquo;windowing&rdquo; and why did you need it?</p>
+    <p class="a"><strong>What:</strong> CodeBERT can only read 512 tokens at a time. Long functions
+    exceed that. The usual response is to cut off the rest. Instead we slide a window along the
+    function and process it in overlapping pieces.</p>
+    <p class="a"><strong>Why:</strong> we measured what cutting off costs and it was alarming
+    &mdash; <strong>38.1% of all vulnerable lines were being thrown away</strong>, and 44.5% on our
+    evaluation set. You cannot localize a line you never read. Windowing keeps 100%.</p>
+    <p class="a"><strong>How, and the practical consequence:</strong> one function is no longer one
+    forward pass. Our evaluation functions average 4.17 windows, and the longest is 287. So we
+    batch by <em>window</em>, not by function &mdash; a detail that would have silently broken our
+    memory budget if we had assumed otherwise.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">How do you train it, and on what hardware?</p>
+    <p class="a"><strong>How:</strong> supervised learning. The model predicts a score per line, we
+    compare against the known vulnerable lines, and adjust. We train on two objectives at once
+    &mdash; per line and per function &mdash; because the function label is available for far more
+    data than the line labels are.</p>
+    <p class="a"><strong>Hardware:</strong> one laptop GPU with 4 GB of memory, which is genuinely
+    tight for a transformer plus a GNN. We measured our way to a configuration that fits: mixed
+    precision plus gradient checkpointing, batches of 16 windows, peaking at 2,456 MB and running
+    at 22.9 windows per second.</p>
+    <p class="a"><strong>A trap we documented:</strong> on Windows, running out of GPU memory does
+    not produce an error. It silently spills into system memory and runs 10&ndash;25&times; slower.
+    Three of our 24 test configurations exceeded the card and still &ldquo;worked&rdquo;. So we
+    compare peak memory against card capacity &mdash; &ldquo;it did not crash&rdquo; is not the
+    same as &ldquo;it fits&rdquo;.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">How do you handle the fact that vulnerable lines are so rare?</p>
+    <p class="a"><strong>The problem:</strong> only <strong>0.795%</strong> of source lines are
+    vulnerable. A model that predicts &ldquo;clean&rdquo; for every single line would be 99.2%
+    accurate and completely useless.</p>
+    <p class="a"><strong>What we do about it:</strong> two things. In training, we test weighted
+    and focal loss functions that make the rare positive cases count for more. In evaluation, we
+    <strong>refuse to lead with accuracy</strong> &mdash; we use PR-AUC, Top-5, and IFA, which
+    cannot be gamed by always saying &ldquo;clean&rdquo;.</p>
+  </div>
+</section>
+
+<!-- 8 -->
+<section id="novel">
+  <div class="shead"><span class="n">SECTION 08</span><h2>The novelty: cross-attention</h2></div>
+
+  <p>If you remember one section for the panel, make it this one.</p>
+
+  <div class="plain">
+    <h4>Concatenation vs. cross-attention, without any maths</h4>
+    <p>
+      <strong>Concatenation</strong> is what almost everyone does. The text model writes its summary.
+      The graph model writes its summary. You place the two summaries side by side and hand them to
+      a decision-maker. The two models never communicated. Neither one's opinion changed because of
+      the other.
+    </p>
+    <p>
+      <strong>Cross-attention</strong> puts them in conversation, line by line, in both directions:
+    </p>
+    <ul>
+      <li>The text model asks the graph: <em>&ldquo;I find line 10 suspicious &mdash; structurally,
+      does anything flow into line 10?&rdquo;</em></li>
+      <li>The graph answers: <em>&ldquo;Yes, the value used on line 10 was created on line 5, and
+      nothing checked its size in between.&rdquo;</em></li>
+      <li>And the reverse: the graph asks the text model whether the operation on line 10 is the
+      kind that is dangerous with unchecked input.</li>
+    </ul>
+    <p>
+      <strong>Both views get updated by the other before anything is decided.</strong> That is the
+      whole difference, and &ldquo;bidirectional&rdquo; simply means the asking goes both ways.
+    </p>
+  </div>
+
+  <div class="qa">
+    <p class="q">Why do you believe this will be better?</p>
+    <p class="a">Because the evidence for a vulnerability is usually split across the two views.
+    Neither &ldquo;this is a memory copy&rdquo; nor &ldquo;this value came from user input&rdquo;
+    is alarming alone. Together they are a buffer overflow. Concatenation asks a final classifier
+    to notice the combination from two compressed summaries. Cross-attention lets the combination
+    be formed at the point where the detail still exists &mdash; per line, before pooling.</p>
+    <p class="a">Note the wording: we say we <em>believe</em>. We have not yet run the experiment.
+    Claiming the result before measuring it is precisely what our project rules forbid.</p>
+  </div>
+
+  <div class="qa hard">
+    <p class="q">How will you prove it isn't just extra parameters making things better?</p>
+    <p class="a">This is the right question, and the experiment is designed around it. Experiment
+    A1 compares five fusion strategies &mdash; cross-attention, concatenation, sum, gated, and none
+    &mdash; under <strong>identical data, identical encoders, identical training budget, and
+    identical hyperparameter tuning effort on both sides</strong>.</p>
+    <p class="a">The tuning point is the one that matters most. If we tuned cross-attention
+    carefully and the baseline carelessly, our result would be meaningless. So the search budget is
+    fixed and written down <em>before</em> the experiment. We also include gated and sum fusion
+    specifically to rule out &ldquo;any fusion helps&rdquo; as the real explanation. Five random
+    seeds, mean and standard deviation, significance tested.</p>
+  </div>
+
+  <div class="qa hard">
+    <p class="q">What if cross-attention loses?</p>
+    <p class="a">We report that it lost. This is written into our project rules and is not a
+    fallback position invented for this question.</p>
+    <p class="a">And the work still stands, because the contribution is then: a controlled
+    comparison the literature has not run, a line-level evaluation protocol, a quantified
+    label-noise ceiling, and an open framework where new fusion methods plug in by configuration.
+    A negative result that is properly controlled is more useful to the field than a positive
+    result that is not.</p>
+  </div>
+</section>
+
+<!-- 9 -->
+<section id="system">
+  <div class="shead"><span class="n">SECTION 09</span><h2>The system and its modules</h2></div>
+
+  <p>
+    The code is organised in <strong>layers</strong>, and a layer may only use layers below it.
+    Data preparation cannot reach up into modelling; modelling cannot reach up into training.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th class="num">Layer</th><th>Module</th><th>What it does, plainly</th><th class="num">Status</th></tr></thead>
+    <tbody>
+      <tr><td class="num">L6</td><td><code>serving</code></td><td>The demo &mdash; where a user pastes code and gets an answer</td><td class="num">not started</td></tr>
+      <tr><td class="num">L5</td><td><code>explanation</code></td><td>Writes the reason, and refuses to write one it cannot back up</td><td class="num">not started</td></tr>
+      <tr><td class="num">L4</td><td><code>evaluation</code></td><td>Scoring, ablations, statistical tests</td><td class="num">not started</td></tr>
+      <tr><td class="num">L3</td><td><code>training</code></td><td>The training loop, loss functions, experiment tracking</td><td class="num">built</td></tr>
+      <tr><td class="num">L2</td><td><code>models</code></td><td>The LLM branch, the GNN branch, the LineAligner, the fusion</td><td class="num">partly built</td></tr>
+      <tr><td class="num">L1</td><td><code>representation</code></td><td>Parsing, line mapping, all four graph builders</td><td class="num">complete</td></tr>
+      <tr><td class="num">L0</td><td><code>data</code></td><td>Downloading, labelling, splitting, caching</td><td class="num">complete</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="qa">
+    <p class="q">Why organise it this way? Isn't it over-engineering for a student project?</p>
+    <p class="a">Two concrete payoffs, not aesthetics.</p>
+    <p class="a"><strong>One &mdash; the layering is enforced by a tool, not by discipline.</strong>
+    If someone writes an import that goes the wrong way, the build fails. Architecture that is only
+    written in a document decays; this cannot.</p>
+    <p class="a"><strong>Two &mdash; every experiment is a configuration change, never a code
+    edit.</strong> Swapping the graph type, the GNN, or the fusion method is one line in a config
+    file. This is what makes ten ablation studies feasible for a small team, and it means no
+    experiment can accidentally change the model it was supposed to be comparing against.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">How do you make sure results are reproducible?</p>
+    <p class="a">Four mechanisms:</p>
+    <p class="a"><strong>1.</strong> The data split is content-hashed and re-running it verifies
+    rather than regenerates.<br>
+    <strong>2.</strong> Every number we report must trace to a logged run ID. A figure without a
+    run behind it does not go in a slide.<br>
+    <strong>3.</strong> 568 automated tests, plus formatting, linting and type checking, all
+    passing. Tests target failure modes, not just the happy path.<br>
+    <strong>4.</strong> Unfinished code raises an error rather than returning a plausible-looking
+    fake result &mdash; so an unfinished component cannot silently produce a number.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">Where is the project right now?</p>
+    <p class="a"><strong>Phase 1 (data): complete.</strong> Dataset selected, built, split,
+    leakage-checked, hand-audited.<br>
+    <strong>Phase 2 (representation): complete.</strong> Parser, line mapping, all four graph
+    builders, corpus-wide measurement.<br>
+    <strong>Phase 3 (semantic branch): 3 of 4.</strong> Encoder, line head, losses, metrics and the
+    training loop all built. The sanity test passes &mdash; we deliberately overfit 32 samples and
+    reached Top-5 = 1.0, proving the learning path works end to end. Remaining: the full LLM-only
+    baseline over at least three seeds.<br>
+    <strong>Phases 4&ndash;10:</strong> the GNN branch, fusion, explanation, evaluation and demo.
+    Phase 4 is unblocked and next.</p>
+  </div>
+</section>
+
+<!-- 10 -->
+<section id="eval">
+  <div class="shead"><span class="n">SECTION 10</span><h2>How we will judge it</h2></div>
+
+  <p>
+    We committed to our headline metrics <em>before</em> seeing any results. That is deliberate: it
+    stops you from running everything and then picking whichever measure flatters you.
+  </p>
+
+  <div class="cols">
+    <div class="card">
+      <h4>Top-5 accuracy</h4>
+      <p>Is a genuinely vulnerable line among our 5 highest-scored lines? This mirrors how someone
+      actually uses the tool &mdash; they check the top few.</p>
+    </div>
+    <div class="card">
+      <h4>IFA &mdash; Initial False Alarms</h4>
+      <p>How many clean lines does a developer inspect before hitting a real one? This is trust,
+      measured directly. High IFA means the tool gets switched off.</p>
+    </div>
+    <div class="card">
+      <h4>Line-level PR-AUC</h4>
+      <p>Overall quality of the ranking, without needing a threshold, and honest when positives are
+      under 1% of the data.</p>
+    </div>
+    <div class="card">
+      <h4>Recall@k%LOC</h4>
+      <p>How many real bugs we catch if the reviewer only has time to check the top 5% of lines.
+      A real budget, not an unlimited one.</p>
+    </div>
+  </div>
+
+  <div class="qa">
+    <p class="q">Why not just report accuracy and F1?</p>
+    <p class="a">Because 0.795% of lines are vulnerable. Saying &ldquo;clean&rdquo; to everything
+    yields 99.2% accuracy while finding nothing. We report accuracy for completeness and never lead
+    with it. PR-AUC is the honest curve at this level of imbalance, and MCC is far harder to game
+    than F1.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">How will you test whether the explanations are real and not invented?</p>
+    <p class="a">Two independent checks, because &ldquo;the explanation sounds convincing&rdquo; is
+    not evidence.</p>
+    <p class="a"><strong>Grounding rate (automatic):</strong> what percentage of explanations cite
+    only lines and symbols that genuinely exist in the code? This is fully checkable and always
+    available.</p>
+    <p class="a"><strong>Faithfulness (the harder one):</strong> if we delete the lines the model
+    claims to rely on, its confidence should collapse. If we delete random lines, it should not. If
+    deleting the &ldquo;important&rdquo; lines changes nothing, the explanation was decoration. We
+    also check whether attention weights and gradient-based importance agree.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">Is attention an explanation?</p>
+    <p class="a"><strong>No, and we are careful about this.</strong> Attention shows what the model
+    looked at, not what it depended on. It is a hypothesis about the model's reasoning. That is
+    exactly why we run the deletion tests above &mdash; to test the hypothesis rather than assume
+    it. Treating attention as self-evidently explanatory is a known weakness of prior work.</p>
+  </div>
+</section>
+
+<!-- 11 -->
+<section id="cheat">
+  <div class="shead"><span class="n">SECTION 11</span><h2>Cheat sheet &amp; hard questions</h2></div>
+
+  <h3>Numbers to know cold</h3>
+  <div class="numbers">
+    <div><b>188,636</b><span>functions in the corpus</span></div>
+    <div><b>10,900</b><span>vulnerable functions (5.78%)</span></div>
+    <div><b>8,243</b><span>with line-level labels</span></div>
+    <div><b>0.795%</b><span>of all lines are vulnerable</span></div>
+    <div><b>~30%</b><span>of line labels are wrong (our audit)</span></div>
+    <div><b>89.14%</b><span>clean parse rate after our grammar fix</span></div>
+    <div><b>38.1%</b><span>of flagged lines lost to truncation — fixed by windowing</span></div>
+    <div><b>568</b><span>automated tests passing</span></div>
+  </div>
+
+  <h3>The five sentences that carry the whole talk</h3>
+  <ol>
+    <li>Existing tools say <em>this function is risky</em>; developers need <em>this line, and
+    why</em>.</li>
+    <li>Meaning and structure are both useful, but they are almost always stapled together instead
+    of made to interact.</li>
+    <li>We force both onto a shared line axis and let them attend to each other in both directions
+    before deciding anything.</li>
+    <li>The load-bearing experiment is cross-attention versus concatenation under identical
+    conditions &mdash; and we will report the result either way.</li>
+    <li>We measured our own data's limits first, so every number we publish will come with its
+    ceiling attached.</li>
+  </ol>
+
+  <h3>Hard questions, honestly answered</h3>
+
+  <div class="qa hard">
+    <p class="q">You have no results yet. What have you actually done?</p>
+    <p class="a">Two complete phases and most of a third. Concretely: the corpus is built, split
+    without leakage, and hand-audited; all four graph types are implemented and measured across the
+    whole corpus; the semantic branch, line head, losses, metrics and training loop are written and
+    pass an end-to-end sanity test.</p>
+    <p class="a">We also produced findings along the way, not just code: the grammar-selection
+    result that took usable data from 37% to 89%, the truncation measurement that saved 38% of our
+    labels, and the label-noise audit. Building the measurement apparatus before the model is
+    deliberate &mdash; a result from an unvalidated pipeline is not a result.</p>
+  </div>
+
+  <div class="qa hard">
+    <p class="q">Isn't this just LineVul with a GNN bolted on?</p>
+    <p class="a">No, and the difference is where the fusion happens. LineVul is a function-level
+    classifier whose line scores are extracted afterwards from attention; it uses no structure at
+    all. LineVD is the opposite &mdash; structure-first, with the language model as a feature
+    source. Both keep the two views separate.</p>
+    <p class="a">Our claim is specifically about <em>when</em> the two interact: bidirectionally, on
+    a shared line axis, <em>before</em> pooling &mdash; and, critically, measured against
+    concatenation under matched conditions. That controlled comparison is what nobody has published.</p>
+  </div>
+
+  <div class="qa hard">
+    <p class="q">Why should we believe your numbers over the published ones?</p>
+    <p class="a">Because we will reproduce every baseline under our own splits rather than quoting
+    numbers from papers. Published figures are frequently measured on random splits, which leak.
+    Any number we take from a paper will be labelled as reported and never mixed into a table with
+    ours.</p>
+  </div>
+
+  <div class="qa hard">
+    <p class="q">Can you handle real-world code, or only this dataset?</p>
+    <p class="a">Honest scope: C and C++, one function at a time, with no cross-function analysis
+    yet. About 10.86% of functions do not parse cleanly under any grammar, and those hold a
+    disproportionate <strong>31.58% of all flagged lines</strong> because they are much longer than
+    average. That is a stated limitation, and quoting the smaller 10.86% figure alone would
+    understate it.</p>
+    <p class="a">We plan a cross-dataset generalization test on DiverseVul precisely because
+    single-dataset results do not establish real-world capability.</p>
+  </div>
+
+  <div class="qa hard">
+    <p class="q">What is the biggest risk to this project?</p>
+    <p class="a">That cross-attention shows no significant improvement over concatenation. It is
+    the honest answer, we have planned for it, and the reporting is committed in advance.</p>
+    <p class="a">The second risk is the label-noise ceiling limiting how high any line-level number
+    can go &mdash; which is why the clean evaluation set exists, to separate our model's error from
+    the answer key's error.</p>
+  </div>
+
+  <div class="warnbox">
+    <h4>If you do not know an answer</h4>
+    <p>
+      Say so, and say what you would measure to find out. This project's own rules forbid inventing
+      a fact, a citation or a number &mdash; a made-up figure in the room is far more damaging than
+      an admitted gap. &ldquo;We haven't measured that yet; here is how we would&rdquo; is a strong
+      answer, not a weak one.
+    </p>
+  </div>
+</section>
+
+<footer class="end">
+  <p>
+    Companion to the technical review pack. Every figure and statistic here is generated from a
+    logged artefact in the project repository &mdash; the graph pictures are drawn directly from
+    the pipeline output for a real function in the test split, not illustrated by hand.
+  </p>
+</footer>
+
+</div>

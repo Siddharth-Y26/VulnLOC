@@ -1,0 +1,295 @@
+<title>Literature Review and Methodology</title>
+<style>
+:root {
+  --brand: #0B76B8; --brand-dark: #075C90; --surface-soft: #E8F4FC;
+  --border-brand: #9CCDE8; --bg-page: #FFFFFF; --bg-elevated: #FBFCFD;
+  --text-primary: #111418; --text-body: #23292F; --text-muted: #5C6874;
+  --border-subtle: #D8DEE4;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: "Segoe UI", -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: Consolas, "Cascadia Mono", "SF Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --brand: #57B4E8; --brand-dark: #8FCDF2; --surface-soft: #12212C;
+    --border-brand: #2A4A61; --bg-page: #0E1216; --bg-elevated: #161C22;
+    --text-primary: #E6EBF0; --text-body: #C4CDD6; --text-muted: #8B98A5;
+    --border-subtle: #262E36;
+  }
+}
+:root[data-theme="dark"] {
+  --brand: #57B4E8; --brand-dark: #8FCDF2; --surface-soft: #12212C;
+  --border-brand: #2A4A61; --bg-page: #0E1216; --bg-elevated: #161C22;
+  --text-primary: #E6EBF0; --text-body: #C4CDD6; --text-muted: #8B98A5;
+  --border-subtle: #262E36;
+}
+
+body {
+  background: var(--bg-page); color: var(--text-body);
+  font-family: var(--serif); font-size: 17px; line-height: 1.62;
+  margin: 0; padding: 48px 24px 96px;
+}
+main { max-width: 46em; margin: 0 auto; }
+
+h1, h2, h3, h4 { font-family: var(--sans); color: var(--text-primary); text-wrap: balance; }
+h1 { font-size: 32px; line-height: 1.2; margin: 0 0 8px; font-weight: 700; }
+h2 {
+  font-size: 24px; line-height: 1.25; margin: 46px 0 14px; font-weight: 700;
+  padding-bottom: 8px; border-bottom: 2px solid var(--border-brand);
+}
+h3 { font-size: 18.5px; margin: 34px 0 10px; font-weight: 650; }
+h4 { font-size: 16px; margin: 26px 0 8px; font-weight: 650; }
+p { margin: 0 0 15px; }
+ul, ol { margin: 0 0 15px; padding-left: 26px; }
+li { margin-bottom: 8px; }
+li > ul, li > ol { margin-top: 8px; }
+strong { font-weight: 700; color: var(--text-primary); }
+a { color: var(--brand-dark); text-underline-offset: 2px; word-break: break-word; }
+a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+code {
+  font-family: var(--mono); font-size: .85em; background: var(--surface-soft);
+  border: 1px solid var(--border-brand); border-radius: 3px; padding: 0 4px;
+}
+pre {
+  font-family: var(--mono); font-size: 13px; background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle); border-radius: 6px;
+  padding: 14px 16px; overflow-x: auto;
+}
+pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+hr { border: 0; border-top: 1px solid var(--border-subtle); margin: 38px 0; }
+
+blockquote {
+  margin: 20px 0; padding: 14px 20px; border-left: 4px solid var(--brand);
+  background: var(--bg-elevated); border-radius: 0 6px 6px 0;
+  font-family: var(--sans); font-size: 15.5px; color: var(--text-muted);
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+.tablewrap { overflow-x: auto; margin: 20px 0; }
+table {
+  border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 14.5px;
+}
+th, td {
+  text-align: left; padding: 9px 12px; vertical-align: top;
+  border-bottom: 1px solid var(--border-subtle);
+}
+th {
+  background: var(--surface-soft); color: var(--text-primary); font-weight: 650;
+  font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase;
+  border-bottom: 1px solid var(--border-brand);
+}
+
+/* The reference list: hanging indent, so the numbers form a readable column. */
+h2#references ~ p {
+  font-family: var(--sans); font-size: 14.5px; line-height: 1.5;
+  padding-left: 2.6em; text-indent: -2.6em; margin-bottom: 11px;
+}
+
+@page { size: A4; margin: 20mm 18mm; }
+@media print {
+  :root, :root[data-theme="dark"] {
+    --brand: #0B76B8; --brand-dark: #075C90; --surface-soft: #EDF5FB;
+    --border-brand: #9CCDE8; --bg-page: #FFFFFF; --bg-elevated: #FAFBFC;
+    --text-primary: #111418; --text-body: #1D2329; --text-muted: #55616D;
+    --border-subtle: #D3DAE1;
+  }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-size: 10.5pt; padding: 0; }
+  main { max-width: none; }
+  h1 { font-size: 20pt; }
+  h2 { font-size: 14pt; margin-top: 22pt; }
+  h3 { font-size: 11.5pt; }
+  h1, h2, h3, h4 { break-after: avoid; page-page-break-after: avoid; }
+  h2 { break-before: page; page-break-before: always; }
+  h1 + p, h2:first-of-type { break-before: auto; page-break-before: auto; }
+  p, li, blockquote, tr { break-inside: avoid; page-break-inside: avoid; }
+  .tablewrap { overflow: visible; }
+  thead { display: table-header-group; }
+  table { font-size: 9pt; }
+  a { text-decoration: none; }
+}
+</style>
+<main>
+<h1 id="literature-review-and-methodology">Literature Review and Methodology</h1>
+<p><em>VulnLoc — An Explainable Hybrid LLM–GNN Framework for Line-Level Software Vulnerability Detection and Localization</em></p>
+<blockquote><p>Draft sections for the paper. Written to be read as continuous prose. Citation numbers refer to the References list at the end. Numbers describing our own corpus come from measured runs in this repository, not from published papers.</p></blockquote>
+<hr>
+<h2 id="2-literature-review">2. Literature Review</h2>
+<h3 id="2-1-scope-of-the-review">2.1 Scope of the review</h3>
+<p>This review covers work published mainly between 2019 and 2026 on finding security vulnerabilities in source code using machine learning. We group the work by the question it answers rather than by date, because the field has moved along four separate lines at the same time: how code is represented, how fine-grained the prediction is, how different kinds of information are combined, and how trustworthy the labels and explanations are. We close by stating the gap that our work addresses.</p>
+<h3 id="2-2-early-deep-learning-and-graph-based-detection">2.2 Early deep learning and graph-based detection</h3>
+<p>The first wave of learning-based detectors treated a function as a sequence of tokens and trained a classifier to say whether it was vulnerable. These models were easy to build, but they ignored the fact that a program is not really a sequence. Two lines that sit far apart in the file can be closely related, and two lines that sit next to each other may have nothing to do with one another.</p>
+<p>Graph-based methods were introduced to fix this. The key idea came from program analysis rather than machine learning. Yamaguchi et al. [1] proposed the <strong>code property graph</strong>, which merges three classic views of a program into one structure: the abstract syntax tree (AST), which records grammar; the control flow graph (CFG), which records the order in which statements can run; and program dependence information, which records how values move between statements. Their point was that many vulnerability patterns can only be described when all three views are available at once.</p>
+<p>Devign [2] brought this idea into deep learning. It builds a composite graph for each function and runs a gated graph neural network over it. Devign showed that structure carries real signal, and it remains the standard reference point for structure-based detection. Its limitation is the one shared by nearly all of this generation of work: the output is a single label for the whole function.</p>
+<h3 id="2-3-pre-trained-language-models-for-code">2.3 Pre-trained language models for code</h3>
+<p>In parallel, the natural language processing field produced pre-trained transformer models for source code. CodeBERT [3] is trained on both natural language and programming language text, and produces general-purpose representations that can be fine-tuned for many code tasks. GraphCodeBERT [4] extends this by adding data flow information during pre-training, so the model learns where a variable&#x27;s value comes from rather than treating the code as plain text.</p>
+<p>These models raised reported accuracy considerably, and most recent vulnerability detectors use one of them as a starting point. However, several recent papers have questioned how much of that improvement is real. A 2025 survey of large language models in software security [19] reviews the field and lists interpretability and evaluation quality as unresolved problems. A critical audit of large language model based detection [20] argues that reported performance often does not survive careful evaluation. Another study re-evaluates pre-trained language model detectors under fairer conditions and finds smaller gains than originally claimed [21]. Recent work such as VULPO [22] continues to push what a language model alone can achieve by optimising it with better context, and is useful to us as a comparison point rather than as a competing method.</p>
+<p>The overall message from this group is consistent and important for our design: pre-trained code models are strong, but they are not sufficient on their own.</p>
+<h3 id="2-4-line-level-and-statement-level-localization">2.4 Line-level and statement-level localization</h3>
+<p>The work closest to ours tries to move the prediction from the whole function to the individual line or statement.</p>
+<p>LineVul [5] is the most widely cited example. It fine-tunes CodeBERT as a function-level classifier and then derives per-line scores from the model&#x27;s attention weights. This was an important step, but the line scores are a by-product of a function-level model rather than something the model was trained to produce, and no program structure is used at all.</p>
+<p>LineVD [6] approaches the same problem from the opposite direction. It treats statement-level detection as node classification on a graph, using control and data dependencies between statements. Here structure is central and the language model acts mainly as a source of node features. IVDetect [7] adds interpretability by using GNNExplainer [24] to isolate the part of the graph that most influenced the prediction.</p>
+<p>Other recent approaches include learning a dictionary of vulnerability patterns and matching against it to locate statements [8], and a study showing that simply asking a large language model to check a program line by line already improves localization noticeably [9]. The latter result is instructive: it improves localization without using any program structure, which suggests that the structural side of the problem is still under-used.</p>
+<p>Finally, a 2025 study in <em>Machine Learning</em> [10] evaluates how well existing detectors actually localize, as opposed to how well they classify. Its conclusion is that localization quality is generally poor and under-measured. We treat this paper as evidence that the problem is open, and we borrow parts of its evaluation protocol.</p>
+<h3 id="2-5-combining-semantic-and-structural-information">2.5 Combining semantic and structural information</h3>
+<p>Since both the text view and the graph view carry useful information, a natural step is to use both. Most existing systems do this by <strong>concatenation</strong>: each branch produces one summary vector for the function, the two vectors are joined end to end, and a classifier reads the result. The two branches never influence each other.</p>
+<p>Several recent papers try to do better. Vul-LMGNNs [11] combines language models with graph neural networks through online knowledge distillation. A 2025 study in <em>Knowledge-Based Systems</em> [12] uses a two-part transformer over source code and assembly code to capture fine-grained features and locate vulnerable statements. DCVD [13] proposes dual-channel cross-modal fusion for detection and localization together, and is the closest published system to our own design. Work in <em>Information Fusion</em> [14] takes a different second modality altogether, using explanations written by a language model and combining them with code features through a modified self-attention mechanism. VulReaD [15] guides reasoning with an external knowledge graph, and other work injects a semantic vulnerability graph into transformer training [16].</p>
+<p>A 2026 review of graph neural networks for vulnerability mining [23] surveys this area systematically and identifies graph and language model integration as a live research direction. Separately, work on causal deep learning for vulnerability detection [17] attacks a different weakness, namely that these models often rely on shortcut features that do not actually cause the vulnerability.</p>
+<p>Two observations matter for our work. First, most of these systems still fuse at the level of the whole function, so any per-line detail is lost before the two views meet. Second, and more importantly, <strong>none of them reports a controlled comparison between deep interaction and simple concatenation</strong> under matched training conditions. Improvements are reported against older baselines, not against the same system with the fusion step replaced.</p>
+<h3 id="2-6-explainability-and-faithfulness">2.6 Explainability and faithfulness</h3>
+<p>Explanations are often listed as a contribution, but the standard of evidence varies widely. Many systems present attention weights as an explanation. Jain and Wallace [25] showed that this is unsafe: it is possible to construct completely different attention distributions that produce essentially the same prediction, which means the attended tokens do not reliably tell us what the model depended on.</p>
+<p>The interpretability literature offers stronger tests. The ERASER benchmark [26] proposes measuring <em>comprehensiveness</em> and <em>sufficiency</em>: if the parts the model claims to rely on are removed, the prediction should change a great deal, and those parts alone should be enough to support the prediction. GNNExplainer [24] plays a similar role for graph models by finding the smallest subgraph that preserves the prediction.</p>
+<p>In the vulnerability domain specifically, recent work instruction-tunes a large language model to produce written explanations of vulnerabilities [18]. The explanations read well, but there is no built-in guarantee that they describe what the model actually used. This is the risk we design against directly.</p>
+<h3 id="2-7-data-quality">2.7 Data quality</h3>
+<p>A separate body of work studies the datasets themselves, and it is essential for anyone reporting line-level numbers.</p>
+<p>Big-Vul [27] collects C and C++ functions from real projects, linked to published CVE records, and records which lines a fix commit changed. It is the main public source of line-level labels for C and C++, which is why we use it. CVEfixes [34] and MegaVul [32] provide related collections built from vulnerability-fixing commits.</p>
+<p>The problem is that these labels are derived automatically, and a fix commit usually contains more than the fix. Croft et al. [28] measured label accuracy across several public datasets and reported between 20% and 71% inaccurate labels, along with high levels of duplication. CleanVul [30] independently estimated 40% to 75% noise and proposed a method to reduce it, and ActiveClean [33] tackles the same problem using active learning.</p>
+<p>PrimeVul [29] goes further. It rebuilds an evaluation set with stricter labelling and de-duplication and shows that much of the reported progress in this field shrinks or disappears under a cleaner evaluation. DiverseVul [31] provides a large and CWE-rich collection that is useful for testing generalization, although it does not carry line labels.</p>
+<p>The conclusion we take from this group is that <strong>any line-level result reported without a label-quality estimate should be treated with caution</strong>, including our own.</p>
+<h3 id="2-8-the-research-gap">2.8 The research gap</h3>
+<p>Bringing these lines together, the literature establishes four things. Program structure carries signal that plain text does not [1, 2]. Pre-trained code models are powerful but not sufficient by themselves [3, 4, 20, 21]. Developers need line-level output, and current systems provide it poorly [5, 6, 10]. Labels in this domain are noisy enough to affect conclusions [28, 29, 30].</p>
+<p>What is missing is the combination. No published work, as far as we can determine, lets the semantic and structural views <strong>interact in both directions on a shared line index before either is pooled</strong>, and then measures that choice against plain concatenation under identical data, identical encoders, and an identical tuning budget. The closest systems [11, 12, 13] either fuse at the function level, use a different second modality, or do not run the controlled comparison. That comparison is the contribution of this work, together with a line-level evaluation protocol that reports its own label-quality ceiling.</p>
+<hr>
+<h2 id="3-methodology">3. Methodology</h2>
+<h3 id="3-1-overview">3.1 Overview</h3>
+<p>Our system takes one C or C++ function as input and produces a risk score for every line in it, together with a short explanation for the highest-scoring lines. It has two branches. The <strong>semantic branch</strong> reads the code as text using a pre-trained code model. The <strong>structural branch</strong> reads the code as a graph using a graph neural network. Both branches are converted to the same unit of measurement — the source line — and are then allowed to attend to each other before any final decision is made.</p>
+<p>The design follows one rule throughout: <strong>the line index is the atomic unit, and it must never be lost.</strong> Every stage of the pipeline is built to preserve it.</p>
+<p>The full pipeline has seven stages:</p>
+<ol>
+<li>Parse the function into a syntax tree.</li>
+<li>Build the AST, CFG and DFG over a shared set of nodes; the CPG is their union.</li>
+<li>Encode the code as text (semantic branch) and as a graph (structural branch).</li>
+<li>Convert both to one vector per source line.</li>
+<li>Fuse the two using bidirectional cross-attention.</li>
+<li>Predict a score per line and a score per function, and train on both.</li>
+<li>Generate an explanation that is required to cite real evidence.</li>
+</ol>
+<h3 id="3-2-problem-formulation">3.2 Problem formulation</h3>
+<p>Let a function be a sequence of lines <em>L = (l₁, …, l_n)</em>. The task is to learn a function that maps the source code to a vector of scores <em>(s₁, …, s_n)</em>, where <em>s_i ∈ [0, 1]</em> is the probability that line <em>l_i</em> contains the vulnerability. We also predict a single function-level score <em>y ∈ [0, 1]</em>.</p>
+<p>This is a ranking problem more than a classification problem. In practice a developer looks at the highest-scoring lines first, so what matters is whether the true vulnerable line appears near the top of the list, not whether its score crosses some fixed threshold. Our choice of evaluation metrics in Section 3.11 follows from this.</p>
+<h3 id="3-3-datasets">3.3 Datasets</h3>
+<p>We use five corpora, each with one clearly defined role. <strong>The roles never share data.</strong></p>
+<div class="tablewrap"><table>
+<thead><tr>
+<th>Role</th>
+<th>Corpus</th>
+<th>Reason</th>
+</tr></thead>
+<tbody>
+<tr><td>Training</td><td>Big-Vul [27]</td><td>The only public C/C++ set that provides per-line flaw indices</td></tr>
+<tr><td>Clean evaluation</td><td>PrimeVul confirmed subset [29]</td><td>Manually verified labels; measures the effect of label noise</td></tr>
+<tr><td>Generalization</td><td>DiverseVul [31]</td><td>Projects that do not appear in Big-Vul</td></tr>
+<tr><td>Validation</td><td>PrimeVul paired [29]</td><td>The same function before and after the fix</td></tr>
+<tr><td>Pipeline testing</td><td>Juliet 1.3.1 [35]</td><td>Exact ground truth; used only for unit tests and figures</td></tr>
+</tbody></table></div>
+<p>Two points need to be stated clearly, because they are easy to get wrong. First, PrimeVul is built partly <em>from</em> Big-Vul and related sources, so it is <strong>not</strong> an independent generalization set; it measures label quality. DiverseVul is the generalization set. Second, Juliet is artificial code, so it is never used for a headline result.</p>
+<p>Our copy of Big-Vul contains 188,636 functions, of which 10,900 (5.78%) are labelled vulnerable and 8,243 carry usable line-level labels. Across the whole corpus, 0.795% of source lines are marked vulnerable. This severe class imbalance drives several later design choices.</p>
+<h3 id="3-4-label-derivation-and-data-splitting">3.4 Label derivation and data splitting</h3>
+<p>Line labels in Big-Vul come from vulnerability-fixing commits: the lines that the fix removed or changed are treated as the vulnerable lines. We verified that this derivation is applied consistently across our copy of the corpus, finding no out-of-range line numbers, no mismatches between the recorded line text and the source, and no labels attached to non-vulnerable functions.</p>
+<p>Consistency, however, is not correctness. We manually audited a random sample of 20 labelled functions and judged 6 of them to be wrong, giving an estimated line-label error rate of about 30% (95% confidence interval 14.5% to 51.9%). This figure is a <strong>ceiling on every line-level metric we report</strong>, and we report it alongside our results. It is a different and structurally larger quantity than the function-level noise rate, and the two are never combined into a single number.</p>
+<p>We split the data <strong>by project</strong>, in an 80/10/10 ratio. All functions from a given project go entirely into one split. A random split would place near-identical functions in both training and test data, because the same function often appears many times in a project&#x27;s history; the resulting score would measure memorisation rather than learning. The resulting split contains 148,983 training, 18,593 validation and 18,442 test functions, with further sets withheld for clean evaluation.</p>
+<p>Assignment is made by <strong>hashing the content of each function</strong>, not by shuffling with a random seed. A seeded shuffle produces a different result if the input file order ever changes; a content hash does not. Re-running the split script therefore verifies the existing split rather than producing a new one, and any difference is treated as an error.</p>
+<p>We measured leakage directly and found no shared projects between splits, no duplicate function hashes across splits, and no clean-evaluation function present in training. We also found that a project-wise split is not sufficient on its own: 426 functions were byte-identical across different projects, because open-source code is copied and vendored between repositories. These were withheld. Since only exact matches are detected, this number is a lower bound.</p>
+<h3 id="3-5-code-representation">3.5 Code representation</h3>
+<p><strong>Parsing.</strong> We parse with Tree-sitter [36]. Conventional program analysis tools require code that compiles, but our corpus consists of isolated functions with no headers and no build system, so almost none of it compiles. Tree-sitter parses incomplete code and recovers from errors, which makes it the only practical option at this scale.</p>
+<p><strong>Grammar selection.</strong> Big-Vul records a language for each function, and 98.6% of entries say &quot;C&quot;. We found that trusting this field is the worst available option. Measured across the corpus, the declared language gives a clean parse for only 37.01% of functions, parsing everything as C gives 35.74%, and parsing everything as C++ gives 88.24%. We therefore parse each function as C++ first and, if damage remains, also as C, keeping whichever tree has less damage. Ties are resolved in favour of C++, so the chosen grammar depends only on the source text and the procedure is reproducible. This policy yields a clean parse for <strong>89.14%</strong> of the corpus.</p>
+<p>The functions that no grammar parses cleanly are 10.86% of all functions but contain <strong>31.58%</strong> of all flagged lines, because they are much longer than average. We report the larger figure, since the smaller one understates the effect on the labelled data.</p>
+<p><strong>Graph construction.</strong> From the parse tree we build three graphs over a single shared set of nodes:</p>
+<ul>
+<li>the <strong>AST</strong>, containing every syntactic element;</li>
+<li>the <strong>CFG</strong>, connecting statements in the order they can execute;</li>
+<li>the <strong>DFG</strong>, connecting the definition of a value to each of its uses.</li>
+</ul>
+<p>The <strong>CPG</strong> is the union of these three edge sets over the same nodes. Because all four graphs share one node set, the mapping from node to line is identical for all of them, and selecting a graph type for an ablation is a matter of choosing which edge types to include rather than rebuilding the graph.</p>
+<p>Our data flow analysis is <strong>name-based</strong>: it matches variables by identifier, and therefore does not model pointer aliasing or scoping precisely. We state this limitation explicitly and do not claim that the model performs full data flow analysis.</p>
+<p>Every node stores the line it belongs to, derived from its byte offset through a line map. Across the evaluation set, 98.78% of labelled lines carry at least one AST node; corpus wide, 7.84% of flagged lines carry no node at all, and 84.8% of those lie in functions that no grammar parses cleanly. The structural branch cannot score those lines, which is a second ceiling, separate from label noise.</p>
+<h3 id="3-6-semantic-branch">3.6 Semantic branch</h3>
+<p>The semantic branch uses a pre-trained code model — CodeBERT [3] or GraphCodeBERT [4] — to produce a contextual representation of each token.</p>
+<p>These models accept at most 512 tokens. Long functions exceed this, and the usual response is to truncate. We measured the cost of truncation and found it unacceptable: <strong>38.1% of all flagged lines</strong>, and 44.5% of those in the evaluation set, fall outside the first 512 tokens. A line that the model never reads cannot be localized.</p>
+<p>We therefore process long functions in <strong>overlapping windows</strong> and combine the results. This retains 100% of flagged lines. One practical consequence is that a function is no longer a single forward pass: functions in the evaluation set require 4.17 windows on average, and the longest requires 287. Batching is therefore done by window, not by function.</p>
+<p>Tokenization is line-aware: each token records the byte range it came from, so it can later be attributed to a line.</p>
+<h3 id="3-7-structural-branch">3.7 Structural branch</h3>
+<p>The structural branch runs a graph neural network over the graph produced in Section 3.5. Each node is initialised with an embedding of its node type together with features derived from its source text, and the network updates each node using information from its neighbours.</p>
+<p>We treat the choice of architecture as an experimental question rather than a design decision, and compare graph convolutional, graph attention and gated graph networks at depths of 2, 4 and 6.</p>
+<p>Graph size varies enormously. AST graphs average 252 nodes across the corpus but average 1,144 nodes on the evaluation set and reach 56,266 nodes in the largest case. Since memory use in a batch is determined by the largest graph rather than the average, batching is sized against observed maxima.</p>
+<h3 id="3-8-line-alignment">3.8 Line alignment</h3>
+<p>This module is the point on which the whole design depends. The semantic branch produces one vector per token; the structural branch produces one vector per graph node. These two sets of units do not correspond to each other, so the branches cannot be compared directly.</p>
+<p>The only unit both agree on is the source line. The <strong>LineAligner</strong> therefore pools all token vectors belonging to line <em>i</em> into a single vector, and pools all node vectors belonging to line <em>i</em> into a single vector. The result is two matrices of the same shape: one vector per line from each branch. We compare mean, maximum and attention-based pooling experimentally.</p>
+<p>Both poolings rely on the byte-to-line map established at parse time, which is why the line index is preserved so carefully at every earlier stage.</p>
+<h3 id="3-9-cross-attention-fusion">3.9 Cross-attention fusion</h3>
+<p>With both branches expressed per line, we apply <strong>bidirectional cross-attention</strong>. In one direction, the semantic representation of each line forms queries and the structural representations form keys and values, so each line&#x27;s semantic view is updated using structural evidence. In the other direction, the roles are reversed. The two updated representations are then combined and passed on.</p>
+<p>The intuition is straightforward. Evidence for a vulnerability is usually split between the two views. &quot;This statement copies memory&quot; is a semantic observation. &quot;The value being copied came from an earlier statement without a size check&quot; is a structural one. Neither is alarming alone; together they describe a buffer overflow. Concatenation asks a final classifier to notice such combinations from two compressed summaries. Cross-attention allows the combination to be formed per line, while the detail still exists.</p>
+<p>We do not assume this works. Section 3.12 describes the experiment designed to test it.</p>
+<h3 id="3-10-prediction-heads-and-training-objective">3.10 Prediction heads and training objective</h3>
+<p>Two heads sit on top of the fused representation. The <strong>line head</strong> produces a score for each line. The <strong>unit head</strong> pools across lines and produces one score for the function. Training uses a weighted sum of a line-level loss and a function-level loss. The function-level term is included because function labels exist for far more data than line labels: 10,900 functions are labelled vulnerable, but only 8,243 carry line labels.</p>
+<p>Because only 0.795% of lines are vulnerable, a model trained with plain binary cross-entropy can achieve very high accuracy by predicting &quot;clean&quot; everywhere. We therefore compare plain, class-weighted and focal losses, and we exclude accuracy from our headline metrics.</p>
+<h3 id="3-11-explanation">3.11 Explanation</h3>
+<p>For the highest-scoring lines the system produces a short explanation with a fixed structure: the vulnerability type, the line, a one-sentence reason, and the evidence.</p>
+<p>The important constraint is that the explanation must be <strong>grounded</strong>. It may only cite line numbers and symbol names that appear in the code and were used by the model. If grounding cannot be established, no explanation is shown. This is a direct response to the finding that fluent explanations may not reflect the model&#x27;s actual reasoning [18, 25].</p>
+<h3 id="3-12-evaluation">3.12 Evaluation</h3>
+<p>We fixed our headline metrics before running experiments, to avoid selecting metrics after seeing results.</p>
+<p><strong>Line level (primary).</strong> Top-<em>k</em> accuracy for <em>k</em> = 1, 3, 5, 10, which asks whether a truly vulnerable line appears among the <em>k</em> highest-scoring lines. Initial False Alarms (IFA), the number of clean lines a developer inspects before reaching a true one. Line-level PR-AUC, which is threshold-free and meaningful when positives are under 1% of the data. We also report Recall@<em>k</em>%LOC, mean first rank and mean average rank, and line-level precision, recall and F1 at a calibrated threshold. The headline metrics are <strong>Top-5, IFA and line-level PR-AUC</strong>.</p>
+<p><strong>Function level.</strong> Precision, recall, F1, MCC, ROC-AUC, PR-AUC and false positive rate. Accuracy is reported for completeness but never used as a headline number.</p>
+<p><strong>Explanation quality.</strong> We report a grounding rate, which measures the proportion of explanations citing only lines and symbols that genuinely exist, and we plan a human evaluation covering correctness, faithfulness, usefulness and clarity, with inter-rater agreement reported.</p>
+<p><strong>Faithfulness.</strong> Following ERASER [26], we apply deletion and insertion tests: removing the lines the model claims to rely on should sharply reduce its confidence, while removing random lines should not. We also measure agreement between attention weights and gradient-based attribution. Attention is treated as a hypothesis to be tested, not as an explanation in itself [25].</p>
+<h3 id="3-13-experimental-design-and-ablations">3.13 Experimental design and ablations</h3>
+<p>The central experiment, which we label <strong>A1</strong>, compares five fusion strategies: cross-attention, concatenation, summation, gating, and no fusion. All five are run with identical data, identical encoders, an identical training budget, and — critically — an <strong>identical hyperparameter search budget</strong>. Giving the proposed method more tuning effort than the baseline would invalidate the comparison, so the budget is fixed and recorded in advance. Each configuration is run with five random seeds and reported as mean and standard deviation with a significance test. Summation and gating are included specifically to rule out the explanation that any fusion mechanism would help equally.</p>
+<p>Further ablations cover branch removal (full, semantic only, structural only), graph representation (AST, CFG, DFG, AST+CFG, CPG), graph network architecture and depth, choice of pre-trained encoder and whether it is frozen, attention direction (bidirectional versus each single direction), line pooling method, loss composition, class-imbalance handling, and explanation strategy.</p>
+<p>Every ablation is a configuration change rather than a code change, so no experiment can accidentally alter the system it is being compared against.</p>
+<p><strong>Reporting commitment.</strong> If cross-attention does not significantly outperform concatenation under these matched conditions, we will report that result. In that case the contribution becomes the controlled comparison itself, together with the evaluation protocol and the label-quality analysis.</p>
+<h3 id="3-14-implementation">3.14 Implementation</h3>
+<p>The system is implemented in Python 3.12 using PyTorch. The code is organised into layers — data, representation, models, training, evaluation, explanation and serving — with imports permitted only in one direction; this is checked automatically, so an incorrect dependency fails the build. Extension points are registries, so new graph builders, networks, fusion methods and explainers are added by configuration.</p>
+<p>Experiments are configured with Hydra and tracked with MLflow, and every reported number is tied to a logged run identifier. Training runs on a single 4 GB GPU using mixed precision and gradient checkpointing, measured at a peak of 2,456 MiB with a batch of 16 windows.</p>
+<h3 id="3-15-threats-to-validity">3.15 Threats to validity</h3>
+<p><strong>Internal.</strong> Label noise of approximately 30% at the line level limits every line-level result; we report it explicitly and use a manually confirmed evaluation set to separate model error from label error. Unequal tuning effort between fusion strategies would invalidate our main claim, which is why the search budget is fixed in advance.</p>
+<p><strong>External.</strong> Our results apply to C and C++ functions analysed one at a time, with no cross-function analysis. Roughly 10.86% of functions do not parse cleanly, and these contain 31.58% of flagged lines. We test cross-dataset generalization on DiverseVul, because single-dataset results do not establish real-world capability.</p>
+<p><strong>Construct.</strong> Attention is not by itself an explanation [25], so we test faithfulness rather than assuming it. Automatic text metrics do not measure usefulness, so human evaluation is primary for explanation quality.</p>
+<p><strong>Conclusion.</strong> Single-seed results are unreliable, so all comparisons use at least three seeds and the main experiment uses five, with significance testing.</p>
+<hr>
+<h2 id="references">References</h2>
+<p>[1] F. Yamaguchi, N. Golde, D. Arp, and K. Rieck, &quot;Modeling and Discovering Vulnerabilities with Code Property Graphs,&quot; <em>IEEE Symposium on Security and Privacy (S&amp;P)</em>, 2014, pp. 590–604. <a href="https://doi.org/10.1109/SP.2014.44">https://doi.org/10.1109/SP.2014.44</a></p>
+<p>[2] Y. Zhou, S. Liu, J. Siow, X. Du, and Y. Liu, &quot;Devign: Effective Vulnerability Identification by Learning Comprehensive Program Semantics via Graph Neural Networks,&quot; <em>NeurIPS</em>, 2019. <a href="https://arxiv.org/abs/1909.03496">https://arxiv.org/abs/1909.03496</a></p>
+<p>[3] Z. Feng et al., &quot;CodeBERT: A Pre-Trained Model for Programming and Natural Languages,&quot; <em>Findings of EMNLP</em>, 2020. <a href="https://arxiv.org/abs/2002.08155">https://arxiv.org/abs/2002.08155</a></p>
+<p>[4] D. Guo et al., &quot;GraphCodeBERT: Pre-training Code Representations with Data Flow,&quot; <em>ICLR</em>, 2021. <a href="https://arxiv.org/abs/2009.08366">https://arxiv.org/abs/2009.08366</a></p>
+<p>[5] M. Fu and C. Tantithamthavorn, &quot;LineVul: A Transformer-based Line-Level Vulnerability Prediction,&quot; <em>MSR</em>, 2022. <a href="https://doi.org/10.1145/3524842.3528452">https://doi.org/10.1145/3524842.3528452</a></p>
+<p>[6] D. Hin, A. Kan, H. Chen, and M. A. Babar, &quot;LineVD: Statement-level Vulnerability Detection using Graph Neural Networks,&quot; <em>MSR</em>, 2022. <a href="https://arxiv.org/abs/2203.05181">https://arxiv.org/abs/2203.05181</a></p>
+<p>[7] Y. Li, S. Wang, and T. N. Nguyen, &quot;Vulnerability Detection with Fine-grained Interpretations,&quot; <em>ESEC/FSE</em>, 2021. <a href="https://arxiv.org/abs/2106.10478">https://arxiv.org/abs/2106.10478</a></p>
+<p>[8] &quot;Learning to Quantize Vulnerability Patterns and Match to Locate Statement-Level Vulnerabilities,&quot; arXiv preprint, 2023. <a href="https://arxiv.org/abs/2306.06109">https://arxiv.org/abs/2306.06109</a></p>
+<p>[9] &quot;If LLMs Would Just Look: Simple Line-by-line Checking Improves Vulnerability Localization,&quot; arXiv preprint, 2024. <a href="https://arxiv.org/abs/2410.15288">https://arxiv.org/abs/2410.15288</a></p>
+<p>[10] &quot;Evaluating line-level localization ability of learning-based code vulnerability detection models,&quot; <em>Machine Learning</em>, 2025. <a href="https://doi.org/10.1007/s10994-025-06902-1">https://doi.org/10.1007/s10994-025-06902-1</a></p>
+<p>[11] &quot;Vul-LMGNNs: Fusing Language Models and Online-Distilled Graph Neural Networks for Code Vulnerability Detection,&quot; arXiv preprint, 2024. <a href="https://arxiv.org/abs/2404.14719">https://arxiv.org/abs/2404.14719</a></p>
+<p>[12] &quot;Transformer-based statement level vulnerability detection by cross-modal fine-grained features capture,&quot; <em>Knowledge-Based Systems</em>, 2025. <a href="https://www.sciencedirect.com/science/article/abs/pii/S0950705125003880">https://www.sciencedirect.com/science/article/abs/pii/S0950705125003880</a></p>
+<p>[13] &quot;DCVD: Dual-Channel Cross-Modal Fusion for Joint Vulnerability Detection and Localization,&quot; arXiv preprint, 2026. <a href="https://arxiv.org/abs/2605.11015">https://arxiv.org/abs/2605.11015</a></p>
+<p>[14] &quot;Enhancing vulnerability detection by fusing code semantic features with LLM-generated explanations,&quot; <em>Information Fusion</em>, 2025. <a href="https://www.sciencedirect.com/science/article/pii/S1566253525005238">https://www.sciencedirect.com/science/article/pii/S1566253525005238</a></p>
+<p>[15] &quot;VulReaD: Knowledge-Graph-guided Software Vulnerability Reasoning and Detection,&quot; arXiv preprint, 2026. <a href="https://arxiv.org/abs/2602.10787">https://arxiv.org/abs/2602.10787</a></p>
+<p>[16] &quot;An Unbiased Transformer Source Code Learning with Semantic Vulnerability Graph,&quot; arXiv preprint, 2023. <a href="https://arxiv.org/abs/2304.11072">https://arxiv.org/abs/2304.11072</a></p>
+<p>[17] &quot;Towards Causal Deep Learning for Vulnerability Detection,&quot; arXiv preprint, 2023. <a href="https://arxiv.org/abs/2310.07958">https://arxiv.org/abs/2310.07958</a></p>
+<p>[18] &quot;Towards Explainable Vulnerability Detection with Large Language Models,&quot; arXiv preprint, 2024. <a href="https://arxiv.org/abs/2406.09701">https://arxiv.org/abs/2406.09701</a></p>
+<p>[19] &quot;Large Language Models in Software Security: A Survey of Vulnerability Detection Techniques and Insights,&quot; arXiv preprint, 2025. <a href="https://arxiv.org/abs/2502.07049">https://arxiv.org/abs/2502.07049</a></p>
+<p>[20] &quot;Everything You Wanted to Know About LLM-based Vulnerability Detection But Were Afraid to Ask,&quot; arXiv preprint, 2025. <a href="https://arxiv.org/abs/2504.13474">https://arxiv.org/abs/2504.13474</a></p>
+<p>[21] &quot;Revisiting Pre-trained Language Models for Vulnerability Detection,&quot; arXiv preprint,</p>
+<ol>
+<li><a href="https://arxiv.org/abs/2507.16887">https://arxiv.org/abs/2507.16887</a></li>
+</ol>
+<p>[22] &quot;VULPO: Context-Aware Vulnerability Detection via On-Policy LLM Optimization,&quot; arXiv preprint, 2025. <a href="https://arxiv.org/abs/2511.11896">https://arxiv.org/abs/2511.11896</a></p>
+<p>[23] &quot;Graph Neural Networks for Software Vulnerability Mining: A Review,&quot; <em>Information</em>,</p>
+<ol>
+<li><a href="https://doi.org/10.3390/info17080730">https://doi.org/10.3390/info17080730</a></li>
+</ol>
+<p>[24] R. Ying, D. Bourgeois, J. You, M. Zitnik, and J. Leskovec, &quot;GNNExplainer: Generating Explanations for Graph Neural Networks,&quot; <em>NeurIPS</em>, 2019. <a href="https://arxiv.org/abs/1903.03894">https://arxiv.org/abs/1903.03894</a></p>
+<p>[25] S. Jain and B. C. Wallace, &quot;Attention is not Explanation,&quot; <em>NAACL-HLT</em>, 2019. <a href="https://arxiv.org/abs/1902.10186">https://arxiv.org/abs/1902.10186</a></p>
+<p>[26] J. DeYoung et al., &quot;ERASER: A Benchmark to Evaluate Rationalized NLP Models,&quot; <em>ACL</em>,</p>
+<ol>
+<li><a href="https://arxiv.org/abs/1911.03429">https://arxiv.org/abs/1911.03429</a></li>
+</ol>
+<p>[27] J. Fan, Y. Li, S. Wang, and T. N. Nguyen, &quot;A C/C++ Code Vulnerability Dataset with Code Changes and CVE Summaries,&quot; <em>MSR</em>, 2020. <a href="https://doi.org/10.1145/3379597.3387501">https://doi.org/10.1145/3379597.3387501</a></p>
+<p>[28] R. Croft, M. A. Babar, and M. M. Kholoosi, &quot;Data Quality for Software Vulnerability Datasets,&quot; <em>ICSE</em>, 2023. <a href="https://arxiv.org/abs/2301.05456">https://arxiv.org/abs/2301.05456</a></p>
+<p>[29] Y. Ding et al., &quot;Vulnerability Detection with Code Language Models: How Far Are We?&quot; <em>ICSE</em>, 2025. <a href="https://arxiv.org/abs/2403.18624">https://arxiv.org/abs/2403.18624</a></p>
+<p>[30] &quot;CleanVul: Automatic Function-Level Vulnerability Detection in Code Commits Using LLM -Based Noise Reduction,&quot; arXiv preprint, 2024. <a href="https://arxiv.org/abs/2411.17274">https://arxiv.org/abs/2411.17274</a></p>
+<p>[31] Y. Chen et al., &quot;DiverseVul: A New Vulnerable Source Code Dataset for Deep Learning Based Vulnerability Detection,&quot; <em>RAID</em>, 2023. <a href="https://doi.org/10.1145/3607199.3607242">https://doi.org/10.1145/3607199.3607242</a></p>
+<p>[32] C. Ni et al., &quot;MegaVul: A C/C++ Vulnerability Dataset with Comprehensive Code Representations,&quot; <em>MSR</em>, 2024. <a href="https://doi.org/10.1145/3643991.3644886">https://doi.org/10.1145/3643991.3644886</a></p>
+<p>[33] &quot;ActiveClean: Generating Line-Level Vulnerability Data via Active Learning,&quot; arXiv preprint, 2023. <a href="https://arxiv.org/abs/2312.01588">https://arxiv.org/abs/2312.01588</a></p>
+<p>[34] G. Bhandari, A. Naseer, and L. Moonen, &quot;CVEfixes: Automated Collection of Vulnerabilities and Their Fixes from Open-Source Software,&quot; <em>PROMISE</em>, 2021. <a href="https://doi.org/10.1145/3475960.3475985">https://doi.org/10.1145/3475960.3475985</a></p>
+<p>[35] NIST Software Assurance Reference Dataset, &quot;Juliet Test Suite for C/C++, Version 1.3.1.&quot; <a href="https://samate.nist.gov/SARD/">https://samate.nist.gov/SARD/</a></p>
+<p>[36] M. Brunsfeld et al., &quot;Tree-sitter: An incremental parsing system for programming tools.&quot; <a href="https://tree-sitter.github.io/tree-sitter/">https://tree-sitter.github.io/tree-sitter/</a></p>
+</main>
