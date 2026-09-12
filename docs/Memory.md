@@ -1005,9 +1005,13 @@ training run is void (§1.10) and no valid trained result exists.**
 2. **Re-run `scripts/audit_label_leakage.py` after any corpus or preprocessing change**,
    and before quoting any line-level result. It is cheap (~30 s) and it is the standing
    guard for this class of bug (ADR-006 D6.5).
-3. **Phase 4's data path is built (2026-09-12) and its exit criteria are now GPU-bound
+3. **Phase 4 is wired end to end (2026-09-12) and its exit criteria are now GPU-bound
    only.** `training/graph_datasets.py` turns shards into node-budget graph batches;
-   `StructuralEncoder` consumes `edge_type` under ADR-007. Remaining: the overfit test,
+   `StructuralEncoder` consumes `edge_type` under ADR-007; `StructuralLineModel` is the
+   GNN-only baseline; `configs/gnn/{default,gcn,gat,ggnn}.yaml` make the three variants
+   config-selectable; `scripts/train_structural.py` is the entrypoint, on the shared
+   `training/job.py` loop. **Start with the overfit test:**
+   `python scripts/train_structural.py +gnn=gcn train=overfit_structural`. Remaining: the overfit test,
    the 2/4/6 depth sweep, GNN-only metrics over ≥3 seeds, and **ADR-007 D7.4's
    `ignore` vs `weighted` comparison on the same seeds** before Phase 5 fuses anything.
    Measured while building it: graph construction costs **train 3.23 ms/unit (17.6 s for

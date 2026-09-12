@@ -1,0 +1,25 @@
+# Phase 4 exit criterion: the GNN must reach ~100% on a 32-sample subset.
+#
+# A debugging instrument, not a result. It proves the message passing carries gradient,
+# the node→line pooling points where it claims to, and the node-type embedding is being
+# read. A model that cannot memorise 32 graphs has a bug, and the cheap time to find that
+# out is before a multi-hour sweep. Never cite a number from this config.
+defaults:
+  - structural
+
+name: overfit_structural
+
+limit: 32
+eval_limit: 32
+overfit: true
+epochs: 60
+
+# Memorisation needs a higher rate and nothing regularising against it.
+lr: 3.0e-3
+weight_decay: 0.0
+patience: 60
+
+# Plain weighted BCE: focal loss deliberately down-weights confident predictions, which is
+# exactly what an overfit test is trying to produce.
+loss: bce
+auto_pos_weight: true

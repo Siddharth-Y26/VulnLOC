@@ -53,7 +53,7 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Phase 3 | 🟨 **3 / 4.** Tokenization, `LineAligner`, encoder, line head, losses, metrics and the training loop are built; **the overfit test passes** (Top-5 = 1.0). **The one full run (`1843412a…`) is VOID — it learned a formatting artefact (ADR-006, landmine #28).** The rerun on normalized text works: **seed 42 (`fc902107…`) reports Top-5 0.610, Top-1 0.363, line F1 0.378, IFA 11.94, with a curve that rises instead of starting flat.** Remaining: seeds 1 and 2 (≈3 h 55 m each) — **one seed is not a result**, and `function/f1` = 1.000 is degenerate by construction. |
 | Phase 4 | 🟨 **Started.** Node-type vocabulary built corpus-wide (run `2c9ce1b1…`, 304 types, digest `a0643c4e…`), `StructuralEncoder` wires GCN/GAT/GGNN behind one scaffold, **the graph data path exists** (`training/graph_datasets.py`: dataset, node-budget sampler, collation, coverage accounting) and **`edge_type` is consumed rather than carried** (ADR-007). Exit criteria (3 seeds, overfit test, depth sweep) all still open — they are now GPU-bound only. **Node features are node-type only — the ADR-002 §D2.5 subtoken half is not built.** |
 | Phases 5–10 | ⬜ Not started. |
-| Tests | **664 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **679 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -67,7 +67,8 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 - `representation/` — `line_map.py`, `parser.py`, `units.py`, `to_pyg.py`,
   `tokenization.py`, `visualize.py`, `graphs/{base,ast,cfg,dfg,cpg}.py`
 - `models/` — `alignment.py` (the shared line axis), `semantic/{encoder,baseline}.py`,
-  `heads/line_head.py`. Fusion and structural registries are still empty.
+  `structural/{encoder,baseline}.py` (GCN/GAT/GGNN behind one scaffold; `edge_handling`
+  per ADR-007), `heads/line_head.py`. The fusion registry is still empty.
 - `training/` — plus `datasets.py`, **`graph_datasets.py`** (Phase 4's shards→graph-batch
   path: node-budget batching, corpus vocabulary with a verified digest, per-partition
   coverage accounting), `losses.py`, `metrics.py`, `loop.py`
@@ -150,6 +151,9 @@ python scripts/audit_label_leakage.py                       # ADR-006 guard: is 
 python scripts/train_semantic.py train=overfit              # RUN FIRST: 32-sample sanity
 python scripts/train_semantic.py train=semantic seed=42     # the LLM-only baseline (~3 h 55 m)
 python scripts/report_seeds.py train=semantic               # aggregate the seeds — refuses runs that are not replicates
+
+python scripts/train_structural.py +gnn=gcn train=overfit_structural   # RUN FIRST: 32-graph sanity
+python scripts/train_structural.py +gnn=gcn train=structural seed=42   # the GNN-only baseline
 
 python frontend/server.py                                   # pipeline inspector on http://127.0.0.1:8000
 ```

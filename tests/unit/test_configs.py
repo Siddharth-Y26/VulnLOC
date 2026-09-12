@@ -92,3 +92,70 @@ def test_mlflow_and_logging_sections_are_complete(compose_config):
 def test_config_is_fully_resolvable(compose_config):
     # No leftover '???' placeholders and no dangling interpolations.
     OmegaConf.to_container(compose_config("train=debug"), resolve=True, throw_on_missing=True)
+
+
+# --- the gnn group (Phase 4, ADR-007) ----------------------------------------------
+
+
+@pytest.mark.parametrize("kind", ["gcn", "gat", "ggnn"])
+def test_every_gnn_variant_is_selectable_by_config_alone(compose_config, kind):
+    """Phase 4 exit criterion: all three run and are **config-selectable**.
+
+    Selectable means from the config tree, not from an argument in a script. If this needs
+    a code change it is not the criterion.
+    """
+    cfg = compose_config(f"+gnn={kind}")
+
+    assert cfg.gnn.kind == kind
+    assert cfg.gnn.name == kind
+
+
+def test_the_gnn_variants_differ_only_in_the_convolution(compose_config):
+    """Otherwise the A2 comparison measures three subtly different models."""
+    configs = {kind: compose_config(f"+gnn={kind}") for kind in ("gcn", "gat", "ggnn")}
+    differing = {
+        key
+        for key in configs["gcn"].gnn
+        if len({OmegaConf.select(cfg, f"gnn.{key}") for cfg in configs.values()}) > 1
+    }
+
+    assert differing == {"kind", "name"}
+
+
+def test_the_gnn_group_stays_out_of_the_root_defaults(compose_config):
+    """Adding it would change every semantic run's `config_hash` mid-sweep.
+
+    `config_hash` is what `scripts/report_seeds.py` uses to decide whether two runs are
+    replicates. Phase 3's sweep is unfinished, so putting `gnn` in `defaults` would make
+    the logged seed incomparable with the ones still to run — and the seed report would
+    correctly refuse to aggregate them. See `configs/gnn/README.md`; move it in once the
+    three seeds are logged.
+    """
+    assert "gnn" not in compose_config()
+
+
+def test_edge_handling_defaults_to_the_setting_that_refuses(compose_config):
+    """ADR-007 D7.3. A CPG must not be scored as an untyped union by default."""
+    assert compose_config("+gnn=gcn").gnn.edge_handling == "auto"
+
+
+def test_the_structural_train_config_batches_in_nodes(compose_config):
+    """An AST reaches 56,266 nodes, so a unit-sized batch is bounded by its worst member."""
+    cfg = compose_config("train=structural")
+
+    assert cfg.train.name == "structural"
+    assert cfg.train.max_nodes_per_batch > 0
+    # Both branches must watch the same metric, or the two baselines are not comparable.
+    assert cfg.train.watch_metric == compose_config("train=semantic").train.watch_metric
+
+
+def test_the_structural_overfit_config_is_a_debugging_instrument(compose_config):
+    """Phase 4's overfit test: 32 samples, high LR, no regularisation, plain BCE."""
+    cfg = compose_config("train=overfit_structural")
+
+    assert cfg.train.overfit is True
+    assert cfg.train.limit == 32
+    assert cfg.train.weight_decay == 0.0
+    # Focal loss down-weights confident predictions, which is what an overfit test wants
+    # to produce.
+    assert cfg.train.loss == "bce"

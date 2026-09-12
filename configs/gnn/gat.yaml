@@ -1,0 +1,7 @@
+# The GAT variant. Everything else comes from `default`, so a sweep across the
+# three changes the convolution and nothing else.
+defaults:
+  - default
+
+name: gat
+kind: gat

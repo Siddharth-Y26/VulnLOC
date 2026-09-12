@@ -41,7 +41,7 @@ from vulnloc.training.graph_datasets import (  # noqa: E402
     graph_line_coverage,
     load_node_vocab,
 )
-from vulnloc.utils.exceptions import DataError  # noqa: E402
+from vulnloc.utils.exceptions import DataError, ModelError  # noqa: E402
 
 SOURCE = "int f(int n) {\n    int x = n + 1;\n    return x;\n}\n"
 
@@ -367,3 +367,93 @@ def test_coverage_reports_the_gap_rather_than_hiding_it() -> None:
     # Line 2 is flagged but no node claims it.
     mask = torch.tensor([[True, False, True]])
     assert graph_line_coverage(batch, mask) == {"flagged": 1, "flagged_with_features": 0}
+
+
+# --- the GNN-only baseline ---------------------------------------------------------
+
+
+def test_the_structural_model_scores_every_line_of_every_unit() -> None:
+    """Shards → graphs → encoder → shared line axis → shared head."""
+    from vulnloc.models.heads.line_head import LineHead
+    from vulnloc.models.structural import build_structural_encoder
+    from vulnloc.models.structural.baseline import StructuralLineModel
+
+    batch = collate_graphs(
+        [_toy("a", 3, [(0, 1), (1, 2)], [1, 2, 3]), _toy("b", 2, [(0, 1)], [1, 2])]
+    )
+    encoder = build_structural_encoder("gcn", vocab_size=8, hidden_dim=16, depth=2)
+    model = StructuralLineModel(encoder, LineHead(16, hidden_dim=8), n_lines=3)
+
+    out = model(batch)
+
+    assert out["line_logits"].shape == (2, 3)
+    assert out["function_logits"].shape == (2,)
+    assert out["line_mask"].shape == (2, 3)
+    assert torch.isfinite(out["line_logits"]).all()
+
+
+@pytest.mark.parametrize("kind", ["gcn", "gat", "ggnn"])
+def test_gradient_reaches_the_node_type_embedding(kind: str) -> None:
+    """The branch has to actually learn from structure, not just return the right shape.
+
+    A model whose embedding never receives gradient scores lines from the head's bias and
+    looks entirely healthy doing it.
+    """
+    from vulnloc.models.heads.line_head import LineHead
+    from vulnloc.models.structural import build_structural_encoder
+    from vulnloc.models.structural.baseline import StructuralLineModel
+    from vulnloc.training.losses import LineLoss
+
+    batch = collate_graphs([_toy("a", 4, [(0, 1), (1, 2), (2, 3)], [1, 2, 3, 3])])
+    encoder = build_structural_encoder(kind, vocab_size=8, hidden_dim=16, depth=2)
+    model = StructuralLineModel(encoder, LineHead(16, hidden_dim=8), n_lines=3)
+
+    out = model(batch)
+    losses = LineLoss(kind="bce", pos_weight=2.0)(
+        out["line_logits"].float(),
+        batch["line_labels"],
+        out["line_mask"] & batch["line_valid"],
+        out["function_logits"].float(),
+        batch["targets"],
+    )
+    losses["loss"].backward()
+
+    embedding_grad = model.encoder.features.embedding.weight.grad
+    assert embedding_grad is not None
+    assert torch.any(embedding_grad != 0)
+
+
+def test_a_head_that_does_not_match_the_encoder_raises() -> None:
+    """Caught at construction, not as a shape error somewhere inside the first batch."""
+    from vulnloc.models.heads.line_head import LineHead
+    from vulnloc.models.structural import build_structural_encoder
+    from vulnloc.models.structural.baseline import StructuralLineModel
+
+    encoder = build_structural_encoder("gcn", vocab_size=8, hidden_dim=16, depth=2)
+    with pytest.raises(ModelError, match="head width"):
+        StructuralLineModel(encoder, LineHead(32, hidden_dim=8), n_lines=3)
+
+
+def test_the_structural_model_requires_the_keys_that_tie_nodes_to_units() -> None:
+    """Without `batch`, every graph would be scored as if it were one function."""
+    from vulnloc.models.heads.line_head import LineHead
+    from vulnloc.models.structural import build_structural_encoder
+    from vulnloc.models.structural.baseline import StructuralLineModel
+
+    encoder = build_structural_encoder("gcn", vocab_size=8, hidden_dim=16, depth=2)
+    model = StructuralLineModel(encoder, LineHead(16, hidden_dim=8), n_lines=3)
+    with pytest.raises(ModelError, match="missing a required key"):
+        model({"node_type": torch.tensor([1, 2]), "edge_index": torch.tensor([[0], [1]])})
+
+
+def test_both_datasets_satisfy_what_the_shared_training_job_needs() -> None:
+    """One loop for both branches, so a difference between A1's arms cannot be plumbing."""
+    from vulnloc.training.datasets import LineLabelledDataset
+    from vulnloc.training.job import LineDataset
+
+    for dataset_type in (GraphLineDataset, LineLabelledDataset):
+        assert hasattr(dataset_type, "positive_line_weight")
+        assert hasattr(dataset_type, "__len__")
+    # `flagged_beyond_cap` is set in __init__ rather than declared, so it is checked on an
+    # instance in the dataset tests above; the protocol is what names the contract.
+    assert set(LineDataset.__annotations__) == {"flagged_beyond_cap"}

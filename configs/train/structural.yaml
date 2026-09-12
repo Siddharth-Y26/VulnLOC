@@ -1,0 +1,33 @@
+# GNN-only baseline (Phase 4). Inherits the semantic recipe and overrides only what the
+# structural branch genuinely does differently — so a difference between the two arms of
+# A1 is the architecture, not the training schedule.
+defaults:
+  - semantic
+
+name: structural
+
+# Batching is in NODES, not units and not windows. An AST averages 252 nodes and reaches
+# 56,266 (Memory.md §7 #18), so a unit-sized batch is bounded by its worst member and
+# peak memory is a gamble. This is the structural counterpart of the semantic config's
+# `max_windows_per_batch`.
+#
+# NOT yet measured against the 4 GiB card the way §1.9 measured the semantic batch. 8192
+# is a starting point, not a result: probe it before quoting a throughput number.
+max_nodes_per_batch: 8192
+max_units_per_batch: 16
+
+# The GNN is ~10^5 parameters against CodeBERT's 1.2x10^8, and it is trained from scratch
+# rather than fine-tuned, so 2e-5 would barely move it.
+lr: 1.0e-3
+accumulation_steps: 1
+
+# AMP off: the saving is real for a 124M-parameter transformer and marginal for a small
+# GNN, while fp16 message passing over graphs with wildly varying degree is a needless
+# source of non-finite values. Turn it on only with a measurement behind it.
+amp: false
+
+# Same watched metric as the semantic arm, for the same reason (Memory.md §6): the loss is
+# dominated by the 0.795% class imbalance and improves happily while localization does not.
+# Keeping it identical is also what lets the two baselines be compared at all.
+watch_metric: line/top_5_accuracy
+watch_mode: max

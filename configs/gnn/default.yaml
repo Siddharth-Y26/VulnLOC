@@ -1,0 +1,55 @@
+# Structural branch (Phase 4). The base every variant inherits; `gnn=gcn|gat|ggnn`
+# selects one. Nothing here is a conventional default — each is a measurement or an ADR.
+name: default
+
+# gcn | gat | ggnn. The three Phase 4 requires, behind one scaffold, so the comparison is
+# between convolutions rather than between three subtly different models.
+kind: gcn
+
+# D_str. Matches the head's expectations; the line axis is shared with the semantic
+# branch, so both arms of A1 hand the same width to the same LineHead.
+hidden_dim: 256
+
+# Layers to stack. Phase 4 owes a performance-vs-depth report at 2/4/6, and this is the
+# only thing that should change between those three runs.
+depth: 4
+
+# GAT only. hidden_dim must divide evenly by it, or the width changes with the head count
+# and the depth sweep stops being comparable.
+heads: 4
+
+dropout: 0.1
+
+# Both default ON, and both are about over-smoothing. An AST averages 252 nodes and
+# reaches 56,266 (Memory.md §7 #18), so a 6-layer stack's receptive field covers most of a
+# typical function; without the residual, depth measures the absence of skip connections
+# rather than depth.
+residual: true
+layer_norm: true
+
+# auto | ignore | weighted — ADR-007.
+#   auto     resolves to `ignore` on a single-relation graph (an AST) and RAISES on a
+#            multi-relation one (a CPG). The refusal is the point: `edge_type` sat
+#            computed-but-unconsumed, which is Memory.md §7 #22 exactly.
+#   weighted learns one softplus-positive scalar per relation, uniform across all three
+#            convolutions.
+#   ignore   states on purpose that relations should not differ.
+# ADR-007 D7.4 is OPEN: run `ignore` and `weighted` on the same seeds before Phase 5
+# fuses anything.
+edge_handling: auto
+
+# The node-type vocabulary is an ARTEFACT WITH A DIGEST, not something recomputed per run
+# (Memory.md §1.11). `to_pyg` will happily build a table from a single graph when given
+# none — and then the same grammar symbol gets a different index in every batch, and the
+# embedding learns nothing, and nothing raises.
+vocab_path: ./artifacts/representation/node_vocab_ast.json
+# Pin the table a run is allowed to load. Empty means "whatever is on disk", which is fine
+# for exploration and wrong for anything two checkpoints will be compared across. The
+# vocabulary of record is run `2c9ce1b1…`, 304 types + unknown slot, digest `a0643c4e…`.
+expect_vocab_digest: ""
+
+# Which graph, and under which grammar policy. `best_of_two` is ADR-005's default and the
+# only policy any current number was measured under; `declared` reproduces pre-ADR-005
+# numbers. Ablation A3 varies `builder`.
+builder: ast
+language: best_of_two
