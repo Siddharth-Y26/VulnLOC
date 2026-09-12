@@ -973,6 +973,20 @@ training run is void (§1.10) and no valid trained result exists.**
    early stopping fired on a plateaued `line/top_5_accuracy`, so **decide which metric
    Phase 3 reports against**; and `eval/loss` rises from epoch 1 while the ranking metrics
    improve, so it is not a usable stopping signal on this task.
+
+   **Recommendation on the metric question, for the owner to accept or reject.** Keep
+   `line/top_5_accuracy` as the watched metric and report the ranking metrics — Top-1,
+   Top-5, IFA — as the headline, with P/R/F1 as supporting. Three reasons. (a) The paper's
+   own §3.2 already frames this as a ranking problem: a developer reads the top-scoring
+   lines, so what matters is whether the flagged line is near the top, not whether its
+   score crosses 0.5. (b) **F1 is threshold-dependent and the ranking metrics are not.**
+   At 0.795% positive lines corpus-wide, F1 at a fixed 0.5 threshold measures the
+   threshold as much as the model. (c) Selecting the checkpoint on the metric you report
+   is the honest pairing; selecting on Top-5 and headlining F1 would be reporting a
+   checkpoint chosen for something else. The cost to state plainly: seed 42's F1 was still
+   climbing at early stopping (0.396 at epoch 8 vs 0.378 at the kept epoch 5), so **the
+   reported F1 understates what an F1-selected checkpoint would give**, and that sentence
+   travels with it.
    When the seeds are in: `python scripts/report_seeds.py train=semantic`. It aggregates
    them and **refuses** anything that is not a replicate — differing `config_hash`, a
    repeated seed, un-normalized text, or a `src/vulnloc` diff between the runs' commits
