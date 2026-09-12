@@ -42,7 +42,7 @@
 | 0 Foundation | 🟨 In progress | 3 / 4 | Docker criterion blocked — see §7 issue #1 |
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
-| 3 LLM Branch | 🟨 In progress | **3 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** Remaining: LLM-only metrics over ≥3 seeds, on whitespace-normalized text |
+| 3 LLM Branch | 🟨 In progress | **3 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. Remaining: seeds 1 and 2 (≈3 h 55 m each) before the ≥3-seed criterion is met |
 | 4 GNN Branch | ⬜ Not started | 0 / 4 | |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
@@ -646,6 +646,14 @@ node (§7 #17), and the 512-line cap (§7 #26). **A model that has to learn shou
 near chance and improve** — the shape of the curve is now the primary evidence that the
 task is honest, and a flat one is the alarm.
 
+**What actually happened — run `fc902107…`, seed 42, 2026-09-12.** The curve has the shape
+this section predicted. Top-5 rose 0.531 → 0.610 and Top-1 0.247 → 0.363 across nine
+epochs, against the void run's flat 0.960 from epoch 0. Held-out line P/R/F1 =
+0.463 / 0.319 / 0.378, Top-1 0.363 (≈5.6× the 6.44% `val` base rate), IFA 11.94 — under
+the ceilings above, where the void run sat above the largest of them. **One seed; Phase 3
+needs three, so nothing here is citable yet.** §4's ledger row carries the caveats,
+including that `eval/loss` rose monotonically while the ranking metrics improved.
+
 ---
 
 ---
@@ -760,7 +768,14 @@ mirrors CLAUDE.md §3 and must be updated when a phase changes.
 
 **Seed 42 restarted on the normalized corpus** — run `fc902107…`, `normalize_whitespace=True`
 confirmed in the logged params, peak 2,467.7 MiB / 4,095.5 (60.3%), matching the §1.9 probe
-to within 0.5%. **Still running at session end; no result yet.**
+to within 0.5%. **It finished**: early stopping at epoch 8 of 10 on `line/top_5_accuracy`,
+best checkpoint epoch 5, 3 h 53 m wall clock. Top-5 0.610, Top-1 0.363, line F1 0.378,
+IFA 11.94, flagged-line coverage 99.96%. The curve rises from epoch 0 instead of starting
+flat — the evidence §1.10 asked for. `eval/loss` rose monotonically 0.0405 → 0.0646 while
+train loss fell to 0.0296, so the run is overfitting 5,457 line-labelled units and loss is
+the wrong stopping signal here; watching `line/top_5_accuracy` was the right call.
+`function/f1` = 1.000 stays degenerate by construction. **Seed 1 launched 2026-09-12.**
+One seed of the three Phase 3 requires — no citable result yet.
 
 **Paper work committed.** `docs/paper/` and 8 `scripts/make_*` files had been untracked
 since 2026-08-18. They carry no results numbers, so ADR-006 invalidated nothing in them —
@@ -1113,6 +1128,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `fc902107…` | 2026-09-12 | `train_semantic.py train=semantic seed=42` | 42 | — | llm_only | 1.000 *(degenerate)* | **0.610** | 11.94 | **The first line-level numbers this project has produced that are not an artefact.** Post-ADR-006 (`data.normalize_whitespace=true` confirmed in the logged params). Early-stopped at epoch 8 of 10 on `line/top_5_accuracy`, best checkpoint epoch 5; 3 h 53 m. Line P/R/F1 = 0.463 / 0.319 / 0.378, Top-1 0.363, IFA 11.94, flagged-line coverage 99.96%. **It learned**: Top-5 0.531 → 0.610 and Top-1 0.247 → 0.363 across the run, against `1843412a…`'s flat 0.960 from epoch 0 — this is what §1.10 said to look for. Top-1 0.363 is ≈5.6× the 6.44% base rate. **`function/f1` = 1.000 is degenerate by construction and must never be quoted** (`line_labelled_only: true` leaves `fp=tn=0`). **NOT a citable result: Phase 3 needs ≥3 seeds.** Caveat: `eval/loss` rose monotonically 0.0405 → 0.0646 while train loss fell to 0.0296 — overfitting on 5,457 line-labelled train units, and the ranking metrics improved regardless, so loss is the wrong early-stopping signal here. Quote no line number without §1.8 truncation, §7 no-node coverage and §7 line-cap ceilings beside it. |
 | `2c9ce1b1…` | 2026-09-12 | `build_node_vocab.py` (`ast`, `best_of_two`) | — | — | — | — | — | — | **The node-type vocabulary of record, Phase 4's prerequisite.** 304 types + unknown slot over all 188,636 units, 0 graph-build failures, digest `a0643c4e…`. **Measured: `tree-sitter-c`'s own symbol list would miss 85 of these types; `tree-sitter-cpp`'s would miss 3 and carry 188 that never occur.** Data artefact, not a result. |
 | `1d89fe71…` | 2026-09-08 | `audit_label_leakage.py` (post-L0 rebuild) | — | — | — | — | — | — | **Confirms the corpus is clean at rest**: 0 partitions leak, the leading-whitespace tell fires on 0 lines. `shards_normalized_at_l0=true` — this reads the rebuilt shards, so it is evidence the fix landed, *not* evidence the leak was imaginary (compare `a5707491…`). Data artefact, not a result. |
 | `8c1cccdd…` | 2026-09-08 | `build_cache.py` (ADR-006 D6.6, `data.normalize_whitespace=true`) | — | — | — | — | — | — | **The shards of record.** Rebuilt with normalized source. Every count identical to `1f716614…` (188,636 functions; train 148,983 / 5,457 line-labelled / 34,027 flagged); only the digests differ. Supersedes `1f716614…`. Data artefact, not a result. |
@@ -1171,9 +1187,15 @@ training run is void (§1.10) and no valid trained result exists.**
    with fingerprint `0ade7483…` **unchanged**, and `build_cache.py` rewrote the shards
    (run `8c1cccdd…`). The leak audit on the rebuilt shards reports zero leaking
    partitions (run `1d89fe71…`). **Training can start from the current cache.**
-1. **Re-run Phase 3's last exit criterion on normalized text: LLM-only metrics over ≥3
-   seeds.** `python scripts/train_semantic.py train=semantic seed=<42|1|2>`. Budget
-   **~2.3 h per seed** (the void run early-stopped at epoch 6 of 10 after 2 h 21 m).
+1. **Finish Phase 3's last exit criterion: LLM-only metrics over ≥3 seeds.** **Seed 42 is
+   done** — run `fc902107…`, §4, Top-5 0.610 / line F1 0.378, and it learns rather than
+   matching a formatting rule. **Seeds 1 and 2 remain**; seed 1 launched 2026-09-12.
+   `python scripts/train_semantic.py train=semantic seed=<1|2>`. Budget **~3 h 55 m per
+   seed** measured on seed 42 (9 epochs, early stop at 8), not the 2.3 h the void run
+   suggested. Two things to settle before reporting: `line/f1` was still climbing when
+   early stopping fired on a plateaued `line/top_5_accuracy`, so **decide which metric
+   Phase 3 reports against**; and `eval/loss` rises from epoch 1 while the ranking metrics
+   improve, so it is not a usable stopping signal on this task.
    Confirm `normalize_whitespace=true` in the logged params before trusting anything.
    **Watch the learning curve, not just the final number** — after ADR-006 a model that
    has to learn should start near chance and improve; a flat curve from epoch 0 is the
