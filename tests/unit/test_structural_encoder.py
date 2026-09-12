@@ -17,6 +17,7 @@ from vulnloc.models.alignment import align_nodes_to_lines  # noqa: E402
 from vulnloc.models.registry import STRUCTURAL_REGISTRY  # noqa: E402
 from vulnloc.models.structural import (  # noqa: E402
     CONVOLUTIONS,
+    N_EDGE_TYPES,
     NodeFeatures,
     StructuralEncoder,
     build_structural_encoder,
@@ -156,3 +157,128 @@ def test_two_graphs_in_one_batch_stay_separate() -> None:
     assert line_states.shape == (2, 3, 8)
     assert line_mask[0].tolist() == [True, True, False]
     assert line_mask[1].tolist() == [True, True, False]
+
+
+# --- edge types: the relation must be allowed to matter, or refuse ------------------
+#
+# `Memory.md` §7 #22 records a phase in which `graph.language` sat in the config unread —
+# a knob nothing consumed looked exactly like a knob that worked. Edge types are the same
+# shape of risk: a CPG is a union of four relations, and an encoder that averages them
+# into one scores a graph that does not exist, without raising. These tests exist so that
+# cannot happen quietly.
+
+
+def _typed_batch(edge_types: list[int], n_nodes: int = 6) -> dict[str, torch.Tensor]:
+    """A chain graph whose edges carry the given relation indices."""
+    n_edges = n_nodes - 1
+    assert len(edge_types) == n_edges
+    generator = torch.Generator().manual_seed(3)
+    return {
+        "node_type": torch.randint(1, VOCAB, (n_nodes,), generator=generator),
+        "edge_index": torch.stack([torch.arange(n_edges), torch.arange(1, n_nodes)]),
+        "edge_type": torch.tensor(edge_types, dtype=torch.long),
+    }
+
+
+def test_the_relation_count_comes_from_the_graph_layer() -> None:
+    """A hardcoded 4 would size the table short the moment a fifth relation lands."""
+    from vulnloc.representation.graphs.base import EDGE_TYPES
+
+    assert len(EDGE_TYPES) == N_EDGE_TYPES
+
+
+def test_auto_refuses_a_graph_carrying_several_relations() -> None:
+    """The guard. A CPG through an edge-blind encoder must not run by default."""
+    encoder = StructuralEncoder(VOCAB, kind="gcn", hidden_dim=16, depth=2)
+    assert encoder.edge_handling == "auto"
+    with pytest.raises(ModelError, match="several relations"):
+        encoder(_typed_batch([0, 1, 2, 3, 0]))
+
+
+def test_auto_runs_on_a_single_relation_graph() -> None:
+    """An AST has one relation, so `auto` is not an obstacle to the common case."""
+    encoder = StructuralEncoder(VOCAB, kind="gcn", hidden_dim=16, depth=2)
+    states = encoder(_typed_batch([0, 0, 0, 0, 0]))
+    assert states.shape == (6, 16)
+
+
+def test_ignore_is_an_explicit_opt_out_not_an_accident() -> None:
+    """Treating a CPG as untyped is allowed — but only when someone says so."""
+    encoder = StructuralEncoder(VOCAB, kind="gcn", hidden_dim=16, depth=2, edge_handling="ignore")
+    states = encoder(_typed_batch([0, 1, 2, 3, 0]))
+    assert states.shape == (6, 16)
+
+
+@pytest.mark.parametrize("kind", CONVOLUTIONS)
+def test_weighted_relations_run_on_every_convolution(kind: str) -> None:
+    """Uniform across the three, or the A2 comparison measures edge handling instead."""
+    encoder = build_structural_encoder(
+        kind, vocab_size=VOCAB, hidden_dim=16, depth=2, edge_handling="weighted"
+    )
+    states = encoder(_typed_batch([0, 1, 2, 3, 0]))
+    assert states.shape == (6, 16)
+    assert torch.isfinite(states).all()
+
+
+@pytest.mark.parametrize("kind", CONVOLUTIONS)
+def test_the_relation_weights_actually_reach_the_output(kind: str) -> None:
+    """The knob has to do something. Changing a relation's weight must change the states.
+
+    This is the test ``Memory.md`` §7 #22 says should have existed for ``graph.language``:
+    if a config value governs a decision, something fails when it is ignored.
+    """
+    batch = _typed_batch([0, 1, 2, 3, 0])
+    torch.manual_seed(0)
+    encoder = build_structural_encoder(
+        kind, vocab_size=VOCAB, hidden_dim=16, depth=2, edge_handling="weighted", dropout=0.0
+    )
+    encoder.eval()
+    with torch.no_grad():
+        before = encoder(batch)
+        # Push one relation's weight far from the others; nothing else changes.
+        encoder.edge_type_weight[1] += 4.0
+        after = encoder(batch)
+
+    assert not torch.allclose(before, after)
+
+
+def test_weighted_without_edge_types_raises_rather_than_guessing() -> None:
+    encoder = StructuralEncoder(VOCAB, kind="gcn", hidden_dim=16, depth=2, edge_handling="weighted")
+    with pytest.raises(ModelError, match="needs 'edge_type'"):
+        encoder({"node_type": torch.tensor([1, 2]), "edge_index": torch.tensor([[0], [1]])})
+
+
+def test_an_edge_type_outside_the_relation_table_raises() -> None:
+    """Same rule as the node vocabulary: fold nothing silently into an existing slot."""
+    encoder = StructuralEncoder(VOCAB, kind="gcn", hidden_dim=16, depth=2, edge_handling="weighted")
+    with pytest.raises(ModelError, match="outside the relation table"):
+        encoder(_typed_batch([0, 1, 2, 3, N_EDGE_TYPES + 1]))
+
+
+def test_unknown_edge_handling_raises() -> None:
+    with pytest.raises(ModelError, match="unknown edge handling"):
+        StructuralEncoder(VOCAB, kind="gcn", hidden_dim=16, edge_handling="relational")
+
+
+def test_relation_weights_are_named_and_positive() -> None:
+    """Positive by construction, so they read as importance rather than as sign flips."""
+    from vulnloc.representation.graphs.base import EDGE_TYPES
+
+    weights = StructuralEncoder(VOCAB, kind="gcn", hidden_dim=16, depth=2).relation_weights()
+
+    assert list(weights) == list(EDGE_TYPES)
+    assert all(value > 0 for value in weights.values())
+
+
+def test_the_parameter_set_does_not_depend_on_edge_handling() -> None:
+    """So a checkpoint trained under one setting still loads under another."""
+    names = {
+        handling: sorted(
+            name
+            for name, _ in StructuralEncoder(
+                VOCAB, kind="gcn", hidden_dim=16, depth=2, edge_handling=handling
+            ).named_parameters()
+        )
+        for handling in ("auto", "ignore", "weighted")
+    }
+    assert names["auto"] == names["ignore"] == names["weighted"]

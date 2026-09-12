@@ -9,6 +9,8 @@ here.
 
 from vulnloc.models.structural.encoder import (
     CONVOLUTIONS,
+    EDGE_HANDLING,
+    N_EDGE_TYPES,
     NodeFeatures,
     StructuralEncoder,
     build_structural_encoder,
@@ -16,6 +18,8 @@ from vulnloc.models.structural.encoder import (
 
 __all__ = [
     "CONVOLUTIONS",
+    "EDGE_HANDLING",
+    "N_EDGE_TYPES",
     "NodeFeatures",
     "StructuralEncoder",
     "build_structural_encoder",

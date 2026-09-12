@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Any
 import torch
 
 from vulnloc.models.registry import register_structural
+from vulnloc.representation.graphs.base import EDGE_TYPES
 from vulnloc.utils.exceptions import ModelError
 from vulnloc.utils.logging import get_logger
 
@@ -52,6 +53,17 @@ UNKNOWN_NODE_TYPE = 0
 
 CONVOLUTIONS = ("gcn", "gat", "ggnn")
 """The three variants Phase 4 requires. Keys, not classes, so config selects them."""
+
+EDGE_HANDLING = ("auto", "ignore", "weighted")
+"""How a relation is allowed to matter. See :class:`StructuralEncoder`."""
+
+N_EDGE_TYPES = len(EDGE_TYPES)
+"""How many relations a graph can carry — ``ast``, ``cfg``, ``dfg``, ``call``.
+
+Taken from L1's own tuple rather than written down here. L2 may import L1, and a
+hardcoded 4 would go stale the moment a fifth relation lands, sizing the table one row
+short and folding the new relation into an existing one without raising.
+"""
 
 
 class NodeFeatures(torch.nn.Module):
@@ -112,7 +124,9 @@ class NodeFeatures(torch.nn.Module):
         return torch.as_tensor(self.dropout(self.embedding(node_type)))
 
 
-def _make_layers(kind: str, dim: int, depth: int, heads: int) -> tuple[torch.nn.ModuleList, str]:
+def _make_layers(
+    kind: str, dim: int, depth: int, heads: int, *, typed_edges: bool
+) -> tuple[torch.nn.ModuleList, str]:
     """Build ``depth`` convolutions of one kind.
 
     Args:
@@ -120,6 +134,9 @@ def _make_layers(kind: str, dim: int, depth: int, heads: int) -> tuple[torch.nn.
         dim: Node state width, constant across layers so residuals need no projection.
         depth: How many layers to stack.
         heads: Attention heads, GAT only.
+        typed_edges: Whether the layers must accept a per-edge relation signal. Only GAT
+            needs it at construction time (``edge_dim``); GCN and GGNN take an
+            ``edge_weight`` at call time and need nothing here.
 
     Returns:
         ``(layers, description)``.
@@ -138,7 +155,16 @@ def _make_layers(kind: str, dim: int, depth: int, heads: int) -> tuple[torch.nn.
         # only thing that changes between the over-smoothing runs.
         return (
             torch.nn.ModuleList(
-                [GATConv(dim, dim // heads, heads=heads, concat=True) for _ in range(depth)]
+                [
+                    GATConv(
+                        dim,
+                        dim // heads,
+                        heads=heads,
+                        concat=True,
+                        edge_dim=1 if typed_edges else None,
+                    )
+                    for _ in range(depth)
+                ]
             ),
             f"GATConv(heads={heads})",
         )
@@ -164,9 +190,24 @@ class StructuralEncoder(torch.nn.Module):
         dropout: Dropout between layers.
         residual: Add a skip connection around each layer.
         layer_norm: Normalise after each layer.
+        edge_handling: What a relation is allowed to mean — see :data:`EDGE_HANDLING`.
+
+            * ``weighted`` learns one scalar per relation and scales that edge's message
+              by it, uniformly across all three convolutions (``edge_weight`` for GCN and
+              GGNN, a one-dimensional ``edge_attr`` for GAT). Uniform on purpose: a
+              mechanism that differed per convolution would make the A2 comparison a
+              comparison of edge handling rather than of convolutions.
+            * ``ignore`` treats every edge alike. Correct for an AST, where there is only
+              one relation, and it reproduces every pre-existing number.
+            * ``auto`` (the default) picks ``ignore`` for a graph carrying one relation
+              and **raises** for a graph carrying several. That refusal is the point:
+              ``Memory.md`` §7 #22 records a whole phase in which ``graph.language`` sat
+              in the config unread, and a CPG fed to an edge-blind encoder would fail the
+              same way — silently, by scoring a union of four relations as if it were one.
 
     Raises:
-        ModelError: If a dimension is invalid or ``kind`` is unknown.
+        ModelError: If a dimension is invalid, or ``kind`` or ``edge_handling`` is
+            unknown.
     """
 
     def __init__(
@@ -180,17 +221,29 @@ class StructuralEncoder(torch.nn.Module):
         dropout: float = 0.1,
         residual: bool = True,
         layer_norm: bool = True,
+        edge_handling: str = "auto",
     ) -> None:
         super().__init__()
         if depth <= 0:
             raise ModelError("depth must be positive", depth=depth)
+        if edge_handling not in EDGE_HANDLING:
+            raise ModelError(
+                "unknown edge handling", edge_handling=edge_handling, known=list(EDGE_HANDLING)
+            )
         self.kind = kind
         self.depth = depth
         self.hidden_dim = hidden_dim
         self.residual = residual
+        self.edge_handling = edge_handling
 
         self.features = NodeFeatures(vocab_size, hidden_dim, dropout=dropout)
-        self.layers, description = _make_layers(kind, hidden_dim, depth, heads)
+        # One learned scalar per relation, softplus-constrained positive at use. Built
+        # whenever it *might* be needed, so switching `auto` to `weighted` on a loaded
+        # checkpoint does not change the parameter set.
+        self.edge_type_weight = torch.nn.Parameter(torch.zeros(N_EDGE_TYPES))
+        self.layers, description = _make_layers(
+            kind, hidden_dim, depth, heads, typed_edges=edge_handling == "weighted"
+        )
         self.norms = torch.nn.ModuleList(
             [
                 torch.nn.LayerNorm(hidden_dim) if layer_norm else torch.nn.Identity()
@@ -208,6 +261,7 @@ class StructuralEncoder(torch.nn.Module):
                 "hidden_dim": hidden_dim,
                 "vocab_size": vocab_size,
                 "residual": residual,
+                "edge_handling": edge_handling,
                 "trainable_parameters": sum(
                     p.numel() for p in self.parameters() if p.requires_grad
                 ),
@@ -219,17 +273,73 @@ class StructuralEncoder(torch.nn.Module):
         """Width of the node states this encoder returns, ``D_str``."""
         return self.hidden_dim
 
+    def _edge_signal(self, batch: Mapping[str, Any]) -> torch.Tensor | None:
+        """Resolve ``edge_handling`` against the relations this batch actually carries.
+
+        Args:
+            batch: The batch being encoded.
+
+        Returns:
+            ``[E]`` positive per-edge weights, or ``None`` when every edge is alike.
+
+        Raises:
+            ModelError: Under ``auto``, if the batch carries more than one relation. The
+                encoder will not quietly average a CPG's four relations into one.
+        """
+        if self.edge_handling == "ignore":
+            return None
+
+        edge_type = batch.get("edge_type")
+        if edge_type is None or edge_type.numel() == 0:
+            if self.edge_handling == "weighted":
+                raise ModelError(
+                    "edge_handling='weighted' needs 'edge_type' in the batch",
+                    present=sorted(batch),
+                    hint="collate_graphs emits it; a hand-built batch has to as well.",
+                )
+            return None
+
+        if int(edge_type.max()) >= N_EDGE_TYPES:
+            raise ModelError(
+                "edge type index outside the relation table",
+                observed_max=int(edge_type.max()),
+                n_edge_types=N_EDGE_TYPES,
+                known=list(EDGE_TYPES),
+            )
+
+        if self.edge_handling == "auto":
+            distinct = int(torch.unique(edge_type).numel())
+            if distinct > 1:
+                raise ModelError(
+                    "this graph carries several relations and edge_handling is 'auto'",
+                    distinct_edge_types=distinct,
+                    known=list(EDGE_TYPES),
+                    hint=(
+                        "Set edge_handling='weighted' to let relations differ, or "
+                        "'ignore' to state on purpose that they should not. A CPG scored "
+                        "as an untyped union is Memory.md §7 #22 happening again."
+                    ),
+                )
+            return None
+
+        # softplus keeps every weight positive: a learned negative would let one relation
+        # subtract its neighbours' messages, which is not what "this edge matters less"
+        # means and would make the learned weights unreadable as relation importance.
+        return torch.nn.functional.softplus(self.edge_type_weight)[edge_type]
+
     def forward(self, batch: Mapping[str, Any]) -> torch.Tensor:
         """Encode one batch of graphs.
 
         Args:
-            batch: Must carry ``node_type`` ``[N]`` and ``edge_index`` ``[2, E]``.
+            batch: Must carry ``node_type`` ``[N]`` and ``edge_index`` ``[2, E]``. Under
+                ``edge_handling='weighted'`` it must also carry ``edge_type`` ``[E]``.
 
         Returns:
             Node states, ``[N, D_str]``.
 
         Raises:
-            ModelError: If a required key is missing.
+            ModelError: If a required key is missing, or the batch's relations and the
+                configured ``edge_handling`` disagree.
         """
         for key in ("node_type", "edge_index"):
             if key not in batch:
@@ -239,9 +349,16 @@ class StructuralEncoder(torch.nn.Module):
 
         states = self.features(batch["node_type"])
         edge_index = batch["edge_index"]
+        edge_signal = self._edge_signal(batch)
+        # GAT reads a per-edge feature vector, GCN and GGNN a per-edge scalar. Same
+        # learned number either way, so the three stay comparable.
+        edge_kwargs: dict[str, torch.Tensor] = {}
+        if edge_signal is not None:
+            key = "edge_attr" if self.kind == "gat" else "edge_weight"
+            edge_kwargs[key] = edge_signal.unsqueeze(-1) if self.kind == "gat" else edge_signal
 
         for layer, norm in zip(self.layers, self.norms, strict=True):
-            updated = layer(states, edge_index)
+            updated = layer(states, edge_index, **edge_kwargs)
             updated = self.dropout(torch.nn.functional.gelu(updated))
             # The residual is what keeps a 6-layer stack from collapsing every node onto
             # one vector. Phase 4 reports depth 2/4/6; without this the comparison would
@@ -249,9 +366,25 @@ class StructuralEncoder(torch.nn.Module):
             states = norm(updated + states if self.residual else updated)
         return torch.as_tensor(states)
 
+    def relation_weights(self) -> dict[str, float]:
+        """Return the learned per-relation weight, by name.
+
+        Under ``ignore``, or ``auto`` on a single-relation graph, these are unused and
+        the flat values say so. Under ``weighted`` they are readable as what the model
+        made of each relation, which is the point of constraining them positive.
+
+        Returns:
+            ``{relation: weight}``, in ``EDGE_TYPES`` order.
+        """
+        values = torch.nn.functional.softplus(self.edge_type_weight).detach().tolist()
+        return dict(zip(EDGE_TYPES, values, strict=True))
+
     def extra_repr(self) -> str:
         """Summarise the configuration."""
-        return f"kind={self.kind}, depth={self.depth}, hidden_dim={self.hidden_dim}"
+        return (
+            f"kind={self.kind}, depth={self.depth}, hidden_dim={self.hidden_dim}, "
+            f"edge_handling={self.edge_handling}"
+        )
 
 
 @register_structural("gcn")

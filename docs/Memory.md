@@ -44,7 +44,7 @@
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
 | 3 LLM Branch | 🟨 In progress | **3 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. Remaining: seeds 1 and 2 (≈3 h 55 m each) before the ≥3-seed criterion is met |
-| 4 GNN Branch | ⬜ Not started | 0 / 4 | |
+| 4 GNN Branch | 🟨 In progress | **0 / 4** | Node-type vocabulary (run `2c9ce1b1…`), `StructuralEncoder` with GCN/GAT/GGNN, **the graph data path** (`training/graph_datasets.py` — dataset, node-budget sampler, collation, coverage accounting) and **edge-type handling** (ADR-007) all exist. Every exit criterion still open: all three run and are config-selectable ✓ pending a logged run, depth sweep, ≥3 seeds, overfit test. **Node features are node-type only** — the ADR-002 §D2.5 subtoken half is not built |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
 | 7 Explanation | ⬜ Not started | 0 / 4 | |
@@ -698,6 +698,7 @@ Append-only. Format: date · decision · alternatives considered · rationale ·
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-09-12 | **A relation is allowed to matter, or the encoder refuses to run.** `StructuralEncoder.edge_handling` ∈ {`auto`, `ignore`, `weighted`}; `weighted` learns one softplus-positive scalar per relation, uniform across GCN/GAT/GGNN; `auto` (default) resolves to `ignore` on a single-relation graph and **raises** on a multi-relation one | Keep ignoring `edge_type` (what the code did); relational GCN, one weight matrix per relation; a per-convolution mechanism | `edge_type` was computed at L1, carried through every batch and consumed by nothing — §7 #22 exactly. Measured on 60 `val` CPGs: 46,062 edges, `ast` 34,159 / `cfg` 3,258 / `dfg` 8,645 / `call` 0, so averaging them is a modelling choice that was being made by omission. One mechanism across all three convolutions keeps Phase 4's A2 comparison and its depth sweep from partly measuring edge handling. **Which handling reports the headline numbers is not decided** — ADR-007 D7.4 asks for `ignore` vs `weighted` on the same seeds first | **ADR-007 — proposed 2026-09-12** |
 | 2026-09-08 | **Every source line is stripped of leading and trailing whitespace at the L0→L1 boundary, default-on.** The corpus encodes the flaw label in indentation; a one-line rule recovers it at precision 1.0000 with zero false positives on all six partitions | Re-indent with a formatter (changes line counts — destroys the labels); drop Big-Vul's line labels (ends the line-level project); normalize at L0 instead (new split fingerprint, full rebuild — deferred as Q9) | Stripping *restores the corpus's own intent* rather than imposing a convention: the non-flagged lines are already flush left. It preserves the line count exactly, so labels stay attached, and it costs only indentation — which this corpus never carried consistently, so nothing legitimate was learnable from it | **ADR-006 — proposed 2026-09-08** |
 | 2026-08-16 | **A unit is parsed with whichever of the two grammars parses it best.** Parse as C++; if damage remains, parse as C too and keep the less damaged tree. C++ is tried first and wins ties, so the grammar is a pure function of the source | Trust the `lang` column (37.01% clean); always C (35.74%); always C++ (88.24%) | **89.14% clean** — the corpus's own label is the worst option by more than 2×, because 98.6% of Big-Vul is labelled `C` and much of it (Chrome, 40.9%) is C++. The 1,712 units that separate this from always-C++ are *C that the C++ grammar actively misreads* — `class`, `new` and `this` are identifiers in C — so the choice is between a clean tree and a confidently wrong one, not between two parse rates | **ADR-005 — accepted 2026-08-16, closing Q8** |
 | 2026-08-11 | **Cross-split exact duplicates are withheld into a `duplicate` partition**, not reassigned or kept | Reassign every copy to one partition; keep them and report; drop them silently | A project-wise split constrains projects, not functions: forks and vendored copies put byte-identical code in different projects. Measured: 207 hashes / 426 functions across partitions with **zero shared projects**. Reassigning would break project disjointness; withholding preserves both invariants for 0.23% of the corpus | **ADR-004 — accepted 2026-08-11** |
@@ -1004,7 +1005,16 @@ training run is void (§1.10) and no valid trained result exists.**
 2. **Re-run `scripts/audit_label_leakage.py` after any corpus or preprocessing change**,
    and before quoting any line-level result. It is cheap (~30 s) and it is the standing
    guard for this class of bug (ADR-006 D6.5).
-3. **Phase 4 (GNN branch) is equally unblocked.** Size batches against §7 #22 (55,486-node
+3. **Phase 4's data path is built (2026-09-12) and its exit criteria are now GPU-bound
+   only.** `training/graph_datasets.py` turns shards into node-budget graph batches;
+   `StructuralEncoder` consumes `edge_type` under ADR-007. Remaining: the overfit test,
+   the 2/4/6 depth sweep, GNN-only metrics over ≥3 seeds, and **ADR-007 D7.4's
+   `ignore` vs `weighted` comparison on the same seeds** before Phase 5 fuses anything.
+   Measured while building it: graph construction costs **train 3.23 ms/unit (17.6 s for
+   all 5,457), val 6.50 ms/unit** — under 2% of a semantic epoch, so graphs are built per
+   epoch and **no graph cache exists or is needed**. Note val is 2× train per unit because
+   its functions are larger; never size this from a corpus average (§7 #12).
+4. **Phase 4 (GNN branch) — the rest.** Size batches against §7 #22 (55,486-node
    worst case), not the 252-node mean; build the node-type vocabulary from the corpus, not
    from one grammar's symbol list (§7 #27); read §7 #23-24 before claiming what the graphs
    model.
