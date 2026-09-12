@@ -145,7 +145,8 @@ python scripts/probe_vram.py                                # what fits in 4 GiB
 python scripts/audit_label_leakage.py                       # ADR-006 guard: is the label readable off the formatting?
 
 python scripts/train_semantic.py train=overfit              # RUN FIRST: 32-sample sanity
-python scripts/train_semantic.py train=semantic seed=42     # the LLM-only baseline
+python scripts/train_semantic.py train=semantic seed=42     # the LLM-only baseline (~3 h 55 m)
+python scripts/report_seeds.py train=semantic               # aggregate the seeds — refuses runs that are not replicates
 
 python frontend/server.py                                   # pipeline inspector on http://127.0.0.1:8000
 ```

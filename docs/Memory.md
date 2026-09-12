@@ -973,6 +973,13 @@ training run is void (§1.10) and no valid trained result exists.**
    early stopping fired on a plateaued `line/top_5_accuracy`, so **decide which metric
    Phase 3 reports against**; and `eval/loss` rises from epoch 1 while the ranking metrics
    improve, so it is not a usable stopping signal on this task.
+   When the seeds are in: `python scripts/report_seeds.py train=semantic`. It aggregates
+   them and **refuses** anything that is not a replicate — differing `config_hash`, a
+   repeated seed, un-normalized text, or a `src/vulnloc` diff between the runs' commits
+   (overridable with `+seeds.allow_source_drift=true`, which records the changed files in
+   the report). It skips the void run, which is now tagged `void` in MLflow, and it
+   cross-checks MLflow against each run's `summary.json`. Below three seeds it still
+   writes a report, stamped `sufficient_for_phase_3: false`.
    Confirm `normalize_whitespace=true` in the logged params before trusting anything.
    **Watch the learning curve, not just the final number** — after ADR-006 a model that
    has to learn should start near chance and improve; a flat curve from epoch 0 is the
