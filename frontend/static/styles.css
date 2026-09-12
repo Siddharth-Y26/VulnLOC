@@ -1,0 +1,876 @@
+/* VulnLoc pipeline inspector.
+
+   The surface is a drafting table for code: a deep teal-black ground, hairline rules,
+   and source text as the primary material. IBM Plex Mono carries the display type —
+   inverting the usual roles, because every headline here names a line, a node or a
+   token count. IBM Plex Sans carries prose only.
+
+   Three semantic colours do real work and are never decorative:
+     signal (amber)  something measured, or a line under attention
+     live   (teal)   a stage that is built and just ran
+     void   (brick)  a stage that is not built, or a result that was invalidated
+*/
+
+:root {
+  --ground: #0e1618;
+  --panel: #142024;
+  --panel-high: #18272b;
+  --rule: #23383d;
+  --rule-soft: #1b2e32;
+  --type: #dae3df;
+  --code: #c9d6d1;
+  --dim: #7b918d;
+  --dimmer: #556965;
+
+  --signal: #e8a13a;
+  --signal-soft: #3a2e18;
+  --live: #4fb3a4;
+  --live-soft: #14312e;
+  --void: #c2665c;
+  --void-soft: #33201e;
+
+  /* Edge colours live here, not only in the .edge-* rules, so the legend in app.js
+     reads the same value the stroke uses and the two cannot drift apart. */
+  --edge-ast: #52798a;
+  --edge-cfg: #4fb3a4;
+  --edge-dfg: #e8a13a;
+  --edge-call: #9b7bd4;
+
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --gutter: 3.25rem;
+  --step: 0.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--ground);
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--type);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.mono {
+  font-family: var(--mono);
+  font-weight: 500;
+}
+
+a {
+  color: var(--live);
+}
+
+/* ─── Masthead ─────────────────────────────────────────────────────────────── */
+
+.masthead {
+  border-bottom: 1px solid var(--rule);
+  padding: 1.5rem clamp(1rem, 3vw, 2.25rem) 0;
+}
+
+.masthead-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.wordmark {
+  font-family: var(--mono);
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--type);
+}
+
+.wordmark span {
+  color: var(--dim);
+  font-weight: 400;
+}
+
+.masthead-note {
+  color: var(--dim);
+  font-size: 0.875rem;
+  max-width: 46ch;
+  margin: 0;
+}
+
+/* The model banner is the first thing anyone sees, and it says the tool has no scores.
+   That placement is the point: it is the most important fact about the project's state. */
+.model-banner {
+  margin: 1.25rem 0 0;
+  border: 1px solid var(--void);
+  border-left-width: 3px;
+  background: var(--void-soft);
+  padding: 0.85rem 1.1rem;
+  border-radius: 3px;
+}
+
+.model-banner h2 {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  color: #e8a096;
+}
+
+.model-banner p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #cbb4b0;
+  max-width: 92ch;
+}
+
+.model-banner code {
+  font-family: var(--mono);
+  color: var(--signal);
+  background: none;
+}
+
+/* ─── Pipeline rail ────────────────────────────────────────────────────────── */
+
+.rail {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding: 1.25rem 0 0;
+  margin: 0;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.rail li {
+  flex: 0 0 auto;
+  position: relative;
+  padding: 0 1.15rem 0.9rem 0;
+  margin-right: 1.15rem;
+  border-bottom: 2px solid var(--rule);
+  min-width: 7.5rem;
+}
+
+.rail li::after {
+  content: "";
+  position: absolute;
+  right: -0.35rem;
+  bottom: -0.42rem;
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  transform: rotate(-45deg);
+}
+
+.rail li:last-child {
+  margin-right: 0;
+}
+
+.rail li:last-child::after {
+  display: none;
+}
+
+.rail-layer {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--dimmer);
+  display: block;
+}
+
+.rail-name {
+  font-family: var(--mono);
+  font-size: 0.84rem;
+  display: block;
+  color: var(--dim);
+}
+
+.rail li[data-state="live"] {
+  border-bottom-color: var(--live);
+}
+.rail li[data-state="live"] .rail-name {
+  color: var(--type);
+}
+.rail li[data-state="live"]::after {
+  border-color: var(--live);
+}
+
+.rail li[data-state="built-untrained"] {
+  border-bottom-color: var(--signal);
+}
+.rail li[data-state="built-untrained"] .rail-name {
+  color: var(--signal);
+}
+
+.rail li[data-state="planned"] .rail-name {
+  color: var(--dimmer);
+}
+
+.rail button {
+  all: unset;
+  cursor: pointer;
+  display: block;
+}
+
+.rail button:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 3px;
+}
+
+/* ─── Workbench ────────────────────────────────────────────────────────────── */
+
+.workbench {
+  display: grid;
+  grid-template-columns: minmax(20rem, 27rem) minmax(0, 1fr);
+  gap: 0;
+  align-items: start;
+}
+
+.composer {
+  border-right: 1px solid var(--rule);
+  padding: 1.5rem clamp(1rem, 2vw, 1.5rem);
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.stage-column {
+  padding: 1.5rem clamp(1rem, 3vw, 2.25rem);
+  min-width: 0;
+}
+
+label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--dim);
+  margin-bottom: 0.3rem;
+}
+
+textarea {
+  width: 100%;
+  min-height: 15rem;
+  resize: vertical;
+  background: var(--ground);
+  color: var(--code);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.75rem 0.85rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  tab-size: 4;
+}
+
+textarea:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 1px;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+select,
+input[type="number"] {
+  width: 100%;
+  background: var(--panel);
+  color: var(--type);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.4rem 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 0.9rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--type);
+  margin: 0;
+  cursor: pointer;
+}
+
+.toggle input {
+  accent-color: var(--live);
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.run {
+  margin-top: 1.1rem;
+  width: 100%;
+  background: var(--live);
+  color: #07201d;
+  border: none;
+  border-radius: 3px;
+  padding: 0.65rem 1rem;
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.run:hover {
+  background: #5ec4b5;
+}
+
+.run:disabled {
+  background: var(--rule);
+  color: var(--dim);
+  cursor: progress;
+}
+
+.run:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.samples {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 1rem;
+}
+
+.samples h3 {
+  font-size: 0.82rem;
+  color: var(--dim);
+  margin: 0 0 0.6rem;
+  font-weight: 500;
+}
+
+.sample {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  margin-bottom: 0.45rem;
+}
+
+.sample:hover {
+  border-color: var(--live);
+}
+
+.sample:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 1px;
+}
+
+.sample b {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--type);
+}
+
+.sample span {
+  font-size: 0.76rem;
+  color: var(--dim);
+}
+
+/* ─── Stage panels ─────────────────────────────────────────────────────────── */
+
+.stage {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  margin-bottom: 1.25rem;
+  background: var(--panel);
+  scroll-margin-top: 1rem;
+}
+
+.stage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem 0.9rem;
+  padding: 0.8rem 1.1rem;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.stage-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--type);
+}
+
+.stage-layer {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--dimmer);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.05rem 0.35rem;
+}
+
+.stage-body {
+  padding: 1.1rem;
+}
+
+.stage[data-state="planned"] {
+  background: transparent;
+  border-style: dashed;
+}
+
+.stage[data-state="planned"] .stage-head h2 {
+  color: var(--dim);
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  border-radius: 2px;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid currentColor;
+}
+
+.badge-live {
+  color: var(--live);
+}
+.badge-void {
+  color: var(--void);
+}
+.badge-signal {
+  color: var(--signal);
+}
+
+.stage-why {
+  color: var(--dim);
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+  max-width: 78ch;
+}
+
+/* ─── Readouts ─────────────────────────────────────────────────────────────── */
+
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.75rem;
+  margin: 0 0 1.1rem;
+  padding: 0;
+}
+
+.readout div {
+  min-width: 0;
+}
+
+.readout dt {
+  font-size: 0.74rem;
+  color: var(--dim);
+  margin-bottom: 0.1rem;
+}
+
+.readout dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 1.25rem;
+  color: var(--type);
+  line-height: 1.2;
+}
+
+.readout dd small {
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+.readout dd.is-live {
+  color: var(--live);
+}
+.readout dd.is-void {
+  color: var(--void);
+}
+.readout dd.is-signal {
+  color: var(--signal);
+}
+
+/* ─── Tables ───────────────────────────────────────────────────────────────── */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.scroll-x {
+  overflow-x: auto;
+}
+
+th {
+  text-align: left;
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--dim);
+  border-bottom: 1px solid var(--rule);
+  padding: 0.35rem 0.6rem 0.35rem 0;
+}
+
+td {
+  padding: 0.3rem 0.6rem 0.3rem 0;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--mono);
+  color: var(--code);
+  white-space: nowrap;
+}
+
+td.num,
+th.num {
+  text-align: right;
+  padding-right: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+tr[data-chosen="true"] td {
+  color: var(--live);
+}
+
+/* ─── The line axis: the hero ──────────────────────────────────────────────── */
+
+.axis {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--ground);
+}
+
+.axis-head,
+.axis-row {
+  display: grid;
+  grid-template-columns: var(--gutter) minmax(10rem, 1fr) 6rem 6rem 3.5rem;
+  align-items: center;
+  gap: 0;
+}
+
+.axis-head {
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel-high);
+}
+
+.axis-head span {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--dim);
+  padding: 0.4rem 0.6rem;
+}
+
+.axis-head span:first-child,
+.axis-row .ln {
+  text-align: right;
+}
+
+.axis-row {
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.axis-row:last-child {
+  border-bottom: none;
+}
+
+.axis-row:hover {
+  background: var(--panel);
+}
+
+.ln {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--dimmer);
+  padding: 0.15rem 0.6rem;
+  font-variant-numeric: tabular-nums;
+  border-right: 1px solid var(--rule-soft);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.src {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--code);
+  padding: 0.15rem 0.7rem;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* Two parallel tracks, one per branch, sized against their own column maximum. Reading
+   down them is the point: where one has a bar and the other does not, a branch is blind
+   to that line. */
+.track {
+  padding: 0.15rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.bar {
+  height: 0.5rem;
+  border-radius: 1px;
+  min-width: 2px;
+  flex: 0 1 auto;
+}
+
+.bar-node {
+  background: var(--live);
+}
+
+.bar-token {
+  background: #6a8fb8;
+}
+
+.track-count {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--dimmer);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+/* A line the branch cannot see at all. Deliberately louder than an empty cell. */
+.track-gap {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--void);
+}
+
+.bar-window {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--dim);
+  padding: 0.15rem 0.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.flag {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.6rem;
+  color: var(--void);
+}
+
+.axis-row[data-blank="true"] .src {
+  color: var(--dimmer);
+}
+
+.axis-row[data-changed="true"] .ln {
+  color: var(--signal);
+  border-right-color: var(--signal);
+}
+
+/* ─── Graph canvas ─────────────────────────────────────────────────────────── */
+
+/* The graph is laid out with source line on the Y axis. That is not a stylistic choice:
+   the shared line axis is what the whole system is built on, so a node's vertical
+   position is its line, and a long vertical edge is a relation that crosses lines. */
+.graph-wrap {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--ground);
+  overflow: auto;
+  max-height: 34rem;
+}
+
+.graph-wrap svg {
+  display: block;
+}
+
+.edge {
+  fill: none;
+  stroke-width: 1;
+}
+
+.edge-ast {
+  stroke: var(--edge-ast);
+  stroke-opacity: 0.55;
+}
+.edge-cfg {
+  stroke: var(--edge-cfg);
+  stroke-opacity: 0.75;
+}
+.edge-dfg {
+  stroke: var(--edge-dfg);
+  stroke-opacity: 0.7;
+}
+.edge-call {
+  stroke: var(--edge-call);
+  stroke-opacity: 0.8;
+}
+
+.node-dot {
+  fill: var(--dim);
+}
+
+.node-dot.named {
+  fill: var(--type);
+}
+
+.graph-line-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  fill: var(--dimmer);
+}
+
+.graph-rule {
+  stroke: var(--rule-soft);
+  stroke-width: 1;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--dim);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.swatch {
+  width: 1.1rem;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+}
+
+/* ─── Notes, empties, errors ───────────────────────────────────────────────── */
+
+.note {
+  font-size: 0.8rem;
+  color: var(--dim);
+  margin: 0.7rem 0 0;
+  max-width: 82ch;
+}
+
+.note-warn {
+  color: var(--signal);
+}
+
+.empty {
+  color: var(--dim);
+  font-size: 0.87rem;
+  margin: 0;
+}
+
+.error {
+  border: 1px solid var(--void);
+  border-left-width: 3px;
+  background: var(--void-soft);
+  padding: 0.85rem 1.1rem;
+  border-radius: 3px;
+  margin-bottom: 1.25rem;
+}
+
+.error h2 {
+  margin: 0 0 0.35rem;
+  font-size: 0.92rem;
+  color: #e8a096;
+}
+
+.error pre {
+  margin: 0.5rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: #cbb4b0;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.planned-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--dim);
+  font-size: 0.85rem;
+  max-width: 78ch;
+}
+
+.planned-list li {
+  margin-bottom: 0.3rem;
+}
+
+footer {
+  border-top: 1px solid var(--rule);
+  padding: 1.25rem clamp(1rem, 3vw, 2.25rem);
+  color: var(--dim);
+  font-size: 0.8rem;
+}
+
+footer p {
+  margin: 0 0 0.4rem;
+  max-width: 88ch;
+}
+
+/* ─── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 60rem) {
+  .workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .composer {
+    position: static;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .axis-head,
+  .axis-row {
+    grid-template-columns: 2.5rem minmax(7rem, 1fr) 4.5rem 4.5rem;
+  }
+
+  /* The windows column is dropped on narrow screens; its header must go with it or
+     the head and the rows stop lining up. */
+  .bar-window,
+  .axis-head span:nth-child(5) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* The lane a line's nodes sit in. Faint by design: it groups without competing with the
+   edges, which are the thing worth looking at. */
+.graph-lane {
+  fill: var(--rule-soft);
+  fill-opacity: 0.5;
+}

@@ -70,6 +70,14 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 - `evaluation/`, `explanation/`, `serving/` — **empty packages with registries only.**
   Nothing built ahead.
 
+Outside the package: `frontend/` is a **pipeline inspector** — paste a C/C++ function and
+watch normalize → parse → graphs → tokenize → line axis run on it live, with every
+unbuilt phase given its own panel saying what it will do. It is a development instrument,
+**not** the Phase 9 serving API, which is why it lives outside `src/vulnloc` and outside
+the `import-linter` layer graph. It shows **no vulnerability scores**, because there is no
+valid trained model to produce one. See `frontend/README.md`; the stage manifest
+`frontend/phases.json` mirrors §3 of this file and must be updated when a phase changes.
+
 ### Starting Phase 3 / Phase 4
 
 Read `Phases.md`, ADR-002, and `Memory.md` §1.7 (the corpus measurements) first. Consume
@@ -137,6 +145,8 @@ python scripts/audit_label_leakage.py                       # ADR-006 guard: is 
 
 python scripts/train_semantic.py train=overfit              # RUN FIRST: 32-sample sanity
 python scripts/train_semantic.py train=semantic seed=42     # the LLM-only baseline
+
+python frontend/server.py                                   # pipeline inspector on http://127.0.0.1:8000
 ```
 
 `train=semantic` is required — the root `train` default is Phase 0's no-op stub that

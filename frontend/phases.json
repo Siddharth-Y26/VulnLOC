@@ -1,0 +1,126 @@
+{
+  "_comment": "Mirrors CLAUDE.md section 3 and docs/Phases.md. This file is a SUMMARY and is not authoritative — when it disagrees with docs/Memory.md, Memory.md wins and this file is the thing to fix. Update it in the same commit as any phase change.",
+  "_updated": "2026-09-12",
+  "stages": [
+    {
+      "id": "normalize",
+      "layer": "L0",
+      "phase": 1,
+      "name": "Normalize",
+      "state": "live",
+      "adr": "ADR-006",
+      "does": "Strips leading and trailing whitespace from every source line, as the corpus is read.",
+      "why": "The LineVul release writes the flaw label into the indentation: every line of processed_func is flush left except the flagged ones, which are pasted back verbatim from flaw_line. 'Line starts with a space' recovers the label at precision 1.0000 with zero false positives on all six partitions."
+    },
+    {
+      "id": "parse",
+      "layer": "L1",
+      "phase": 2,
+      "name": "Parse",
+      "state": "live",
+      "adr": "ADR-005",
+      "does": "Parses with Tree-sitter under whichever grammar parses best: C++ first, C as well only if damage remains, C++ winning ties.",
+      "why": "The corpus's own lang column is the worst selector available — 37.01% clean parses against 89.14% for best-of-two, because 98.6% of Big-Vul is labelled C and much of it is C++."
+    },
+    {
+      "id": "graphs",
+      "layer": "L1",
+      "phase": 2,
+      "name": "Graphs",
+      "state": "live",
+      "adr": "ADR-002",
+      "does": "Builds AST, CFG, DFG and the CPG as their union over one shared node set.",
+      "why": "All four share a node set, so node-to-line is identical across them and ablation A3 is an edge-type filter rather than a second construction."
+    },
+    {
+      "id": "tokens",
+      "layer": "L1",
+      "phase": 3,
+      "name": "Tokenize",
+      "state": "live",
+      "adr": null,
+      "does": "Tokenizes for CodeBERT and windows long functions, keeping a source line attached to every token.",
+      "why": "Truncating at 512 tokens destroys 38.1% of all flagged lines and 44.5% on clean_eval. Windowing keeps 100%."
+    },
+    {
+      "id": "axis",
+      "layer": "L2",
+      "phase": 3,
+      "name": "Line axis",
+      "state": "live",
+      "adr": null,
+      "does": "Pools tokens onto source lines, and would pool graph nodes the same way, through one shared primitive.",
+      "why": "The line index is the atomic unit of the whole system. Both branches must land on it before anything can be fused."
+    },
+    {
+      "id": "semantic",
+      "layer": "L2",
+      "phase": 3,
+      "name": "Semantic branch",
+      "state": "built-untrained",
+      "adr": null,
+      "does": "CodeBERT encoder plus a per-line head. The code exists, runs, and passes its overfit test.",
+      "why": "No valid trained result exists. The only end-to-end run was voided by ADR-006, so no weights may be loaded and no score shown."
+    },
+    {
+      "id": "structural",
+      "layer": "L2",
+      "phase": 4,
+      "name": "Structural branch",
+      "state": "planned",
+      "adr": null,
+      "does": "GCN / GAT / GGNN over the code graphs, pooled onto the same line axis.",
+      "why": "Unblocked and unstarted. Size batches against the 56,266-node worst case, not the 252-node mean."
+    },
+    {
+      "id": "fusion",
+      "layer": "L2",
+      "phase": 5,
+      "name": "Cross-attention fusion",
+      "state": "planned",
+      "adr": null,
+      "does": "Bidirectional multi-head attention between the two branches, attention maps retained.",
+      "why": "The project's central novelty, and experiment A1: if it does not beat plain concatenation, that is the result and it gets reported."
+    },
+    {
+      "id": "localize",
+      "layer": "L3",
+      "phase": 6,
+      "name": "Localization head",
+      "state": "planned",
+      "adr": null,
+      "does": "Per-line vulnerability scores, and a CWE type if the labels support one.",
+      "why": "Line labels are roughly 30% wrong, so this head must not treat them as clean."
+    },
+    {
+      "id": "explain",
+      "layer": "L5",
+      "phase": 7,
+      "name": "Explanation",
+      "state": "planned",
+      "adr": null,
+      "does": "An evidence-grounded account of why a line was flagged, built from retained attention and graph paths.",
+      "why": "Whether generative quality can be claimed at all depends on open decision Q4."
+    },
+    {
+      "id": "evaluate",
+      "layer": "L4",
+      "phase": 8,
+      "name": "Evaluation",
+      "state": "planned",
+      "adr": null,
+      "does": "Baselines, ablations, and every headline number reported against its ceiling.",
+      "why": "Three partition-specific ceilings must travel with every line-level figure: label noise, no-node coverage, and the line cap."
+    },
+    {
+      "id": "serve",
+      "layer": "L6",
+      "phase": 9,
+      "name": "Serving",
+      "state": "planned",
+      "adr": null,
+      "does": "The packaged API and UI this inspector is a rehearsal for, not a substitute for.",
+      "why": "Phases.md forbids building ahead, so this inspector lives outside src/vulnloc and ships nothing Phase 9 will have to inherit."
+    }
+  ]
+}
