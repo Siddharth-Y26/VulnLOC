@@ -52,7 +52,7 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Phase 3 | 🟨 **3 / 4.** Tokenization, `LineAligner`, encoder, line head, losses, metrics and the training loop are built; **the overfit test passes** (Top-5 = 1.0). **The one full run (`1843412a…`) is VOID — it learned a formatting artefact (ADR-006, landmine #28).** The rerun on normalized text works: **seed 42 (`fc902107…`) reports Top-5 0.610, Top-1 0.363, line F1 0.378, IFA 11.94, with a curve that rises instead of starting flat.** Remaining: seeds 1 and 2 (≈3 h 55 m each) — **one seed is not a result**, and `function/f1` = 1.000 is degenerate by construction. |
 | Phase 4 | 🟨 **Started.** Node-type vocabulary built corpus-wide (run `2c9ce1b1…`, 304 types, digest `a0643c4e…`) and `StructuralEncoder` wires GCN/GAT/GGNN behind one scaffold. Exit criteria (3 seeds, overfit test, depth sweep) all still open. **Node features are node-type only — the ADR-002 §D2.5 subtoken half is not built.** |
 | Phases 5–10 | ⬜ Not started. |
-| Tests | **588 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **627 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
