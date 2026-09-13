@@ -44,7 +44,7 @@
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
 | 3 LLM Branch | 🟨 In progress | **3 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. Remaining: seeds 1 and 2 (≈3 h 55 m each) before the ≥3-seed criterion is met |
-| 4 GNN Branch | 🟨 In progress | **0 / 4** | Node-type vocabulary (run `2c9ce1b1…`), `StructuralEncoder` with GCN/GAT/GGNN, **the graph data path** (`training/graph_datasets.py` — dataset, node-budget sampler, collation, coverage accounting) and **edge-type handling** (ADR-007) all exist. Every exit criterion still open: all three run and are config-selectable ✓ pending a logged run, depth sweep, ≥3 seeds, overfit test. **Node features are node-type only** — the ADR-002 §D2.5 subtoken half is not built |
+| 4 GNN Branch | 🟨 In progress | **1 / 4** | Node-type vocabulary (run `2c9ce1b1…`), `StructuralEncoder` with GCN/GAT/GGNN, **the graph data path** (`training/graph_datasets.py` — dataset, node-budget sampler, collation, coverage accounting) and **edge-type handling** (ADR-007) all exist. **Overfit test PASSED** (run `8b0a3c1d…`, Top-1 = Top-5 = 1.000). Open: all three on real data, the depth sweep, ≥3 seeds — all queued in `scripts/run_queue.py`. **Node features are node-type only** — the ADR-002 §D2.5 subtoken half is not built |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
 | 7 Explanation | ⬜ Not started | 0 / 4 | |
@@ -692,6 +692,48 @@ without anything raising.
 
 ---
 
+## 1.12 What the structural branch can see — measured before training (Phase 4)
+
+**Run `b530f1ff…`, `scripts/report_node_feature_aliasing.py`, artefact
+`artifacts/representation/node_feature_aliasing.json`.**
+
+ADR-002 §D2.5 specifies node features as node-type embedding **+ subtoken embedding**.
+Only the first half is built, so two identifiers are literally the same input. The
+question is what that costs, and the usual way to answer it — train something and look at
+the number — confounds the features with the optimiser, the schedule and the aggregator.
+
+This measures it **without training anything**. If two lines carry the same multiset of
+node features and one is flagged while the other is not, no model reading those features
+can separate them. Message passing changes what "the features" are, so the measurement is
+repeated at increasing radius using Weisfeiler-Lehman refinement — the standard upper
+bound on what a message-passing network can distinguish. Mean-aggregating GCN and GAT are
+strictly weaker than WL, so **the true ceiling is at least this bad**.
+
+| radius | flagged lines indistinguishable from an unflagged one | line-accuracy ceiling |
+|---|---|---|
+| 0 hops (features alone) | **76.22%** | 91.43% |
+| 1 hop | 65.05% | 92.72% |
+| **2 hops** | **27.91%** | 96.95% |
+| **4 hops** | **7.35%** | 99.19% |
+| 6 hops | 5.39% | 99.41% |
+
+`train`, 1,500 line-labelled units, 8,349 flagged lines. `val` agrees within ~3 points at
+every radius (68.98 / 62.08 / 28.90 / 10.75 / 8.94).
+
+**Two things follow, and the second one is a trap.**
+
+1. **The §D2.5 gap is expensive at shallow depth and cheap at depth 4.** Node types alone
+   cannot distinguish three quarters of flagged lines; four hops of context recovers all
+   but 7%. Subtoken features are worth most where the receptive field is small.
+2. **The 2/4/6 depth sweep is NOT a clean over-smoothing experiment.** Depth 2 carries a
+   **27.91% hard recall ceiling from the representation itself**. If depth 2
+   underperforms depth 4, that is the expected result *before* over-smoothing is
+   considered at all, and reading it as evidence about over-smoothing would be wrong.
+   Over-smoothing is a claim about 6 vs 4, where the feature ceilings are 5.39% and 7.35%
+   and therefore nearly equal.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -906,6 +948,9 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `46ab8056…` | 2026-09-13 | `train_structural.py +gnn=gcn train=structural seed=42` | 42 | — | gnn_only | 1.000 *(degenerate)* | **0.338** | 20.41 | **The first GNN-only baseline.** Line P/R/F1 = 0.628 / 0.051 / 0.094, Top-1 0.108. It learns (Top-1 0.033 → 0.112, F1 0.015 → 0.099), so the curve is honest — but it is **far below the semantic arm** (Top-5 0.610, F1 0.378, run `fc902107…`). Expected: node features are node-type only (ADR-002 §D2.5 half-built) and §1.12 measures that 7.35% of flagged lines stay indistinguishable even at 4 hops. Coverage 90.81%; 2,397 train flagged lines have no graph node (§7 #17). **One seed of three — not citable.** Vocabulary `a0643c4e…`. |
+| `b530f1ff…` | 2026-09-13 | `report_node_feature_aliasing.py` (ast, 1,500 units/split) | — | — | — | — | — | — | **What the structural branch can see, measured without training — §1.12.** Weisfeiler-Lehman ceiling on flagged-line recoverability: **76.22% of flagged lines are indistinguishable from an unflagged one at 0 hops, 27.91% at 2, 7.35% at 4.** Says the §D2.5 subtoken gap is expensive only at shallow depth, and that **depth 2's deficit in the sweep is representational, not over-smoothing**. Data artefact, not a result. |
+| `8b0a3c1d…` | 2026-09-13 | `train_structural.py +gnn=gcn train=overfit_structural` (32 graphs) | 42 | — | gnn_only | — | **1.000** | — | **Phase 4 overfit test: PASSED.** Top-1 **1.0000**, Top-5 **1.0000**, loss 1.57 → 0.2483 over 150 epochs. All three convolutions pass (gcn/gat/ggnn reach Top-1 = 1.000 at ~100 epochs). **It first read as FAILED because the config under-trained** — 60 epochs with dropout on plateaus at Top-1 ~0.80. A debugging instrument — **never cite this as a result.** |
 | `fc902107…` | 2026-09-12 | `train_semantic.py train=semantic seed=42` | 42 | — | llm_only | 1.000 *(degenerate)* | **0.610** | 11.94 | **The first line-level numbers this project has produced that are not an artefact.** Post-ADR-006 (`data.normalize_whitespace=true` confirmed in the logged params). Early-stopped at epoch 8 of 10 on `line/top_5_accuracy`, best checkpoint epoch 5; 3 h 53 m. Line P/R/F1 = 0.463 / 0.319 / 0.378, Top-1 0.363, IFA 11.94, flagged-line coverage 99.96%. **It learned**: Top-5 0.531 → 0.610 and Top-1 0.247 → 0.363 across the run, against `1843412a…`'s flat 0.960 from epoch 0 — this is what §1.10 said to look for. Top-1 0.363 is ≈5.6× the 6.44% base rate. **`function/f1` = 1.000 is degenerate by construction and must never be quoted** (`line_labelled_only: true` leaves `fp=tn=0`). **NOT a citable result: Phase 3 needs ≥3 seeds.** Caveat: `eval/loss` rose monotonically 0.0405 → 0.0646 while train loss fell to 0.0296 — overfitting on 5,457 line-labelled train units, and the ranking metrics improved regardless, so loss is the wrong early-stopping signal here. Quote no line number without §1.8 truncation, §7 no-node coverage and §7 line-cap ceilings beside it. |
 | `2c9ce1b1…` | 2026-09-12 | `build_node_vocab.py` (`ast`, `best_of_two`) | — | — | — | — | — | — | **The node-type vocabulary of record, Phase 4's prerequisite.** 304 types + unknown slot over all 188,636 units, 0 graph-build failures, digest `a0643c4e…`. **Measured: `tree-sitter-c`'s own symbol list would miss 85 of these types; `tree-sitter-cpp`'s would miss 3 and carry 188 that never occur.** Data artefact, not a result. |
 | `1d89fe71…` | 2026-09-08 | `audit_label_leakage.py` (post-L0 rebuild) | — | — | — | — | — | — | **Confirms the corpus is clean at rest**: 0 partitions leak, the leading-whitespace tell fires on 0 lines. `shards_normalized_at_l0=true` — this reads the rebuilt shards, so it is evidence the fix landed, *not* evidence the leak was imaginary (compare `a5707491…`). Data artefact, not a result. |

@@ -51,7 +51,7 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
 | Phase 3 | 🟨 **3 / 4.** Tokenization, `LineAligner`, encoder, line head, losses, metrics and the training loop are built; **the overfit test passes** (Top-5 = 1.0). **The one full run (`1843412a…`) is VOID — it learned a formatting artefact (ADR-006, landmine #28).** The rerun on normalized text works: **seed 42 (`fc902107…`) reports Top-5 0.610, Top-1 0.363, line F1 0.378, IFA 11.94, with a curve that rises instead of starting flat.** Remaining: seeds 1 and 2 (≈3 h 55 m each) — **one seed is not a result**, and `function/f1` = 1.000 is degenerate by construction. |
-| Phase 4 | 🟨 **Started.** Node-type vocabulary built corpus-wide (run `2c9ce1b1…`, 304 types, digest `a0643c4e…`), `StructuralEncoder` wires GCN/GAT/GGNN behind one scaffold, **the graph data path exists** (`training/graph_datasets.py`: dataset, node-budget sampler, collation, coverage accounting) and **`edge_type` is consumed rather than carried** (ADR-007). Exit criteria (3 seeds, overfit test, depth sweep) all still open — they are now GPU-bound only. **Node features are node-type only — the ADR-002 §D2.5 subtoken half is not built.** |
+| Phase 4 | 🟨 **1 / 4.** Vocabulary (`2c9ce1b1…`), GCN/GAT/GGNN behind one scaffold, the graph data path, `edge_type` consumed (ADR-007), `StructuralLineModel` + `configs/gnn/*` + `scripts/train_structural.py`. **Overfit test PASSED** — run `8b0a3c1d…`, Top-1 = Top-5 = **1.000**. First GNN-only baseline: run `46ab8056…`, Top-5 0.338 / Top-1 0.108 / F1 0.094, **well below the semantic arm**, which §1.12 explains. Open: all three on real data, depth sweep, ≥3 seeds — **all queued in `scripts/run_queue.py`**. **Node features are node-type only — the ADR-002 §D2.5 subtoken half is not built.** |
 | Phases 5–10 | ⬜ Not started. |
 | Tests | **679 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
@@ -152,8 +152,12 @@ python scripts/train_semantic.py train=overfit              # RUN FIRST: 32-samp
 python scripts/train_semantic.py train=semantic seed=42     # the LLM-only baseline (~3 h 55 m)
 python scripts/report_seeds.py train=semantic               # aggregate the seeds — refuses runs that are not replicates
 
-python scripts/train_structural.py +gnn=gcn train=overfit_structural   # RUN FIRST: 32-graph sanity
-python scripts/train_structural.py +gnn=gcn train=structural seed=42   # the GNN-only baseline
+python scripts/train_structural.py +gnn=gcn train=overfit_structural   # RUN FIRST: 32-graph sanity (~3 min)
+python scripts/train_structural.py +gnn=gcn train=structural seed=42   # the GNN-only baseline (~3 min)
+python scripts/report_node_feature_aliasing.py                         # what node-type-only features cost, per hop
+
+python scripts/run_queue.py --status                        # the unattended experiment slate
+python scripts/run_queue.py                                 # run everything not yet done, offline, resumable
 
 python frontend/server.py                                   # pipeline inspector on http://127.0.0.1:8000
 ```
@@ -281,6 +285,11 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 29 | **A held-out number above the stated ceiling is a bug report, not a result.** §1.6 puts line-label noise at ~30%; run `1843412a…` reported line precision 0.985 and *flat* val F1 from epoch 0 through early stopping. Both were screaming. **Check the learning curve, not just the final metric** — a model that has nothing to learn is finished after one epoch. |
 | 21 | **The node-type vocabulary is a union over two grammars** (ADR-005 picks per unit). Build it by scanning the corpus, never from one grammar's symbol list, and never read node types as identifying a unit's language. |
 | 22 | **`graph.language` sat in the config unread for a whole phase.** A knob that nothing consumes looks exactly like a knob that works. If a config value governs a decision, a test should fail when it is ignored. |
+| 35 | **A GNN trained from scratch needs far more epochs to overfit than a fine-tuned transformer does.** Phase 4's overfit test at 60 epochs with dropout on plateaus at Top-1 ~0.80 and reads as **FAILED**; at ~100-150 epochs with dropout zeroed all three convolutions reach Top-1 = 1.000 (run `8b0a3c1d…`). Before concluding a model cannot learn, check the schedule. And note what the wrong diagnoses were: it is **not** capacity (512-wide/6-deep is *worse*), **not** regularisation alone, and **not** feature aliasing (`Memory.md` §1.12 shows 4-hop ambiguity is only 7.35%). |
+| 36 | **`train.zero_dropout` lives in the `train` group, not as `gnn.dropout=0` on the command line.** Hydra group selection is order-dependent: `+gnn=gcn` placed after an experiment config silently restores the dropout, and the overfit test then fails for a reason nothing reports. A config value that governs a decision belongs where selection order cannot undo it. |
+| 37 | **Depth 2 losing to depth 4 in the over-smoothing sweep is NOT evidence about over-smoothing.** `Memory.md` §1.12: the representation itself leaves **27.91% of flagged lines indistinguishable at 2 hops** against 7.35% at 4. Depth 2 is expected to lose on feature grounds alone. Over-smoothing is a claim about **6 vs 4**, where the feature ceilings are 5.39% and 7.35% and therefore nearly equal. |
+| 38 | **Adding a config group to `config.yaml`'s `defaults` changes every run's `config_hash`** — including runs of other branches — and `scripts/report_seeds.py` uses that hash to decide whether two runs are replicates. Doing it mid-sweep makes a logged seed incomparable with the seeds still to run. `gnn` is therefore selected as `+gnn=…`; move it into `defaults` only when no sweep is in flight. |
+
 
 ---
 
