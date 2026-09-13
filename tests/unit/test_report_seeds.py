@@ -93,9 +93,52 @@ class _Client:
 
 def test_differing_configuration_is_refused() -> None:
     """Two runs with different hyperparameters are not two seeds of one experiment."""
-    runs = [_run(RUN_A, seed=42, config_hash="one"), _run(RUN_B, seed=1, config_hash="two")]
+    a, b = _run(RUN_A, seed=42), _run(RUN_B, seed=1)
+    b.data.params["train.lr"] = "0.1"
+    a.data.params["train.lr"] = "0.001"
     with pytest.raises(ConfigError, match="do not share a configuration"):
-        report_seeds._check_comparable(runs)
+        report_seeds._check_comparable([a, b])
+
+
+def test_a_differing_seed_is_not_a_differing_configuration() -> None:
+    """The one value replicates MUST disagree on.
+
+    `config_hash` was the original guard and it fails exactly here: it digests the whole
+    resolved config, so every seed gets a different hash and no legitimate aggregation
+    ever passes. Measured on the real runs: three genuine GCN replicates carried three
+    different config hashes.
+    """
+    runs = [_run(RUN_A, seed=42, config_hash="one"), _run(RUN_B, seed=1, config_hash="two")]
+
+    provenance = report_seeds._check_comparable(runs)
+
+    assert provenance["seeds"] == [42, 1]
+    assert sorted(provenance["config_hashes"]) == ["one", "two"]
+
+
+def test_a_param_one_run_logged_and_another_did_not_is_a_difference() -> None:
+    """Two runs that did not record the same things about themselves are not replicates."""
+    a, b = _run(RUN_A, seed=42), _run(RUN_B, seed=1)
+    a.data.params["gnn_depth"] = "4"
+    with pytest.raises(ConfigError, match="do not share a configuration"):
+        report_seeds._check_comparable([a, b])
+
+
+def test_the_offending_parameter_is_named() -> None:
+    """A guard that says "these differ" without saying how is a guard you work around."""
+    a, b = _run(RUN_A, seed=42), _run(RUN_B, seed=1)
+    a.data.params["train.lr"], b.data.params["train.lr"] = "1e-3", "1e-5"
+    with pytest.raises(ConfigError) as caught:
+        report_seeds._check_comparable([a, b])
+    assert "train.lr" in str(caught.value)
+
+
+def test_run_identity_params_do_not_block_aggregation() -> None:
+    """A resumed run and a fresh one are still replicates of the same experiment."""
+    a, b = _run(RUN_A, seed=42), _run(RUN_B, seed=1)
+    a.data.params["train.resume_from"] = "artifacts/checkpoints/x/last.pt"
+    b.data.params["train.resume_from"] = ""
+    assert report_seeds._check_comparable([a, b])["seeds"] == [42, 1]
 
 
 def test_a_repeated_seed_is_refused() -> None:

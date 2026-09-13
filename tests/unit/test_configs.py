@@ -173,9 +173,13 @@ def test_the_overfit_config_defeats_regularisation_and_trains_long_enough(compos
 
     assert cfg.train.zero_dropout is True
     assert cfg.train.epochs >= 120
-    # And it must stay off everywhere a real number comes from.
+    # Off everywhere a real number comes from.
     assert compose_config("train=structural").train.zero_dropout is False
-    assert compose_config("train=semantic").train.zero_dropout is False
+    # And ABSENT from the semantic config, because `train_semantic.py` does not read it.
+    # A key sitting in a config nothing consumes is landmine #22; it also changes every
+    # semantic run's `config_hash`, which was measured to break seed 42's comparability
+    # with the seeds still to run (#38).
+    assert "zero_dropout" not in compose_config("train=semantic").train
 
 
 @pytest.mark.parametrize(

@@ -8,8 +8,13 @@ exactly where an incomparable run gets quietly folded into a mean and stops bein
 So this script is mostly guards, and every one of them is a hard failure rather than a
 warning:
 
-* **Same configuration.** Runs must share a ``config_hash``. Two runs that differ in the
-  learning rate are not two seeds of one experiment.
+* **Same configuration.** Every logged parameter must match, excluding the seed and the
+  run's own identity. Two runs that differ in the learning rate are not two seeds of one
+  experiment, and the offending parameter is *named* rather than merely detected.
+  Deliberately **not** ``config_hash``: that digest changes with the seed, which
+  replicates must differ on, and changes again when a key moves between config files
+  without altering a single effective value — so as a guard it refuses everything
+  legitimate and admits nothing.
 * **Distinct seeds.** The same seed twice is one measurement recorded twice, and it makes
   the standard deviation a fiction.
 * **Normalized text.** ``normalize_whitespace`` must be true on every run (ADR-006). A run
@@ -241,6 +246,49 @@ def _collect(
     return runs, excluded
 
 
+EXPECTED_TO_DIFFER = frozenset(
+    {
+        # The one thing replicates are *supposed* to disagree about.
+        "seed",
+        "data.splits.seed",
+        "data.label_audit.seed",
+        # Run identity, not configuration.
+        "train.resume_from",
+        "train.checkpoint_dir",
+    }
+)
+"""Params a set of replicates may differ on without ceasing to be replicates."""
+
+
+def _differing_params(runs: list[Any]) -> dict[str, set[str]]:
+    """Which logged parameters disagree across the runs?
+
+    **Not** ``config_hash``, which is the obvious choice and the wrong one. That tag is a
+    digest of the whole resolved config, so it changes with the ``seed`` — the one value
+    replicates must differ on — and it changes when a key is moved between two config
+    files without altering a single effective value. Using it as the comparability guard
+    refuses every legitimate seed aggregation and accepts nothing; it was doing exactly
+    that before this function existed. Parameters are what the run actually ran with, and
+    a disagreement can be named instead of merely detected.
+
+    Args:
+        runs: The candidate runs.
+
+    Returns:
+        ``{param: {values seen}}`` for every param that is not identical across runs,
+        excluding :data:`EXPECTED_TO_DIFFER`. Empty means the runs are replicates.
+    """
+    keys = {key for run in runs for key in run.data.params}
+    differing: dict[str, set[str]] = {}
+    for key in keys - EXPECTED_TO_DIFFER:
+        # A param logged by one run and absent from another counts as a difference: the
+        # two runs then did not record the same things about themselves.
+        values = {run.data.params.get(key, "<absent>") for run in runs}
+        if len(values) > 1:
+            differing[key] = values
+    return differing
+
+
 def _check_comparable(runs: list[Any], *, allow_source_drift: bool = False) -> dict[str, Any]:
     """Refuse to average runs that are not replicates of one experiment.
 
@@ -260,22 +308,6 @@ def _check_comparable(runs: list[Any], *, allow_source_drift: bool = False) -> d
     Raises:
         ConfigError: On any disagreement that would make the mean meaningless.
     """
-    config_hashes = {r.data.tags.get("config_hash", "?") for r in runs}
-    if len(config_hashes) != 1:
-        raise ConfigError(
-            "runs do not share a configuration; they are not seeds of one experiment",
-            config_hashes=sorted(config_hashes),
-            runs={r.info.run_id[:8]: r.data.tags.get("config_hash") for r in runs},
-        )
-
-    seeds = [r.data.params.get("seed") for r in runs]
-    if len(set(seeds)) != len(seeds):
-        raise ConfigError(
-            "a seed appears more than once; that is one measurement recorded twice",
-            seeds=seeds,
-            hint="Variance across duplicated seeds is not variance.",
-        )
-
     unnormalized = [
         r.info.run_id for r in runs if r.data.params.get("normalize_whitespace") != "True"
     ]
@@ -284,6 +316,25 @@ def _check_comparable(runs: list[Any], *, allow_source_drift: bool = False) -> d
             "a run was trained on un-normalized text and cannot be aggregated (ADR-006)",
             runs=unnormalized,
             hint="The corpus writes the flaw label into the indentation; see Memory.md §1.10.",
+        )
+
+    # Checked BEFORE the generic parameter comparison. `normalize_whitespace` differing
+    # would trip that check too, but "these configs differ" is a far worse thing to be
+    # told than "one of these runs measured the indentation".
+    differing = _differing_params(runs)
+    if differing:
+        raise ConfigError(
+            "runs do not share a configuration; they are not seeds of one experiment",
+            differing_params={k: sorted(v) for k, v in sorted(differing.items())[:8]},
+            n_differing=len(differing),
+        )
+
+    seeds = [r.data.params.get("seed") for r in runs]
+    if len(set(seeds)) != len(seeds):
+        raise ConfigError(
+            "a seed appears more than once; that is one measurement recorded twice",
+            seeds=seeds,
+            hint="Variance across duplicated seeds is not variance.",
         )
 
     shas = sorted({r.data.tags.get("git_sha", "?").removesuffix("-dirty") for r in runs})
@@ -315,7 +366,8 @@ def _check_comparable(runs: list[Any], *, allow_source_drift: bool = False) -> d
     dirty = [r.info.run_id[:8] for r in runs if r.data.tags.get("git_sha", "").endswith("-dirty")]
 
     return {
-        "config_hash": config_hashes.pop(),
+        "comparable_params": "identical across every run, excluding seed and run identity",
+        "config_hashes": sorted({r.data.tags.get("config_hash", "?") for r in runs}),
         "git_shas": shas,
         "src_vulnloc_compared": compared,
         "src_vulnloc_drift_accepted": drift,

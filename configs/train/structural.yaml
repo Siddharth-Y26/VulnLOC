@@ -26,6 +26,13 @@ accumulation_steps: 1
 # source of non-finite values. Turn it on only with a measurement behind it.
 amp: false
 
+# Zero every dropout — for the overfit test only, which overrides this to true. It is
+# declared HERE and not in `semantic.yaml`, because `train_structural.py` is the only
+# entrypoint that reads it: a key sitting in a config nothing consumes is landmine §7 #22,
+# and adding one to `semantic.yaml` also changes every semantic run's `config_hash`
+# mid-sweep (§7 #38).
+zero_dropout: false
+
 # Same watched metric as the semantic arm, for the same reason (Memory.md §6): the loss is
 # dominated by the 0.795% class imbalance and improves happily while localization does not.
 # Keeping it identical is also what lets the two baselines be compared at all.
