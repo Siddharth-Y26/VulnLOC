@@ -888,6 +888,15 @@ the local HF cache — the only network dependency in the pipeline.
   refuses an artefact that says otherwise.
 - **The A4 comparison is queued** with a falsifiable prediction attached: §1.12 says the
   subtoken gain should be **large at depth 2 and small at depth 4**.
+- **If the A4 result looks flat, do not first suspect the wiring — it was verified.**
+  A small trial (600 units, 4 epochs, depth 2, CPU) gave *identical* Top-5 and Top-1 with
+  and without subtokens, which looks exactly like a dead feature. It is not: blanking
+  every identifier in a real `val` batch moves node states by up to **2.598**, and the
+  encoder reports `uses_subtokens=True` with `subtoken_vocab_size=31389` logged as a run
+  parameter. At that scale Top-1/Top-5 are coarse enough that two different models land on
+  the same count; the F1s did differ (0.0176 vs 0.0178). Also worth knowing: only **8.7%
+  of subtoken slots carry a real token**, because only leaf nodes have text at all — the
+  feature can only ever speak through the leaves.
 
 The four wrong guards, all found by asking what would happen rather than waiting:
 
