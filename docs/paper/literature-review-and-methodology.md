@@ -382,18 +382,55 @@ be attributed to a line.
 ### 3.8 Structural branch
 
 The structural branch runs a graph neural network over the graph produced in Section 3.6.
-Each node is initialised with an embedding of its node type together with features derived
-from its source text, and the network updates each node using information from its
-neighbours.
+Each node is initialised with an embedding of its node type together with an embedding of
+the subtokens of its own source text, and the network updates each node using information
+from its neighbours.
 
 We treat the choice of architecture as an experimental question rather than a design
 decision, and compare graph convolutional, graph attention and gated graph networks at
 depths of 2, 4 and 6.
 
+**Relations are typed, or the model is told they are not.** The code property graph is a
+union of syntactic, control-flow and data-flow edges, and passing it to a network that
+treats every edge alike scores a graph in which "this statement is syntactically nested
+inside that one" and "a value flows from this statement to that one" are the same
+relation. Our encoder therefore learns one non-negative weight per relation and scales
+each edge's messages by it, using the same mechanism for all three architectures so that
+the comparison between them is not partly a comparison of edge handling. Treating a graph
+as untyped remains available, but only as an explicit setting: the default refuses a
+multi-relation graph rather than silently averaging it.
+
+**We measure what the node features can support before training anything.** If two lines
+carry the same multiset of node features and one is flagged while the other is not, no
+model reading those features can separate them, whatever its architecture or training
+budget. We therefore compute that ambiguity directly, repeating it at increasing
+neighbourhood radius using Weisfeiler-Lehman refinement — the standard upper bound on what
+a message-passing network can distinguish. On our training split, the share of flagged
+lines that remain indistinguishable from an unflagged line is **76.2% using node types
+alone, 27.9% after two hops, 7.4% after four and 5.4% after six.**
+
+This is not a diagnostic curiosity; it changes how the depth comparison may be read. A
+two-layer model carries a 27.9% ceiling on recall that comes from the representation
+rather than from the architecture, so its losing to a four-layer model is the expected
+outcome before over-smoothing is considered at all. **Only the comparison between six and
+four layers is informative about over-smoothing**, because there the two feature ceilings
+are nearly equal. We report the measurement alongside the sweep for that reason, and we
+recommend that any depth study on code graphs do the same: without it, a representational
+limit and an architectural one are indistinguishable in the results table.
+
 Graph size varies enormously. AST graphs average 252 nodes across the corpus but average
 1,144 nodes on the evaluation set and reach 56,266 nodes in the largest case. Since memory
 use in a batch is determined by the largest graph rather than the average, batching is
-sized against observed maxima.
+sized against observed maxima — a batch is filled to a budget of nodes rather than of
+functions.
+
+Two limits on this branch are specific to it and are reported with every structural
+result. **7.84% of flagged lines carry no graph node at all**, concentrated in the
+functions no grammar parses cleanly, so the branch cannot score them however well it is
+trained. And the subtoken vocabulary is built from the **training split only**: identifiers
+occurring exclusively in validation or test data are mapped to an unknown symbol rather
+than given their own embedding, because a vocabulary fitted over the evaluation data would
+leak it.
 
 ### 3.9 Line alignment
 
@@ -532,7 +569,12 @@ because single-dataset results do not establish real-world capability.
 
 **Construct.** Attention is not by itself an explanation [25], so we test faithfulness
 rather than assuming it. Automatic text metrics do not measure usefulness, so human
-evaluation is primary for explanation quality.
+evaluation is primary for explanation quality. A third construct risk is specific to the
+depth study: a model's depth changes both how much context a line's representation carries
+and how much message passing can smooth it, and those two effects push in opposite
+directions. We separate them by measuring the representational ceiling at each depth
+independently of training (Section 3.8), and we restrict over-smoothing claims to the
+comparison where that ceiling is approximately constant.
 
 **Conclusion.** Single-seed results are unreliable, so all comparisons use at least three
 seeds and the main experiment uses five, with significance testing.
