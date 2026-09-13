@@ -310,3 +310,37 @@ def test_function_level_metrics_are_not_headlined() -> None:
         report_seeds.DEGENERATE_UNDER_LINE_LABELLED_ONLY
     )
     assert all(key.startswith("eval/line/") for key in report_seeds.HEADLINE_METRICS)
+
+
+def test_an_absent_parameter_matches_a_requested_off_value() -> None:
+    """A run made before a flag existed did not have that feature enabled.
+
+    That is a fact about the run, not a gap in the record. Without this rule every run
+    predating a new flag drops out of its own comparison group, and the arm that has the
+    flag ends up with no partners to compare against.
+    """
+    old = _run(RUN_A, seed=42)  # logged before `use_subtokens` existed
+    assert "use_subtokens" not in old.data.params
+
+    new = _run(RUN_B, seed=1)
+    new.data.params["use_subtokens"] = "True"
+
+    class _Search:
+        def get_run(self, run_id: str) -> Any:  # pragma: no cover - unused here
+            raise AssertionError
+
+        def search_runs(self, **_: Any) -> list[Any]:
+            return [old, new]
+
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.create(
+        {
+            "train": {"name": "structural"},
+            "seeds": {"where": {"use_subtokens": "False"}},
+        }
+    )
+    runs, excluded = report_seeds._collect(_Search(), "1", cfg)
+
+    assert [r.info.run_id for r in runs] == [RUN_A]
+    assert excluded and excluded[0]["run_id"] == RUN_B

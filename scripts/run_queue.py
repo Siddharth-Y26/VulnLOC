@@ -190,7 +190,25 @@ def build_plan() -> list[Step]:
             args=[
                 "train=structural",
                 "+seeds.allow_source_drift=true",
-                "+seeds.where={gnn_kind: gcn, gnn_depth: 4}",
+                # `use_subtokens` is part of the group too, now that A4 runs exist with
+                # the same kind and depth. Without it this filter would match both and
+                # the comparability guard would refuse — correctly, but after the fact.
+                "+seeds.where={gnn_kind: gcn, gnn_depth: 4, use_subtokens: False}",
+            ],
+        )
+    )
+
+    steps.append(
+        Step(
+            name="a4-seed-report",
+            group="phase4",
+            why="Aggregate the A4 subtoken seeds, for comparison against p4-seed-report.",
+            script="scripts/report_seeds.py",
+            args=[
+                "train=structural",
+                "+seeds.allow_source_drift=true",
+                "+seeds.where={gnn_kind: gcn, gnn_depth: 4, use_subtokens: True}",
+                "+seeds.output_dir=./artifacts/phase4",
             ],
         )
     )

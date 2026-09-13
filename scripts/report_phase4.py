@@ -85,9 +85,25 @@ def _group_key(run: Any) -> tuple[str, ...]:
         A tuple of the configuration values that define the group.
     """
     params = run.data.params
-    return tuple(
-        str(params.get(key, "?"))
-        for key in ("gnn_kind", "gnn_depth", "gnn_hidden_dim", "edge_handling", "graph_builder")
+    # `use_subtokens` defaults to "False" rather than "?" on purpose: runs logged before
+    # the parameter existed were all node-type-only, so defaulting makes them the correct
+    # comparison partners for the A4 runs instead of a third, phantom group.
+    #
+    # Leaving this key OUT of the grouping was a real bug, caught before it produced a
+    # number: A4 runs would have been merged into their own partners' group and averaged
+    # with them, turning a feature comparison into a wider seed group.
+    return (
+        *(
+            str(params.get(key, "?"))
+            for key in (
+                "gnn_kind",
+                "gnn_depth",
+                "gnn_hidden_dim",
+                "edge_handling",
+                "graph_builder",
+            )
+        ),
+        str(params.get("use_subtokens", "False")),
     )
 
 
@@ -178,6 +194,7 @@ def build(cfg: DictConfig) -> dict[str, Any]:
                 "hidden_dim": key[2],
                 "edge_handling": key[3],
                 "builder": key[4],
+                "use_subtokens": key[5] == "True",
                 "seeds": sorted(int(r.data.params["seed"]) for r in runs),
                 "run_ids": [r.info.run_id for r in runs],
                 "metrics": _summarise(metrics),
@@ -190,7 +207,7 @@ def build(cfg: DictConfig) -> dict[str, Any]:
         {
             row["depth"]
             for row in group_rows
-            if row["kind"] == "gcn" and isinstance(row["depth"], int)
+            if row["kind"] == "gcn" and isinstance(row["depth"], int) and not row["use_subtokens"]
         }
     )
     best_seeded = max((len(row["seeds"]) for row in group_rows), default=0)
@@ -230,11 +247,51 @@ def build(cfg: DictConfig) -> dict[str, Any]:
             "feature_ceiling_pct_ambiguous": FEATURE_CEILING_BY_DEPTH.get(row["depth"]),
         }
         for row in sorted(group_rows, key=lambda r: (str(r["depth"])))
-        if row["kind"] == "gcn" and isinstance(row["depth"], int)
+        if row["kind"] == "gcn" and isinstance(row["depth"], int) and not row["use_subtokens"]
     ]
+
+    a4 = []
+    for row in group_rows:
+        if not row["use_subtokens"]:
+            continue
+        partner = next(
+            (
+                other
+                for other in group_rows
+                if not other["use_subtokens"]
+                and (other["kind"], other["depth"], other["hidden_dim"])
+                == (row["kind"], row["depth"], row["hidden_dim"])
+            ),
+            None,
+        )
+        entry: dict[str, Any] = {
+            "kind": row["kind"],
+            "depth": row["depth"],
+            "with_subtokens": row["metrics"].get("eval/line/top_5_accuracy", {}).get("mean"),
+            "without_subtokens": (
+                partner["metrics"].get("eval/line/top_5_accuracy", {}).get("mean")
+                if partner
+                else None
+            ),
+            "feature_ceiling_pct_ambiguous_without": FEATURE_CEILING_BY_DEPTH.get(row["depth"]),
+            "seeds_with": row["seeds"],
+            "seeds_without": partner["seeds"] if partner else [],
+        }
+        if entry["with_subtokens"] is not None and entry["without_subtokens"] is not None:
+            entry["delta_top_5"] = entry["with_subtokens"] - entry["without_subtokens"]
+        a4.append(entry)
 
     report = {
         "generated_by": "scripts/report_phase4.py",
+        "a4_subtoken_features": {
+            "rows": a4,
+            "read_this_first": (
+                "Section 1.12 predicts the gain is LARGE at depth 2 (27.91% of flagged "
+                "lines unresolvable without subtokens) and SMALL at depth 4 (7.35%). A "
+                "gain that does not follow that pattern is more interesting than one "
+                "that does."
+            ),
+        },
         "criteria": criteria,
         "criteria_met": sum(1 for c in criteria.values() if c["met"]),
         "groups": group_rows,

@@ -231,9 +231,22 @@ def _collect(
     where = OmegaConf.select(cfg, "seeds.where") or {}
     selector = {str(k): str(v) for k, v in dict(where).items()}
 
+    def _matches(run: Any, key: str, wanted: str) -> bool:
+        """Does this run's parameter match, treating an absent one as off?
+
+        A run made before a parameter existed did not have that feature enabled — that is
+        a fact about the run, not a gap in the record — so an absent parameter matches a
+        requested falsy value. Without this, every run predating a new flag drops out of
+        its own comparison group and the A4 arm has no partners.
+        """
+        actual = run.data.params.get(key)
+        if actual is None:
+            return wanted.strip().lower() in {"false", "0", "", "none", "off"}
+        return actual == wanted
+
     runs, excluded = [], []
     for run in found:
-        mismatch = [k for k, v in selector.items() if run.data.params.get(k) != v]
+        mismatch = [k for k, v in selector.items() if not _matches(run, k, v)]
         if mismatch:
             excluded.append(
                 {
