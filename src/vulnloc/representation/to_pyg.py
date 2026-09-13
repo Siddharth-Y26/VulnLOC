@@ -27,6 +27,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from vulnloc.representation.graphs.base import EDGE_TYPES, CodeGraph
+from vulnloc.representation.subtokens import MAX_SUBTOKENS, split_identifier
 from vulnloc.utils.exceptions import GraphBuildError
 
 if TYPE_CHECKING:
@@ -40,6 +41,12 @@ against one release reads the same channel in the next."""
 
 _UNKNOWN_NODE_TYPE = 0
 """Vocabulary slot 0 is reserved for grammar symbols unseen at vocabulary-build time."""
+
+_UNKNOWN_SUBTOKEN = 0
+"""Subtokens absent from the training-split vocabulary. See `build_subtoken_vocab.py`."""
+
+_PADDING_SUBTOKEN = 1
+"""Unused slots of a node with fewer than ``MAX_SUBTOKENS`` subtokens."""
 
 
 def build_node_type_vocab(graphs: list[CodeGraph]) -> dict[str, int]:
@@ -87,7 +94,11 @@ def to_networkx(graph: CodeGraph) -> Any:
     return converted
 
 
-def to_pyg(graph: CodeGraph, node_type_vocab: Mapping[str, int] | None = None) -> Any:
+def to_pyg(
+    graph: CodeGraph,
+    node_type_vocab: Mapping[str, int] | None = None,
+    subtoken_vocab: Mapping[str, int] | None = None,
+) -> Any:
     """Convert to a PyTorch Geometric ``Data`` object.
 
     Args:
@@ -96,11 +107,16 @@ def to_pyg(graph: CodeGraph, node_type_vocab: Mapping[str, int] | None = None) -
             unseen grammar symbol degrades a single node rather than failing a batch.
             When omitted, a vocabulary is built from this graph alone — useful in tests,
             wrong for training, since indices would then differ per sample.
+        subtoken_vocab: Identifier subtoken to index, from
+            ``scripts/build_subtoken_vocab.py`` — the other half of ADR-002 §D2.5. When
+            omitted, ``subtokens`` is still emitted but is entirely padding, so the
+            tensor layout does not depend on whether the feature is enabled and a batch
+            built with it collates against one built without.
 
     Returns:
         A ``Data`` with ``node_type`` ``[N]``, ``line`` ``[N]`` (1-indexed),
-        ``edge_index`` ``[2, E]``, ``edge_type`` ``[E]``, plus ``num_lines`` and
-        ``unit_id``.
+        ``edge_index`` ``[2, E]``, ``edge_type`` ``[E]``, ``subtokens``
+        ``[N, MAX_SUBTOKENS]``, plus ``num_lines`` and ``unit_id``.
 
     Raises:
         GraphBuildError: If the graph has no nodes; an empty graph cannot be scattered
@@ -138,8 +154,18 @@ def to_pyg(graph: CodeGraph, node_type_vocab: Mapping[str, int] | None = None) -
         edge_index = torch.empty((2, 0), dtype=torch.long)
         edge_type = torch.empty((0,), dtype=torch.long)
 
+    # Fixed width, so the graph carries [N, K] rather than a ragged structure. A node
+    # with no text — every interior node, and every operator — is all padding, which is
+    # the honest encoding of "this node contributes no identifier evidence".
+    subtokens = torch.full((len(graph.nodes), MAX_SUBTOKENS), _PADDING_SUBTOKEN, dtype=torch.long)
+    if subtoken_vocab is not None:
+        for index, node in enumerate(graph.nodes):
+            for slot, piece in enumerate(split_identifier(node.text)[:MAX_SUBTOKENS]):
+                subtokens[index, slot] = subtoken_vocab.get(piece, _UNKNOWN_SUBTOKEN)
+
     return Data(
         node_type=node_type,
+        subtokens=subtokens,
         line=line,
         edge_index=edge_index,
         edge_type=edge_type,

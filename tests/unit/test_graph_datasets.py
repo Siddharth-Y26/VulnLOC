@@ -168,6 +168,7 @@ def _toy(unit_id: str, n_nodes: int, edges: list[tuple[int, int]], lines: list[i
     return GraphUnit(
         unit_id=unit_id,
         node_type=torch.ones(n_nodes, dtype=torch.long),
+        subtokens=None,
         node_line=torch.tensor(lines, dtype=torch.long),
         edge_index=(
             torch.tensor([[s for s, _ in edges], [t for _, t in edges]], dtype=torch.long)
@@ -457,3 +458,123 @@ def test_both_datasets_satisfy_what_the_shared_training_job_needs() -> None:
     # `flagged_beyond_cap` is set in __init__ rather than declared, so it is checked on an
     # instance in the dataset tests above; the protocol is what names the contract.
     assert set(LineDataset.__annotations__) == {"flagged_beyond_cap"}
+
+
+# --- ADR-002 §D2.5, second half: subtoken features ---------------------------------
+
+
+def _sub(unit_id: str, rows: list[list[int]]) -> GraphUnit:
+    """A unit carrying explicit subtoken rows."""
+    n = len(rows)
+    return GraphUnit(
+        unit_id=unit_id,
+        node_type=torch.ones(n, dtype=torch.long),
+        subtokens=torch.tensor(rows, dtype=torch.long),
+        node_line=torch.arange(1, n + 1, dtype=torch.long),
+        edge_index=torch.empty((2, 0), dtype=torch.long),
+        edge_type=torch.empty((0,), dtype=torch.long),
+        line_labels=(0, 1, 0),
+        n_lines=3,
+        target=1,
+        flagged_beyond_cap=0,
+        flagged_without_node=0,
+    )
+
+
+def test_subtokens_concatenate_across_a_batch() -> None:
+    batch = collate_graphs([_sub("a", [[2, 3, 1], [4, 1, 1]]), _sub("b", [[5, 1, 1]])])
+
+    assert batch["subtokens"].shape == (3, 3)
+    assert batch["subtokens"].tolist() == [[2, 3, 1], [4, 1, 1], [5, 1, 1]]
+
+
+def test_a_batch_cannot_be_half_subtokened() -> None:
+    """Two units with different feature sets are not one batch, and it must not average."""
+    with pytest.raises(DataError, match="no single feature set"):
+        collate_graphs([_sub("a", [[2, 1, 1]]), _toy("b", 2, [(0, 1)], [1, 2])])
+
+
+def test_a_batch_without_subtokens_omits_the_key_entirely() -> None:
+    """So an encoder built without the feature never silently receives padding as signal."""
+    assert "subtokens" not in collate_graphs([_toy("a", 2, [(0, 1)], [1, 2])])
+
+
+def test_the_subtoken_vocabulary_must_come_from_train_alone(tmp_path: Path) -> None:
+    """Identifiers from val/test would hand the model embeddings for evaluation-only names.
+
+    Grammar symbols are a property of the parser and are correctly scanned corpus-wide.
+    Identifiers are not, and the artefact has to say which it was.
+    """
+    from vulnloc.training.graph_datasets import load_subtoken_vocab
+
+    path = _vocab_file(tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["scanned_from_train_only"] = False
+    payload["split_scanned"] = "all"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(DataError, match="not built from the training split alone"):
+        load_subtoken_vocab(path)
+
+
+def test_subtoken_features_change_the_node_states() -> None:
+    """The feature has to do something, or it is a knob that looks like it works (§7 #22)."""
+    from vulnloc.models.structural.encoder import NodeFeatures
+
+    torch.manual_seed(0)
+    features = NodeFeatures(8, 16, dropout=0.0, subtoken_vocab_size=12)
+    features.eval()
+    node_type = torch.tensor([3, 3])
+    with torch.no_grad():
+        # Same node type, different identifiers: the states must differ.
+        a = features(node_type, torch.tensor([[2, 1, 1, 1, 1], [2, 1, 1, 1, 1]]))
+        b = features(node_type, torch.tensor([[2, 1, 1, 1, 1], [7, 1, 1, 1, 1]]))
+
+    assert torch.allclose(a[0], b[0])
+    assert not torch.allclose(a[1], b[1])
+
+
+def test_padding_does_not_dilute_a_short_identifier() -> None:
+    """Mean over real slots only. Dividing by K would scale a one-word name down by K."""
+    from vulnloc.models.structural.encoder import NodeFeatures
+
+    torch.manual_seed(0)
+    features = NodeFeatures(8, 16, dropout=0.0, subtoken_vocab_size=12)
+    features.eval()
+    with torch.no_grad():
+        short = features(torch.tensor([3]), torch.tensor([[5, 1, 1, 1, 1]]))
+        wider = features(torch.tensor([3]), torch.tensor([[5, 1, 1, 1, 1, 1, 1]]))
+
+    assert torch.allclose(short, wider)
+
+
+def test_a_node_with_no_identifier_contributes_exactly_zero() -> None:
+    """Operators and interior nodes carry no name; a learned bias must not stand in."""
+    from vulnloc.models.structural.encoder import NodeFeatures
+
+    torch.manual_seed(0)
+    features = NodeFeatures(8, 16, dropout=0.0, subtoken_vocab_size=12)
+    features.eval()
+    with torch.no_grad():
+        with_subtokens = features(torch.tensor([3]), torch.tensor([[1, 1, 1, 1, 1]]))
+        type_only = features.embedding(torch.tensor([3]))
+
+    assert torch.allclose(with_subtokens, type_only)
+
+
+def test_enabling_subtokens_without_them_in_the_batch_raises() -> None:
+    from vulnloc.models.structural.encoder import NodeFeatures
+    from vulnloc.utils.exceptions import ModelError as _ModelError
+
+    features = NodeFeatures(8, 16, subtoken_vocab_size=12)
+    with pytest.raises(_ModelError, match="carries no 'subtokens'"):
+        features(torch.tensor([3]))
+
+
+def test_an_out_of_range_subtoken_raises_rather_than_clamping() -> None:
+    from vulnloc.models.structural.encoder import NodeFeatures
+    from vulnloc.utils.exceptions import ModelError as _ModelError
+
+    features = NodeFeatures(8, 16, subtoken_vocab_size=12)
+    with pytest.raises(_ModelError, match="subtoken index outside"):
+        features(torch.tensor([3]), torch.tensor([[99, 1, 1, 1, 1]]))

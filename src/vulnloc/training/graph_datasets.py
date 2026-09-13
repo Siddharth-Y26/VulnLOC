@@ -70,12 +70,16 @@ __all__ = [
     "collate_graphs",
     "graph_line_coverage",
     "load_node_vocab",
+    "load_subtoken_vocab",
 ]
 
 _LOGGER = get_logger(__name__)
 
 DEFAULT_VOCAB_PATH = Path("./artifacts/representation/node_vocab_ast.json")
 """Where ``scripts/build_node_vocab.py`` writes the AST vocabulary of record."""
+
+DEFAULT_SUBTOKEN_VOCAB_PATH = Path("./artifacts/representation/subtoken_vocab_ast.json")
+"""Where ``scripts/build_subtoken_vocab.py`` writes the identifier table of record."""
 
 
 def load_node_vocab(
@@ -143,6 +147,45 @@ def load_node_vocab(
     return {str(k): int(v) for k, v in vocab.items()}, metadata
 
 
+def load_subtoken_vocab(
+    path: Path | str = DEFAULT_SUBTOKEN_VOCAB_PATH, *, expect_digest: str | None = None
+) -> tuple[dict[str, int], dict[str, Any]]:
+    """Load the identifier subtoken vocabulary and verify it.
+
+    Same checks as :func:`load_node_vocab` — it is the same class of artefact, and the
+    same silent failure if a rebuilt table renumbers the embedding rows.
+
+    One difference matters and is asserted here rather than assumed: this table is built
+    from the **training split only**. Identifiers from `val`/`test` in it would give the
+    model embedding rows for names that appear only in evaluation data. Grammar symbols
+    are a property of the parser and are correctly scanned corpus-wide; these are not.
+
+    Args:
+        path: The artefact written by ``scripts/build_subtoken_vocab.py``.
+        expect_digest: The digest the caller believes it is loading, if it wants the
+            table pinned.
+
+    Returns:
+        ``(vocab, metadata)``.
+
+    Raises:
+        DataError: If the artefact is missing, malformed, fails a check, or was not
+            built from `train` alone.
+    """
+    vocab, metadata = load_node_vocab(path, expect_digest=expect_digest)
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not payload.get("scanned_from_train_only"):
+        raise DataError(
+            "subtoken vocabulary was not built from the training split alone",
+            path=str(path),
+            split_scanned=payload.get("split_scanned"),
+            hint="Identifiers from val/test in the table leak evaluation data into the model.",
+        )
+    metadata["min_count"] = payload.get("min_count")
+    metadata["distinct_subtokens_seen"] = payload.get("distinct_subtokens_seen")
+    return vocab, metadata
+
+
 @dataclass(frozen=True)
 class GraphUnit:
     """One function as a graph, with its line supervision.
@@ -150,6 +193,8 @@ class GraphUnit:
     Attributes:
         unit_id: Stable corpus identifier.
         node_type: ``[N]`` vocabulary indices.
+        subtokens: ``[N, MAX_SUBTOKENS]`` identifier subtoken indices, or ``None`` when
+            the ADR-002 §D2.5 second half is off. Padded with 1; 0 is the unknown slot.
         node_line: ``[N]`` **1-indexed** source line per node.
         edge_index: ``[2, E]`` node indices, local to this unit.
         edge_type: ``[E]`` edge-type indices. Carried even where the encoder ignores it,
@@ -167,6 +212,7 @@ class GraphUnit:
 
     unit_id: str
     node_type: torch.Tensor
+    subtokens: torch.Tensor | None
     node_line: torch.Tensor
     edge_index: torch.Tensor
     edge_type: torch.Tensor
@@ -191,6 +237,9 @@ class GraphLineDataset(Dataset[GraphUnit]):
         node_vocab: The corpus-wide ``symbol -> index`` table. Required: passing ``None``
             through to ``to_pyg`` would build a per-graph vocabulary and give the same
             symbol a different index in every batch.
+        subtoken_vocab: The identifier table from ``scripts/build_subtoken_vocab.py``,
+            enabling ADR-002 §D2.5's second half. ``None`` leaves node features as
+            node-type only, which reproduces every number logged before it existed.
         builder: Graph type — a ``GRAPH_REGISTRY`` key (``ast``/``cfg``/``dfg``/``cpg``).
         language: Grammar-selection policy. ``best_of_two`` is ADR-005's default and the
             only one any current number was measured under.
@@ -211,6 +260,7 @@ class GraphLineDataset(Dataset[GraphUnit]):
         split: str,
         node_vocab: Mapping[str, int],
         *,
+        subtoken_vocab: Mapping[str, int] | None = None,
         builder: str = "ast",
         language: str = "best_of_two",
         n_lines: int = 512,
@@ -248,7 +298,7 @@ class GraphLineDataset(Dataset[GraphUnit]):
                     unit_id=unit.unit_id,
                 )
                 graph = graph_builder.build(parsed)
-                data = to_pyg(graph, node_vocab)
+                data = to_pyg(graph, node_vocab, subtoken_vocab)
             except Exception:  # noqa: BLE001 - counted and reported below, never silent
                 # A unit whose graph will not build contributes nothing the structural
                 # branch can read. It is counted rather than ignored: if this rate is
@@ -278,6 +328,10 @@ class GraphLineDataset(Dataset[GraphUnit]):
                 GraphUnit(
                     unit_id=unit.unit_id,
                     node_type=data.node_type,
+                    # Kept only when a vocabulary was supplied. `to_pyg` always emits the
+                    # tensor so the layout never depends on the setting, but storing an
+                    # all-padding tensor per unit would cost memory for no signal.
+                    subtokens=data.subtokens if subtoken_vocab is not None else None,
                     node_line=data.line,
                     edge_index=data.edge_index,
                     edge_type=data.edge_type,
@@ -382,6 +436,14 @@ def collate_graphs(units: Sequence[GraphUnit]) -> dict[str, Any]:
     if not units:
         raise DataError("cannot collate an empty batch")
 
+    carries_subtokens = [u.subtokens is not None for u in units]
+    if any(carries_subtokens) and not all(carries_subtokens):
+        raise DataError(
+            "some units carry subtokens and some do not; the batch has no single feature set",
+            with_subtokens=sum(carries_subtokens),
+            without=len(units) - sum(carries_subtokens),
+        )
+
     node_types: list[torch.Tensor] = []
     node_lines: list[torch.Tensor] = []
     edge_indices: list[torch.Tensor] = []
@@ -414,7 +476,7 @@ def collate_graphs(units: Sequence[GraphUnit]) -> dict[str, Any]:
     for index, unit in enumerate(units):
         line_valid[index, : min(unit.n_lines, n_lines)] = True
 
-    return {
+    batch: dict[str, Any] = {
         "node_type": torch.cat(node_types),
         "line": torch.cat(node_lines),
         "edge_index": (
@@ -430,6 +492,9 @@ def collate_graphs(units: Sequence[GraphUnit]) -> dict[str, Any]:
         "targets": torch.tensor([u.target for u in units], dtype=torch.float32),
         "unit_ids": [u.unit_id for u in units],
     }
+    if all(carries_subtokens):
+        batch["subtokens"] = torch.cat([u.subtokens for u in units if u.subtokens is not None])
+    return batch
 
 
 class NodeBudgetBatchSampler(Sampler[list[int]]):

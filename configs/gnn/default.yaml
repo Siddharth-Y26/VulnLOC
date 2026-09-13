@@ -53,3 +53,21 @@ expect_vocab_digest: ""
 # numbers. Ablation A3 varies `builder`.
 builder: ast
 language: best_of_two
+
+# ADR-002 §D2.5's SECOND HALF: an embedding over the node's own identifier text, summed
+# with the type embedding. OFF by default, and that default is deliberate — every GNN
+# number logged before 2026-09-13 was measured without it, and flipping it silently would
+# make those runs incomparable with no record of why.
+#
+# What it is worth, measured without training anything (Memory.md §1.12, run `b530f1ff…`):
+# with node types alone **76.22% of flagged lines are indistinguishable from an unflagged
+# one** before message passing, 27.91% after two hops, 7.35% after four. So the gap is
+# large at shallow depth and small at depth 4 — expect the most from this at depth 2.
+#
+# The table is built from the TRAINING SPLIT ONLY (`build_subtoken_vocab.py`): identifiers
+# from val/test would hand the model embeddings for names that only occur in evaluation
+# data. Grammar symbols are a property of the parser and are correctly scanned corpus-wide;
+# these are not.
+use_subtokens: false
+subtoken_vocab_path: ./artifacts/representation/subtoken_vocab_ast.json
+expect_subtoken_digest: ""

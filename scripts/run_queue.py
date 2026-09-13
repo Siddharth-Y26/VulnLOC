@@ -144,9 +144,16 @@ def build_plan() -> list[Step]:
         Step(
             name="p4-seed-report",
             group="phase4",
-            why="Aggregate the GNN seeds, with the comparability refusals applied.",
+            why="Aggregate the GNN seeds for the headline group (gcn, depth 4).",
             script="scripts/report_seeds.py",
-            args=["train=structural", "+seeds.allow_source_drift=true"],
+            # Scoped to one group on purpose. `structural` covers gcn/gat/ggnn and depths
+            # 2/4/6, and asking to average across them is exactly what the comparability
+            # guard refuses — correctly. The first version of this step did, and failed.
+            args=[
+                "train=structural",
+                "+seeds.allow_source_drift=true",
+                "+seeds.where={gnn_kind: gcn, gnn_depth: 4}",
+            ],
         )
     )
 

@@ -52,6 +52,7 @@ Usage::
     python scripts/report_seeds.py
     python scripts/report_seeds.py '+seeds.runs=[fc902107...,7ea077a0...]'
     python scripts/report_seeds.py +seeds.min_seeds=5
+    python scripts/report_seeds.py train=structural '+seeds.where={gnn_kind: gcn, gnn_depth: 4}'
 """
 
 from __future__ import annotations
@@ -224,8 +225,23 @@ def _collect(
         ),
         order_by=["attributes.start_time ASC"],
     )
+    # A group selector, because one `train.name` can cover several experiments. Phase 4
+    # logs gcn/gat/ggnn and depths 2/4/6 all as `structural`, and aggregating across them
+    # is exactly what the comparability guard refuses — correctly, but unhelpfully.
+    where = OmegaConf.select(cfg, "seeds.where") or {}
+    selector = {str(k): str(v) for k, v in dict(where).items()}
+
     runs, excluded = [], []
     for run in found:
+        mismatch = [k for k, v in selector.items() if run.data.params.get(k) != v]
+        if mismatch:
+            excluded.append(
+                {
+                    "run_id": run.info.run_id,
+                    "reason": f"outside the requested group: {', '.join(sorted(mismatch))}",
+                }
+            )
+            continue
         reason = _excluded_because(run)
         if reason is None:
             runs.append(run)

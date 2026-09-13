@@ -48,6 +48,7 @@ from vulnloc.training.graph_datasets import (
     NodeBudgetBatchSampler,
     collate_graphs,
     load_node_vocab,
+    load_subtoken_vocab,
 )
 from vulnloc.training.job import run_training
 from vulnloc.training.seeding import seed_everything
@@ -83,7 +84,9 @@ def build_loader(dataset: GraphLineDataset, cfg: DictConfig, *, shuffle: bool, s
     )
 
 
-def build_model(cfg: DictConfig, vocab_size: int, device: torch.device) -> StructuralLineModel:
+def build_model(
+    cfg: DictConfig, vocab_size: int, device: torch.device, *, subtoken_vocab_size: int = 0
+) -> StructuralLineModel:
     """Compose encoder + head from config.
 
     Args:
@@ -91,6 +94,9 @@ def build_model(cfg: DictConfig, vocab_size: int, device: torch.device) -> Struc
         vocab_size: Node-type slots, from the vocabulary artefact rather than from the
             config — a size written down twice is a size that goes stale once.
         device: Where the model lives.
+        subtoken_vocab_size: Slots for ADR-002 §D2.5's second half. ``0`` leaves node
+            features as node-type only, reproducing every number logged before the
+            subtoken embedding existed.
 
     Returns:
         The model, on ``device``.
@@ -110,6 +116,7 @@ def build_model(cfg: DictConfig, vocab_size: int, device: torch.device) -> Struc
         residual=bool(cfg.gnn.residual),
         layer_norm=bool(cfg.gnn.layer_norm),
         edge_handling=str(cfg.gnn.edge_handling),
+        subtoken_vocab_size=subtoken_vocab_size,
     )
     head = LineHead(
         encoder.output_dim,
@@ -151,6 +158,23 @@ def train(cfg: DictConfig) -> dict[str, Any]:
         },
     )
 
+    subtoken_vocab: dict[str, int] | None = None
+    subtoken_meta: dict[str, Any] = {}
+    if bool(OmegaConf.select(cfg, "gnn.use_subtokens")):
+        subtoken_vocab, subtoken_meta = load_subtoken_vocab(
+            str(cfg.gnn.subtoken_vocab_path),
+            expect_digest=str(cfg.gnn.expect_subtoken_digest) or None,
+        )
+        _LOGGER.info(
+            "Subtoken vocabulary loaded (ADR-002 D2.5 second half)",
+            extra={
+                "digest": subtoken_meta["digest"][:12],
+                "size": subtoken_meta["size"],
+                "min_count": subtoken_meta["min_count"],
+                "from_run": subtoken_meta["run_id"],
+            },
+        )
+
     cache_dir = Path(cfg.data.cache.output_dir)
     # The line cap is `llm.n_lines` for both branches on purpose. It is a property of the
     # shared line axis, not of the encoder, and two branches capping differently would put
@@ -162,6 +186,7 @@ def train(cfg: DictConfig) -> dict[str, Any]:
             cache_dir,
             split,
             vocab,
+            subtoken_vocab=subtoken_vocab,
             builder=str(cfg.gnn.builder),
             language=str(cfg.gnn.language),
             n_lines=n_lines,
@@ -177,7 +202,12 @@ def train(cfg: DictConfig) -> dict[str, Any]:
         else make_dataset(str(cfg.train.eval_split), int(cfg.train.eval_limit))
     )
 
-    model = build_model(cfg, vocab_meta["size"], device)
+    model = build_model(
+        cfg,
+        vocab_meta["size"],
+        device,
+        subtoken_vocab_size=int(subtoken_meta.get("size", 0)),
+    )
 
     return run_training(
         cfg,
@@ -199,6 +229,11 @@ def train(cfg: DictConfig) -> dict[str, Any]:
             # is what makes two checkpoints comparable — or provably not.
             "node_vocab_digest": vocab_meta["digest"][:12],
             "node_vocab_size": vocab_meta["size"],
+            # Which half of ADR-002 D2.5 this run actually had. Logged as a parameter
+            # because it is the difference between two incomparable experiments.
+            "use_subtokens": bool(subtoken_vocab),
+            "subtoken_vocab_digest": (subtoken_meta.get("digest") or "")[:12],
+            "subtoken_vocab_size": int(subtoken_meta.get("size", 0)),
             # This branch's own ceiling (§7 #17), measured on this split rather than
             # quoted from the corpus average.
             "flagged_without_a_graph_node": train_set.flagged_without_node,

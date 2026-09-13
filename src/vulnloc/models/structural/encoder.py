@@ -13,13 +13,14 @@ Phase 4's exit criteria require all three to be config-selectable and require an
 over-smoothing check across depths; both are settings here rather than separate files, so
 the comparison is between convolutions and not between three subtly different scaffolds.
 
-**Node features are node-type embeddings (ADR-002 §D2.5, first half).** The second half —
-a subtoken embedding over the node's own text — is **not built here**, and the reason is
-recorded rather than quietly skipped: ``to_pyg`` emits ``node_type`` and ``line`` but no
-subtoken ids, so adding it is an L1 change plus a vocabulary, not a model change. See
-``TODO(decision)`` on :class:`NodeFeatures`. Until it lands, the branch sees grammar
-structure and not identifier names, and any claim about what it "understands" has to say
-so.
+**Node features are both halves of ADR-002 §D2.5 — but the second is off by default.**
+The node-type embedding always runs; the subtoken embedding over the node's own text runs
+only when ``subtoken_vocab_size`` is set, which keeps every number logged before it
+existed reproducible and makes enabling it a recorded config change. With it off the
+branch sees grammar structure and not identifier names, and ``Memory.md`` §1.12 measures
+what that costs: **76.22% of flagged lines are then indistinguishable from an unflagged
+one** before message passing, falling to 7.35% after four hops. Any claim about what this
+branch "understands" has to say which half was on.
 
 **Over-smoothing is the thing to watch.** Stacked message passing drives node states
 toward a single vector, and on these graphs that risk is not hypothetical: the AST of a
@@ -51,6 +52,9 @@ _LOGGER = get_logger(__name__)
 # built, so an unknown type degrades one node instead of failing a batch.
 UNKNOWN_NODE_TYPE = 0
 
+PADDING_SUBTOKEN = 1
+"""`to_pyg` pads a node's unused subtoken slots with 1; slot 0 is the unknown subtoken."""
+
 CONVOLUTIONS = ("gcn", "gat", "ggnn")
 """The three variants Phase 4 requires. Keys, not classes, so config selects them."""
 
@@ -67,28 +71,44 @@ short and folding the new relation into an existing one without raising.
 
 
 class NodeFeatures(torch.nn.Module):
-    """Initial node features: a node-type embedding.
+    """Initial node features: node-type embedding, optionally plus subtokens.
 
     ADR-002 §D2.5 fixes node features as **node-type embedding + subtoken embedding**.
-    Only the first is implemented.
+    Both halves exist now; the second is **off by default**, so every number logged before
+    it landed stays reproducible and enabling it is a recorded config change rather than a
+    silent one.
 
-    TODO(decision): the subtoken embedding needs subtoken ids on the graph, which
-    ``representation/to_pyg.py`` does not emit — it carries ``node_type`` and ``line``
-    only. Adding it means choosing a subtoken vocabulary and extending the L1 tensor
-    layout, which is an ADR-002 amendment rather than a model change. Until then this
-    branch cannot distinguish two identifiers, and experiment A4 must not be read as
-    measuring the full D2.5 feature set.
+    **Summed, not concatenated.** Concatenating would double ``D_str``, making a
+    with-versus-without comparison partly a comparison of width. Summing leaves every
+    other dimension identical, so experiment A4 measures the thing it names.
+
+    Subtokens are mean-pooled over a node's non-padding slots. Nodes with no text at all —
+    every interior node, every operator — contribute exactly zero, which is the honest
+    encoding of "this node carries no identifier evidence" rather than a learned bias
+    standing in for one.
+
+    ``Memory.md`` §1.12 is what the second half is worth: with node types alone, **76.22%
+    of flagged lines are indistinguishable from an unflagged one** before message passing.
 
     Args:
         vocab_size: Number of node-type slots, slot 0 (unknown) included.
         dim: Embedding width, ``D_str``.
         dropout: Dropout on the embedding output.
+        subtoken_vocab_size: Subtoken slots, unknown (0) and padding (1) included.
+            ``0`` disables the feature entirely.
 
     Raises:
         ModelError: If ``vocab_size`` or ``dim`` is not positive.
     """
 
-    def __init__(self, vocab_size: int, dim: int, *, dropout: float = 0.1) -> None:
+    def __init__(
+        self,
+        vocab_size: int,
+        dim: int,
+        *,
+        dropout: float = 0.1,
+        subtoken_vocab_size: int = 0,
+    ) -> None:
         super().__init__()
         if vocab_size <= 0:
             raise ModelError("vocab_size must be positive", vocab_size=vocab_size)
@@ -96,23 +116,38 @@ class NodeFeatures(torch.nn.Module):
             raise ModelError("dim must be positive", dim=dim)
         self.vocab_size = vocab_size
         self.dim = dim
+        self.subtoken_vocab_size = subtoken_vocab_size
         self.embedding = torch.nn.Embedding(vocab_size, dim, padding_idx=UNKNOWN_NODE_TYPE)
+        self.subtoken_embedding = (
+            torch.nn.Embedding(subtoken_vocab_size, dim, padding_idx=PADDING_SUBTOKEN)
+            if subtoken_vocab_size > 0
+            else None
+        )
         self.dropout = torch.nn.Dropout(dropout)
 
-    def forward(self, node_type: torch.Tensor) -> torch.Tensor:
-        """Embed node types.
+    @property
+    def uses_subtokens(self) -> bool:
+        """Whether the ADR-002 §D2.5 subtoken half is active."""
+        return self.subtoken_embedding is not None
+
+    def forward(
+        self, node_type: torch.Tensor, subtokens: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Embed node types, and subtokens when enabled.
 
         Args:
             node_type: ``[N]`` vocabulary indices.
+            subtokens: ``[N, K]`` subtoken indices padded with
+                :data:`PADDING_SUBTOKEN`. Required when the subtoken half is enabled.
 
         Returns:
             ``[N, D_str]`` initial node states.
 
         Raises:
-            ModelError: If an index falls outside the embedding table. Clamping instead
-                would train slot 0 on whatever fell off the end and hide a vocabulary
-                built from the wrong corpus — the failure ``Memory.md`` §7 records for
-                grammar symbol lists.
+            ModelError: If an index falls outside a table, or subtokens are enabled and
+                absent. Clamping instead would train slot 0 on whatever fell off the end
+                and hide a vocabulary built from the wrong corpus — the failure
+                ``Memory.md`` §7 #21 records for grammar symbol lists.
         """
         if node_type.numel() and int(node_type.max()) >= self.vocab_size:
             raise ModelError(
@@ -121,7 +156,30 @@ class NodeFeatures(torch.nn.Module):
                 vocab_size=self.vocab_size,
                 hint="Rebuild with scripts/build_node_vocab.py, or check the builder matches.",
             )
-        return torch.as_tensor(self.dropout(self.embedding(node_type)))
+        states = self.embedding(node_type)
+
+        if self.subtoken_embedding is not None:
+            if subtokens is None:
+                raise ModelError(
+                    "subtoken features are enabled but the batch carries no 'subtokens'",
+                    subtoken_vocab_size=self.subtoken_vocab_size,
+                    hint="to_pyg emits them; give the dataset a subtoken vocabulary.",
+                )
+            if subtokens.numel() and int(subtokens.max()) >= self.subtoken_vocab_size:
+                raise ModelError(
+                    "subtoken index outside the vocabulary",
+                    observed_max=int(subtokens.max()),
+                    subtoken_vocab_size=self.subtoken_vocab_size,
+                    hint="Rebuild with scripts/build_subtoken_vocab.py.",
+                )
+            embedded = self.subtoken_embedding(subtokens)
+            # Mean over real slots only. `padding_idx` already zeroes their vectors so the
+            # sum is safe, but the divisor must exclude them: otherwise a one-subtoken
+            # node is scaled down by however much padding it happens to carry.
+            real = (subtokens != PADDING_SUBTOKEN).unsqueeze(-1).to(embedded.dtype)
+            states = states + (embedded * real).sum(dim=1) / real.sum(dim=1).clamp(min=1.0)
+
+        return torch.as_tensor(self.dropout(states))
 
 
 def _make_layers(
@@ -190,6 +248,9 @@ class StructuralEncoder(torch.nn.Module):
         dropout: Dropout between layers.
         residual: Add a skip connection around each layer.
         layer_norm: Normalise after each layer.
+        subtoken_vocab_size: Subtoken slots for the ADR-002 §D2.5 second half. ``0``
+            (the default) leaves node features as node-type only, reproducing every
+            number logged before the feature existed.
         edge_handling: What a relation is allowed to mean — see :data:`EDGE_HANDLING`.
 
             * ``weighted`` learns one scalar per relation and scales that edge's message
@@ -222,6 +283,7 @@ class StructuralEncoder(torch.nn.Module):
         residual: bool = True,
         layer_norm: bool = True,
         edge_handling: str = "auto",
+        subtoken_vocab_size: int = 0,
     ) -> None:
         super().__init__()
         if depth <= 0:
@@ -236,7 +298,9 @@ class StructuralEncoder(torch.nn.Module):
         self.residual = residual
         self.edge_handling = edge_handling
 
-        self.features = NodeFeatures(vocab_size, hidden_dim, dropout=dropout)
+        self.features = NodeFeatures(
+            vocab_size, hidden_dim, dropout=dropout, subtoken_vocab_size=subtoken_vocab_size
+        )
         # One learned scalar per relation, softplus-constrained positive at use. Built
         # whenever it *might* be needed, so switching `auto` to `weighted` on a loaded
         # checkpoint does not change the parameter set.
@@ -262,6 +326,8 @@ class StructuralEncoder(torch.nn.Module):
                 "vocab_size": vocab_size,
                 "residual": residual,
                 "edge_handling": edge_handling,
+                "subtokens": self.features.uses_subtokens,
+                "subtoken_vocab_size": subtoken_vocab_size,
                 "trainable_parameters": sum(
                     p.numel() for p in self.parameters() if p.requires_grad
                 ),
@@ -347,7 +413,7 @@ class StructuralEncoder(torch.nn.Module):
                     "batch is missing a required key", missing=key, present=sorted(batch)
                 )
 
-        states = self.features(batch["node_type"])
+        states = self.features(batch["node_type"], batch.get("subtokens"))
         edge_index = batch["edge_index"]
         edge_signal = self._edge_signal(batch)
         # GAT reads a per-edge feature vector, GCN and GGNN a per-edge scalar. Same
