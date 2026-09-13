@@ -877,6 +877,37 @@ the local HF cache — the only network dependency in the pipeline.
 **Stopped:** Phase 3 seed 1's first attempt (`7ea077a0…`) was stopped by the owner at epoch
 1 and is tagged `void` in MLflow; the queue restarts that seed from scratch.
 
+**Later the same session — Phase 4 closed out, and four more guards that were wrong.**
+
+- **All four Phase 4 exit criteria met** (§1.13). Depth sweep, three variants, ≥3 seeds,
+  overfit test. The gate itself is unsigned — that is the owner's.
+- **ADR-002 §D2.5's second half is built** — identifier subtokens, `representation/
+  subtokens.py` + `build_subtoken_vocab.py` (run `ddb24d81…`, 31,389 entries, 99.72%
+  occurrence coverage). **Off by default**, so every GNN number above stays reproducible.
+  Built from **`train` only**: identifiers from val/test would be a leak, and the loader
+  refuses an artefact that says otherwise.
+- **The A4 comparison is queued** with a falsifiable prediction attached: §1.12 says the
+  subtoken gain should be **large at depth 2 and small at depth 4**.
+
+The four wrong guards, all found by asking what would happen rather than waiting:
+
+1. **`report_phase4.py` did not group on `use_subtokens`.** The A4 runs would have been
+   averaged into their own comparison partners — a feature comparison silently becoming a
+   wider seed group. Caught **before** it produced a number.
+2. **Then the opposite**: filtering on `use_subtokens` dropped every run that predated the
+   flag. Rule that resolves both (§7 #39): *a parameter that did not exist when a run was
+   made was, by definition, not enabled in that run.*
+3. **The frontend had no branch for the new stage states**, so `trained` rendered with no
+   badge and no rail colour — found by screenshotting the page, not by reading the JSON.
+4. **The inspector's red banner said the three seeds "have not been re-run"**, which
+   stopped being true today. Its lead-in sentence was hardcoded in the page; it now comes
+   from the server with the rest of the record.
+
+**Checked, not assumed:** `microsoft/codebert-base` loads entirely from the local HF cache
+(the only network dependency); the machine will not sleep (High performance, timeout 0);
+and seed 42's logged parameters are identical to a semantic run from tonight modulo the
+seed, so the overnight Phase 3 aggregation will not be refused.
+
 ### 2026-09-12 (session 10) — the inspector, Phase 4's foundation, and seed 42 restarted
 
 **Frontend.** `frontend/` is a pipeline inspector: paste a C/C++ function and every built
