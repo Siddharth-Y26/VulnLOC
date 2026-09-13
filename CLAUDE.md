@@ -42,7 +42,7 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ---
 
-## 3. Current state (2026-09-08)
+## 3. Current state (2026-09-13)
 
 | | |
 |---|---|
@@ -51,9 +51,9 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
 | Phase 3 | 🟨 **3 / 4.** Tokenization, `LineAligner`, encoder, line head, losses, metrics and the training loop are built; **the overfit test passes** (Top-5 = 1.0). **The one full run (`1843412a…`) is VOID — it learned a formatting artefact (ADR-006, landmine #28).** The rerun on normalized text works: **seed 42 (`fc902107…`) reports Top-5 0.610, Top-1 0.363, line F1 0.378, IFA 11.94, with a curve that rises instead of starting flat.** Remaining: seeds 1 and 2 (≈3 h 55 m each) — **one seed is not a result**, and `function/f1` = 1.000 is degenerate by construction. |
-| Phase 4 | 🟨 **1 / 4.** Vocabulary (`2c9ce1b1…`), GCN/GAT/GGNN behind one scaffold, the graph data path, `edge_type` consumed (ADR-007), `StructuralLineModel` + `configs/gnn/*` + `scripts/train_structural.py`. **Overfit test PASSED** — run `8b0a3c1d…`, Top-1 = Top-5 = **1.000**. First GNN-only baseline: run `46ab8056…`, Top-5 0.338 / Top-1 0.108 / F1 0.094, **well below the semantic arm**, which §1.12 explains. Open: all three on real data, depth sweep, ≥3 seeds — **all queued in `scripts/run_queue.py`**. **Node features are node-type only — the ADR-002 §D2.5 subtoken half is not built.** |
+| Phase 4 | 🟨 **2 / 4** (and the other two are queued).**Overfit test PASSED** and **≥3 seeds MET**. See `python scripts/report_phase4.py`. Detail: Vocabulary (`2c9ce1b1…`), GCN/GAT/GGNN behind one scaffold, the graph data path, `edge_type` consumed (ADR-007), `StructuralLineModel` + `configs/gnn/*` + `scripts/train_structural.py`. **Overfit test PASSED** — run `8b0a3c1d…`, Top-1 = Top-5 = **1.000**. First GNN-only baseline: run `46ab8056…`, Top-5 0.338 / Top-1 0.108 / F1 0.094, **well below the semantic arm**, which §1.12 explains. Open: all three on real data, depth sweep, ≥3 seeds — **all queued in `scripts/run_queue.py`**. **Node features are node-type only — the ADR-002 §D2.5 subtoken half is not built.** |
 | Phases 5–10 | ⬜ Not started. |
-| Tests | **679 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **686 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`

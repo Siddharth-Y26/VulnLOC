@@ -2,7 +2,7 @@
 
 **Purpose:** the project's working memory. Any contributor — human or AI assistant — reads this file **first**, before touching code, and updates it **last**, before ending a session. It exists so that a new chat, a new tool, or a new teammate does not have to re-read the codebase or re-derive decisions.
 
-**Status (2026-09-12):** **Phases 1 and 2 complete.** Phase 3 is 3/4 — the model, the loop and the metrics exist, the overfit test passes, and the first honest full run landed today (seed 42, `fc902107…`, §4); it needs two more seeds. Phase 4 has its node-type vocabulary and its three encoders but none of its exit criteria. The earlier run `1843412a…` is void — read §1.10 before trusting any line-level number.
+**Status (2026-09-13):** **Phases 1 and 2 complete.** Phase 3 is 3/4 — the model, the loop and the metrics exist, the overfit test passes, and the first honest full run landed today (seed 42, `fc902107…`, §4); it needs two more seeds. **Phase 4 runs end to end**: overfit test PASSED (`8b0a3c1d…`), GNN-only over 3 seeds (Top-5 0.3645 ± 0.0231, `46ab8056…`/`a993f451…`/`6d105018…`), the remaining two criteria queued. **Phase 3's seeds 1 and 2 are running unattended** via `scripts/run_queue.py`. The earlier run `1843412a…` is void — read §1.10 before trusting any line-level number.
 
 ---
 
@@ -786,6 +786,52 @@ Next:
 
 ---
 
+### 2026-09-13 (session 11) — Phase 4 wired, run and measured; the guards that were wrong
+
+Phase: 4 (1 → 4 of 4 criteria in flight), Phase 3 seeds running unattended.
+
+**Phase 4 went from "encoder exists" to "running end to end".** `training/graph_datasets.py`
+(dataset, node-budget sampler, collation, coverage accounting), `StructuralLineModel`,
+`configs/gnn/{default,gcn,gat,ggnn}.yaml`, `configs/train/{structural,overfit_structural}.yaml`,
+`scripts/train_structural.py` on a shared `training/job.py` loop. `edge_type` is consumed
+rather than carried (**ADR-007**), with `auto` refusing a multi-relation graph outright.
+
+**Results, all on held-out `val`:**
+- **Overfit test PASSED** — run `8b0a3c1d…`, Top-1 = Top-5 = **1.000**.
+- **GNN-only over 3 seeds** — Top-5 **0.3645 ± 0.0231**, Top-1 0.1155 ± 0.0132,
+  line F1 0.0956 ± 0.0016, IFA 19.11 ± 1.13. **Far below the semantic arm** (Top-5 0.610),
+  which §1.12 explains rather than excuses.
+
+**Three guards turned out to be wrong, and each was found by running the thing.**
+
+1. **The overfit config under-trained.** 60 epochs with dropout on plateaus at Top-1 ~0.80
+   and reads as FAILED. The wrong diagnoses, in order: capacity (no — 512/6 is *worse*),
+   regularisation alone (no), feature aliasing (no — §1.12 puts 4-hop ambiguity at 7.35%).
+   It was the schedule. §7 #35.
+2. **`config_hash` cannot decide whether two runs are replicates.** It digests the whole
+   resolved config, so it changes with the **seed** — the one thing replicates must differ
+   on. Three genuine GCN replicates carried three different hashes. `report_seeds.py` would
+   have refused every legitimate aggregation, Phase 3's included. Now compares logged
+   **parameters**, excluding seed and run identity, and **names** the offending key.
+3. **A key added to `semantic.yaml` that nothing reads** moved every semantic run's
+   `config_hash` away from seed 42's logged `25c7178bafd2` — which would have made seeds 1
+   and 2, queued for tonight, incomparable with the seed already logged. §7 #22 again, with
+   a new consequence. §7 #38.
+
+**§1.12 is the session's most reusable finding.** What the structural branch can see,
+measured **without training anything**, via Weisfeiler-Lehman refinement: 76.22% of flagged
+lines are indistinguishable from an unflagged one at 0 hops, 27.91% at 2, 7.35% at 4. It
+says the ADR-002 §D2.5 subtoken gap is expensive only at shallow depth — **and that the
+2/4/6 depth sweep is not a clean over-smoothing experiment** (§7 #37).
+
+**Built for the network going away at 02:00.** `scripts/run_queue.py` runs the remaining
+slate offline, sequentially, resumable, continuing past failures, with per-step logs and
+recovered run ids. Verified beforehand that `microsoft/codebert-base` loads entirely from
+the local HF cache — the only network dependency in the pipeline.
+
+**Stopped:** Phase 3 seed 1's first attempt (`7ea077a0…`) was stopped by the owner at epoch
+1 and is tagged `void` in MLflow; the queue restarts that seed from scratch.
+
 ### 2026-09-12 (session 10) — the inspector, Phase 4's foundation, and seed 42 restarted
 
 **Frontend.** `frontend/` is a pipeline inspector: paste a C/C++ function and every built
@@ -1005,6 +1051,11 @@ graph builders, line-safe tokenization, the shared line aligner, the model and t
 training loop all exist. Per-N-step checkpointing landed in `bfe7631`. **The one full
 training run is void (§1.10) and no valid trained result exists.**
 
+0a. **Running unattended as of 2026-09-13 23:35 IST — `scripts/run_queue.py`.** Twelve
+   steps: Phase 4's remaining runs (~3 min each), then its two report artefacts, then
+   Phase 3's seeds 1 and 2 (~3 h 55 m each), then the seed report. Offline, resumable,
+   continues past a failure. **Check it first: `python scripts/run_queue.py --status`.**
+   Re-run the same command to continue anything left; completed steps are skipped.
 0. **Done 2026-09-08 — the corpus is rebuilt.** ADR-006 is applied at L0
    (`data.normalize_whitespace=true`); `build_splits.py` re-verified `reproduced=True`
    with fingerprint `0ade7483…` **unchanged**, and `build_cache.py` rewrote the shards
