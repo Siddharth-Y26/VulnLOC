@@ -44,7 +44,7 @@
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
 | 3 LLM Branch | 🟨 In progress | **3 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. Remaining: seeds 1 and 2 (≈3 h 55 m each) before the ≥3-seed criterion is met |
-| 4 GNN Branch | 🟨 In progress | **1 / 4** | Node-type vocabulary (run `2c9ce1b1…`), `StructuralEncoder` with GCN/GAT/GGNN, **the graph data path** (`training/graph_datasets.py` — dataset, node-budget sampler, collation, coverage accounting) and **edge-type handling** (ADR-007) all exist. **Overfit test PASSED** (run `8b0a3c1d…`, Top-1 = Top-5 = 1.000). Open: all three on real data, the depth sweep, ≥3 seeds — all queued in `scripts/run_queue.py`. **Node features are node-type only** — the ADR-002 §D2.5 subtoken half is not built |
+| 4 GNN Branch | 🟨 **4 / 4 criteria met** | **4 / 4** | All four met by logged runs — `python scripts/report_phase4.py`, §1.13. Overfit test (`8b0a3c1d…`, Top-1 = Top-5 = 1.000); all three variants on real data; depth sweep 2/4/6; ≥3 seeds (gcn depth 4, Top-5 **0.3645 ± 0.0231**). **The phase gate is the owner's to sign.** ADR-002 §D2.5's subtoken half now exists but is **off** in every run above; the A4 comparison is queued |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
 | 7 Explanation | ⬜ Not started | 0 / 4 | |
@@ -734,6 +734,51 @@ every radius (68.98 / 62.08 / 28.90 / 10.75 / 8.94).
 
 ---
 
+## 1.13 The GNN-only baseline, and what the depth sweep actually shows (Phase 4)
+
+**All four Phase 4 exit criteria are met by logged runs** — `python scripts/report_phase4.py`,
+artefact `artifacts/phase4/phase4_report.json`. The gate itself is the owner's to sign.
+
+| | seeds | Top-5 | Top-1 | line F1 |
+|---|---|---|---|---|
+| **gcn, depth 4** (headline) | 42, 1, 2 | **0.3645 ± 0.0231** | 0.1155 ± 0.0132 | 0.0956 ± 0.0016 |
+| gat, depth 4 | 42 | 0.3506 | 0.1224 | 0.1027 |
+| ggnn, depth 4 | 42 | 0.3237 | 0.1017 | 0.0989 |
+| gcn, depth 2 | 42 | 0.3361 | 0.0685 | 0.0655 |
+| gcn, depth 6 | 42 | 0.3174 | 0.0851 | 0.0694 |
+
+**The structural branch is far weaker than the semantic one** — Top-5 0.36 against 0.61,
+line F1 0.10 against 0.38 (run `fc902107…`). That is the honest result, not a failure to
+explain away: node features are node-type only in every run above, and §1.12 measures what
+that costs. A1's premise is that the two branches are complementary, **not** that they are
+equally strong, and a fusion that beats the semantic arm has to earn it.
+
+### The depth sweep — and why 6 vs 4 is the only part that is about over-smoothing
+
+| depth | Top-5 | Top-1 | flagged lines the *features* cannot resolve (§1.12) |
+|---|---|---|---|
+| 2 | 0.3361 | 0.0685 | **27.91%** |
+| **4** | **0.3645** | **0.1155** | 7.35% |
+| 6 | 0.3174 | 0.0851 | **5.39%** |
+
+**Depth 4 beating depth 2 says nothing about over-smoothing.** Depth 2 carries a 27.91%
+hard ceiling from the representation, so it was always going to lose. Reading that as
+over-smoothing evidence would be reading a feature limit as an architectural one (§7 #37).
+
+**Depth 6 losing to depth 4 is the interesting half.** The feature ceiling *improves* at
+depth 6 — 5.39% against 7.35% — so on representational grounds depth 6 should have matched
+or beaten depth 4, and it is **0.047 Top-5 worse**. Feature ambiguity cannot explain that,
+which leaves over-smoothing (or optimisation difficulty at depth) as the live explanation.
+This is what the residual connections and layer norm were put in to resist, and they did
+not fully hold at 6.
+
+**How firmly to hold it: not very.** Depths 2 and 6 are **one seed each**, and the seed
+spread at depth 4 is ±0.023, so the 0.047 gap is about 2× one standard deviation. It is
+**suggestive and not conclusive**, and Phase 8 should re-run 2 and 6 at three seeds before
+the paper makes the claim.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -994,6 +1039,9 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `11c2b890…` / `f083ae38…` | 2026-09-13 | `train_structural.py +gnn=gcn gnn.depth={6,2}` | 42 | — | gnn_only | — | 0.3174 / 0.3361 | — | **The depth sweep, §1.13.** Depth 4 is best (0.3645). **Depth 6 loses to depth 4 while its *feature* ceiling is better** (5.39% vs 7.35%), so ambiguity cannot explain it — over-smoothing or depth-optimisation can. **One seed each; the 0.047 gap is ≈2× the depth-4 seed spread. Suggestive, not conclusive.** |
+| `5892b032…` / `d5a63481…` | 2026-09-13 | `train_structural.py +gnn={gat,ggnn} train=structural seed=42` | 42 | — | gnn_only | — | 0.3506 / 0.3237 | — | **Phase 4 exit criterion: all three variants run on real data.** GAT 0.3506 / Top-1 0.1224; GGNN 0.3237 / Top-1 0.1017; GCN 0.3645. One seed each — the three are **not** separated by more than seed noise and must not be ranked. |
+| `ddb24d81…` | 2026-09-13 | `build_subtoken_vocab.py` (ast, train only) | — | — | — | — | — | — | **The identifier table, ADR-002 §D2.5's second half.** 148,983 units, 0 failures, 56,075 distinct subtokens over 17.7M occurrences; `min_count=5` keeps 31,387 types = **99.72%** of occurrences. Digest `e1d018bd…`. **Built from `train` alone** — identifiers from val/test would hand the model embeddings for evaluation-only names. Data artefact, not a result. |
 | `46ab8056…` | 2026-09-13 | `train_structural.py +gnn=gcn train=structural seed=42` | 42 | — | gnn_only | 1.000 *(degenerate)* | **0.338** | 20.41 | **The first GNN-only baseline.** Line P/R/F1 = 0.628 / 0.051 / 0.094, Top-1 0.108. It learns (Top-1 0.033 → 0.112, F1 0.015 → 0.099), so the curve is honest — but it is **far below the semantic arm** (Top-5 0.610, F1 0.378, run `fc902107…`). Expected: node features are node-type only (ADR-002 §D2.5 half-built) and §1.12 measures that 7.35% of flagged lines stay indistinguishable even at 4 hops. Coverage 90.81%; 2,397 train flagged lines have no graph node (§7 #17). **One seed of three — not citable.** Vocabulary `a0643c4e…`. |
 | `b530f1ff…` | 2026-09-13 | `report_node_feature_aliasing.py` (ast, 1,500 units/split) | — | — | — | — | — | — | **What the structural branch can see, measured without training — §1.12.** Weisfeiler-Lehman ceiling on flagged-line recoverability: **76.22% of flagged lines are indistinguishable from an unflagged one at 0 hops, 27.91% at 2, 7.35% at 4.** Says the §D2.5 subtoken gap is expensive only at shallow depth, and that **depth 2's deficit in the sweep is representational, not over-smoothing**. Data artefact, not a result. |
 | `8b0a3c1d…` | 2026-09-13 | `train_structural.py +gnn=gcn train=overfit_structural` (32 graphs) | 42 | — | gnn_only | — | **1.000** | — | **Phase 4 overfit test: PASSED.** Top-1 **1.0000**, Top-5 **1.0000**, loss 1.57 → 0.2483 over 150 epochs. All three convolutions pass (gcn/gat/ggnn reach Top-1 = 1.000 at ~100 epochs). **It first read as FAILED because the config under-trained** — 60 epochs with dropout on plateaus at Top-1 ~0.80. A debugging instrument — **never cite this as a result.** |
