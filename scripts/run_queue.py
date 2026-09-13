@@ -128,6 +128,28 @@ def build_plan() -> list[Step]:
             )
         )
 
+    # --- Phase 4: assemble the criteria while they are fresh ----------------------
+    # A report step, not a training one. It runs here so the morning finds an artefact
+    # rather than four criteria scattered across seven runs.
+    steps.append(
+        Step(
+            name="p4-report",
+            group="phase4",
+            why="Assemble Phase 4's four exit criteria from the runs above.",
+            script="scripts/report_phase4.py",
+            args=[],
+        )
+    )
+    steps.append(
+        Step(
+            name="p4-seed-report",
+            group="phase4",
+            why="Aggregate the GNN seeds, with the comparability refusals applied.",
+            script="scripts/report_seeds.py",
+            args=["train=structural", "+seeds.allow_source_drift=true"],
+        )
+    )
+
     # --- Phase 3: the two seeds that close it -------------------------------------
     # Hours each. Last, because a cut-short night should lose these rather than Phase 4's
     # three criteria. Seed 1 restarts from scratch: its earlier run was stopped at epoch 1
@@ -142,6 +164,20 @@ def build_plan() -> list[Step]:
                 args=["train=semantic", f"seed={seed}", "device.kind=cuda"],
             )
         )
+
+    # Phase 3's own aggregation, last, once its seeds exist. `allow_source_drift` is
+    # required and not a shortcut: src/vulnloc genuinely changed between seed 42 and
+    # tonight (Phase 4 landed), and the override writes the changed file list into the
+    # report rather than hiding it.
+    steps.append(
+        Step(
+            name="p3-seed-report",
+            group="phase3",
+            why="Aggregate the LLM-only seeds; Phase 3's exit criterion needs >=3.",
+            script="scripts/report_seeds.py",
+            args=["train=semantic", "+seeds.allow_source_drift=true"],
+        )
+    )
 
     return steps
 
