@@ -177,29 +177,36 @@ def api_model() -> dict[str, Any]:
     The inspector never shows a vulnerability score. The one end-to-end training run
     (``1843412a…``) was voided by ADR-006 because it learned the corpus's indentation
     artefact rather than the vulnerability, and Phase 3's ≥3-seed exit criterion is
-    unstarted. Until a valid run exists there is nothing whose output could honestly be
-    displayed, and this endpoint exists to say so in the interface rather than leave a
-    blank panel that reads like a loading state.
+    unstarted. Valid runs now exist for both branches, and this endpoint still reports
+    `available: false` — deliberately. Two different reasons, and conflating them would
+    be the dishonest part: the semantic arm has one seed where its phase requires three,
+    and separately this tool loads no weights at all, because scoring a pasted function
+    would assert a generalisation nothing measured so far supports. The endpoint exists
+    to say that in the interface rather than leave a blank panel that reads like a
+    loading state.
 
     Returns:
         The model availability record.
     """
     return {
         "available": False,
-        "reason": "void-run",
-        "voided_run": "1843412a445b48c6a21059fb9689bf6f",
+        "reason": "not-enough-seeds",
         "decision": "ADR-006",
-        "headline": "No trained model. No scores are shown anywhere in this tool.",
+        "headline": "Trained models exist. No scores are shown anywhere in this tool.",
         "detail": (
-            "The only end-to-end run reported val line F1 0.9606 and precision 0.9847 — "
-            "above the project's own ~30% line-label-noise ceiling, which makes those "
-            "numbers impossible. It had learned a one-line whitespace rule: on the "
-            "corpus as shipped, 'does this line start with a space?' recovers the flaw "
-            "label at precision 1.0000 with zero false positives on all six partitions. "
-            "The corpus has since been normalized and rebuilt, and the three seeds have "
-            "not been re-run."
+            "Two branches now have logged, honest results on held-out val. Semantic "
+            "(CodeBERT, run fc902107): Top-5 0.610, Top-1 0.363, line F1 0.378. "
+            "Structural (GCN depth 4, three seeds): Top-5 0.3645 ± 0.0231, line F1 "
+            "0.0956. Neither is displayed here, for two separate reasons. The semantic "
+            "arm is one seed and its phase requires three, so it is a measurement and "
+            "not yet a result. And no weights are loaded by this tool at all: scoring a "
+            "function you paste would mean claiming the model generalises to it, which "
+            "nothing measured so far supports. The earlier run 1843412a remains void — "
+            "it scored 0.96 by reading the corpus's indentation (ADR-006), which is why "
+            "every number above was re-measured on normalized text."
         ),
-        "unblocks": "python scripts/train_semantic.py train=semantic seed=42",
+        "next_step": "What is running, and what it has produced so far:",
+        "unblocks": "python scripts/run_queue.py --status",
     }
 
 

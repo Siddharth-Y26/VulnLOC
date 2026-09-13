@@ -40,7 +40,11 @@ async function loadModel() {
   banner.hidden = false;
   banner.append(el("h2", null, model.headline));
   const p = el("p");
-  p.textContent = model.detail + " Re-running the three seeds is what unblocks scores: ";
+  // The lead-in comes from the server, not from here. It used to be hardcoded as
+  // "re-running the three seeds is what unblocks scores", which stopped being true the
+  // day the seeds were re-run — and a banner that is confidently out of date is worse
+  // than one that says less.
+  p.textContent = `${model.detail} ${model.next_step || "Where things stand:"} `;
   p.append(el("code", null, model.unblocks));
   banner.append(p);
 }
@@ -171,6 +175,13 @@ function stagePanel(stage) {
   if (stage.state === "live") head.append(el("span", "badge badge-live", "ran just now"));
   if (stage.state === "built-untrained")
     head.append(el("span", "badge badge-signal", "built, never validly trained"));
+  // Every state in phases.json needs a branch here. A state with no branch renders with
+  // no badge at all and looks like a stage nobody thought about, which is the opposite of
+  // what this page is for.
+  if (stage.state === "trained")
+    head.append(el("span", "badge badge-trained", "trained, measured"));
+  if (stage.state === "trained-one-seed")
+    head.append(el("span", "badge badge-signal", "trained · one seed, not yet a result"));
   if (stage.state === "planned") head.append(el("span", "badge badge-void", "not built"));
   if (stage.adr) head.append(el("span", "stage-layer", stage.adr));
   section.append(head);

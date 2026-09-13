@@ -211,6 +211,16 @@ a {
   color: var(--signal);
 }
 
+.rail li[data-state="trained"] .rail-name {
+  color: var(--live);
+}
+.rail li[data-state="trained-one-seed"] {
+  border-bottom-color: var(--signal);
+}
+.rail li[data-state="trained-one-seed"] .rail-name {
+  color: var(--signal);
+}
+
 .rail li[data-state="planned"] .rail-name {
   color: var(--dimmer);
 }
@@ -458,6 +468,9 @@ input[type="number"] {
 }
 .badge-signal {
   color: var(--signal);
+}
+.badge-trained {
+  color: var(--live);
 }
 
 .stage-why {
