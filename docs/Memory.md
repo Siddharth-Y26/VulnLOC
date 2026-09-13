@@ -1093,11 +1093,46 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 
 Ordered. Top item is what the next session starts with.
 
-**Phases 1 and 2 are closed, Q8 with them (ADR-005), and Phase 3's two design gates are
-measured** (§1.8 truncation, §1.9 VRAM). The data, the parser, the line map, all four
-graph builders, line-safe tokenization, the shared line aligner, the model and the
-training loop all exist. Per-N-step checkpointing landed in `bfe7631`. **The one full
-training run is void (§1.10) and no valid trained result exists.**
+### 0. START HERE — what ran overnight (2026-09-13 into 2026-09-14)
+
+```bash
+python scripts/run_queue.py --status     # every step, its wall clock and its run id
+python scripts/report_phase4.py          # Phase 4's four criteria, and the A4 comparison
+cat artifacts/phase3/seed_report_semantic.json     # Phase 3, once its 3 seeds exist
+```
+
+**The queue continues itself.** `scripts/run_queue.py` re-reads its plan after every pass,
+skips completed steps, and continues past a failure with the exit code and log path
+recorded. Re-running the same command is always safe. Per-step logs are in
+`artifacts/queue/logs/`. A watcher process was left running to start a second pass once
+the first finished; if it died, `python scripts/run_queue.py --retry-failed` does the same
+job by hand.
+
+**What was queued, in order:** Phase 4's remaining runs (done), the A4 subtoken comparison
+(4 runs, ~3 min each), Phase 4's report artefacts, then Phase 3's seeds 1 and 2
+(~2 h each), then Phase 3's seed report.
+
+**Three things need a human and nothing else is blocked on them:**
+
+1. **Sign or refuse the Phase 4 gate.** All four exit criteria are met by logged runs
+   (§1.13, `artifacts/phase4/phase4_report.json`). Closing a phase is not a decision an
+   assistant should take.
+2. **ADR-006 and ADR-007 are both `Proposed`.** ADR-006 is implemented, measured and now
+   load-bearing in the paper; ADR-007's mechanism is built and default-on as a refusal.
+   Both want an owner's accept or an explicit hold.
+3. **ADR-007 D7.4 is open:** which edge handling reports the headline numbers. It needs
+   `ignore` vs `weighted` on the same seeds, on a **CPG** — on an AST there is one
+   relation and the question is moot, so this is not in tonight's queue.
+
+### 1. If Phase 3's seeds finished
+
+`python scripts/report_seeds.py train=semantic +seeds.allow_source_drift=true`. The
+override is required rather than a shortcut: `src/vulnloc` genuinely changed between seed
+42 and tonight (Phase 4 landed), and it writes the changed file list into the report
+instead of hiding it. **Verified 2026-09-13: seed 42 and a run from tonight have identical
+logged parameters modulo the seed, so the aggregation will not be refused.**
+
+Then settle the metric question recorded below, and Phase 3 can close.
 
 0a. **Running unattended as of 2026-09-13 23:35 IST — `scripts/run_queue.py`.** Twelve
    steps: Phase 4's remaining runs (~3 min each), then its two report artefacts, then
