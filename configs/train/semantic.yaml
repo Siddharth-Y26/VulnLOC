@@ -44,6 +44,9 @@ watch_metric: line/top_5_accuracy
 watch_mode: max
 patience: 3
 
+# Zero every dropout, for an overfit test only. False everywhere a real number comes from.
+zero_dropout: false
+
 checkpoint_dir: ./artifacts/checkpoints
 
 # Write a resumable checkpoint every N optimizer steps. Memory.md §7 #31: an epoch on the

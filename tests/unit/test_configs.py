@@ -159,3 +159,32 @@ def test_the_structural_overfit_config_is_a_debugging_instrument(compose_config)
     # Focal loss down-weights confident predictions, which is what an overfit test wants
     # to produce.
     assert cfg.train.loss == "bce"
+
+
+def test_the_overfit_config_defeats_regularisation_and_trains_long_enough(compose_config):
+    """Both were measured, and both were wrong in the first version of this config.
+
+    At 60 epochs with dropout left at 0.1, all three convolutions plateau at Top-1 ~0.80
+    and Phase 4's overfit test reads as FAILED. At 150 epochs with dropout zeroed, all
+    three reach Top-1 = 1.000. A debugging instrument that under-trains turns a healthy
+    model into a bug report, which is worse than not having one.
+    """
+    cfg = compose_config("train=overfit_structural")
+
+    assert cfg.train.zero_dropout is True
+    assert cfg.train.epochs >= 120
+    # And it must stay off everywhere a real number comes from.
+    assert compose_config("train=structural").train.zero_dropout is False
+    assert compose_config("train=semantic").train.zero_dropout is False
+
+
+@pytest.mark.parametrize(
+    "order", [["+gnn=gcn", "train=overfit_structural"], ["train=overfit_structural", "+gnn=gcn"]]
+)
+def test_zero_dropout_does_not_depend_on_override_order(compose_config, order):
+    """It lives in `train` precisely because group selection is order-dependent.
+
+    Written as `gnn.dropout=0` on the command line, a later `+gnn=gcn` puts the dropout
+    silently back and the test fails for a reason nothing reports.
+    """
+    assert compose_config(*order).train.zero_dropout is True

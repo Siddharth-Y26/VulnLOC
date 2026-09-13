@@ -12,12 +12,25 @@ name: overfit_structural
 limit: 32
 eval_limit: 32
 overfit: true
-epochs: 60
+
+# 150, not 60, and the difference is not cosmetic. MEASURED 2026-09-13: at 60 epochs all
+# three convolutions plateau at Top-1 ~0.80 and the test looks FAILED; at ~100 epochs all
+# three reach Top-1 = 1.000 and Top-5 = 1.000. A GNN trained from scratch on 32 graphs
+# simply needs more passes than a fine-tuned 124M-parameter transformer does, and an
+# overfit config that stops early turns a healthy model into a bug report.
+epochs: 150
 
 # Memorisation needs a higher rate and nothing regularising against it.
 lr: 3.0e-3
 weight_decay: 0.0
-patience: 60
+patience: 150
+
+# Dropout is regularisation and an overfit test is trying to defeat it. This lives here,
+# as a value the entrypoint reads, rather than as `gnn.dropout=0` on the command line:
+# group selection is order-dependent, so `+gnn=gcn` after an experiment config would
+# silently put the dropout back. MEASURED 2026-09-13: with dropout left at 0.1 all three
+# convolutions plateau at Top-1 ~0.80 and the test reads as FAILED.
+zero_dropout: true
 
 # Plain weighted BCE: focal loss deliberately down-weights confident predictions, which is
 # exactly what an overfit test is trying to produce.

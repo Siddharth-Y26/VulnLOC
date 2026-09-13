@@ -36,7 +36,7 @@ from typing import Any
 
 import hydra
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 from vulnloc.models.heads.line_head import LineHead
@@ -95,13 +95,18 @@ def build_model(cfg: DictConfig, vocab_size: int, device: torch.device) -> Struc
     Returns:
         The model, on ``device``.
     """
+    # An overfit test is trying to defeat regularisation, so `train.zero_dropout` wins over
+    # whichever `gnn`/`head` group was selected. Applied here rather than expected as two
+    # CLI overrides, because group selection is order-dependent and a forgotten override
+    # makes a healthy model look broken (measured: Top-1 0.80 with dropout, 1.00 without).
+    zero = bool(OmegaConf.select(cfg, "train.zero_dropout"))
     encoder = build_structural_encoder(
         str(cfg.gnn.kind),
         vocab_size=vocab_size,
         hidden_dim=int(cfg.gnn.hidden_dim),
         depth=int(cfg.gnn.depth),
         heads=int(cfg.gnn.heads),
-        dropout=float(cfg.gnn.dropout),
+        dropout=0.0 if zero else float(cfg.gnn.dropout),
         residual=bool(cfg.gnn.residual),
         layer_norm=bool(cfg.gnn.layer_norm),
         edge_handling=str(cfg.gnn.edge_handling),
@@ -109,7 +114,7 @@ def build_model(cfg: DictConfig, vocab_size: int, device: torch.device) -> Struc
     head = LineHead(
         encoder.output_dim,
         hidden_dim=int(cfg.head.hidden_dim),
-        dropout=float(cfg.head.dropout),
+        dropout=0.0 if zero else float(cfg.head.dropout),
     )
     return StructuralLineModel(encoder, head, n_lines=int(cfg.llm.n_lines)).to(device)
 
