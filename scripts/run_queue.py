@@ -128,6 +128,44 @@ def build_plan() -> list[Step]:
             )
         )
 
+    # --- A4: what ADR-002 D2.5's second half is actually worth ---------------------
+    # Section 1.12 predicts the gain is LARGE at depth 2 (27.91% of flagged lines
+    # indistinguishable without subtokens) and SMALL at depth 4 (7.35%). That is a sharp,
+    # falsifiable prediction, so both depths are run rather than only the default one. The
+    # comparison partners already exist: p4-gcn-seed{42,1,2} and p4-gcn-depth2.
+    for seed in (42, 1, 2):
+        steps.append(
+            Step(
+                name=f"a4-gcn-subtok-seed{seed}",
+                group="phase4",
+                why=f"A4: node-type + subtoken features, depth 4, seed {seed}. "
+                f"Partner: p4-gcn-seed{seed}.",
+                args=[
+                    "+gnn=gcn",
+                    "train=structural",
+                    "gnn.use_subtokens=true",
+                    f"seed={seed}",
+                    "device.kind=cuda",
+                ],
+            )
+        )
+    steps.append(
+        Step(
+            name="a4-gcn-subtok-depth2",
+            group="phase4",
+            why="A4 at depth 2, where section 1.12 predicts the largest gain. "
+            "Partner: p4-gcn-depth2.",
+            args=[
+                "+gnn=gcn",
+                "train=structural",
+                "gnn.use_subtokens=true",
+                "gnn.depth=2",
+                "seed=42",
+                "device.kind=cuda",
+            ],
+        )
+    )
+
     # --- Phase 4: assemble the criteria while they are fresh ----------------------
     # A report step, not a training one. It runs here so the morning finds an artefact
     # rather than four criteria scattered across seven runs.
@@ -362,20 +400,31 @@ def main() -> int:
     state["started"] = state.get("started") or datetime.now(UTC).isoformat()
     save_state(state)
 
+    # The plan is re-read after every pass. A long queue is exactly the situation in
+    # which someone adds a step while it is running, and the alternative is killing a
+    # four-hour run to pick the new step up.
     failures = 0
-    for step in plan:
-        previous = state["steps"].get(step.name, {}).get("status")
-        if previous == "done":
-            print(f"--- {step.name}: already done, skipping")
-            continue
-        if previous == "failed" and not args.retry_failed:
-            print(f"--- {step.name}: failed previously, skipping (--retry-failed to retry)")
-            failures += 1
-            continue
-        if not run_step(step, state):
-            failures += 1
+    attempted: set[str] = set()
+    while True:
+        plan = build_plan()
+        if args.only:
+            plan = [s for s in plan if s.group == args.only]
+        todo = [
+            step
+            for step in plan
+            if step.name not in attempted
+            and state["steps"].get(step.name, {}).get("status") != "done"
+            and (state["steps"].get(step.name, {}).get("status") != "failed" or args.retry_failed)
+        ]
+        if not todo:
+            break
+        for step in todo:
+            attempted.add(step.name)
+            if not run_step(step, state):
+                failures += 1
+            state = load_state()
 
-    print_status(plan, state)
+    print_status(build_plan(), state)
     return 1 if failures else 0
 
 
