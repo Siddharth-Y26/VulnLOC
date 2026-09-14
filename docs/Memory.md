@@ -2,7 +2,7 @@
 
 **Purpose:** the project's working memory. Any contributor — human or AI assistant — reads this file **first**, before touching code, and updates it **last**, before ending a session. It exists so that a new chat, a new tool, or a new teammate does not have to re-read the codebase or re-derive decisions.
 
-**Status (2026-09-13):** **Phases 1 and 2 complete.** Phase 3 is 3/4 — the model, the loop and the metrics exist, the overfit test passes, and the first honest full run landed today (seed 42, `fc902107…`, §4); it needs two more seeds. **Phase 4 runs end to end**: overfit test PASSED (`8b0a3c1d…`), GNN-only over 3 seeds (Top-5 0.3645 ± 0.0231, `46ab8056…`/`a993f451…`/`6d105018…`), the remaining two criteria queued. **Phase 3's seeds 1 and 2 are running unattended** via `scripts/run_queue.py`. The earlier run `1843412a…` is void — read §1.10 before trusting any line-level number.
+**Status (2026-09-14):** **Phases 1 and 2 complete.** Phase 3 is 3/4 — the model, the loop and the metrics exist, the overfit test passes, and the first honest full run landed today (seed 42, `fc902107…`, §4); it needs two more seeds. **Phase 4 runs end to end**: overfit test PASSED (`8b0a3c1d…`), GNN-only over 3 seeds (Top-5 0.3645 ± 0.0231, `46ab8056…`/`a993f451…`/`6d105018…`), the remaining two criteria queued. **Phase 3's seeds 1 and 2 are running unattended** via `scripts/run_queue.py`. The earlier run `1843412a…` is void — read §1.10 before trusting any line-level number.
 
 ---
 
@@ -43,7 +43,7 @@
 | 0 Foundation | 🟨 In progress | 3 / 4 | Docker criterion blocked — see §7 issue #1 |
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
-| 3 LLM Branch | 🟨 In progress | **3 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. Remaining: seeds 1 and 2 (≈3 h 55 m each) before the ≥3-seed criterion is met |
+| 3 LLM Branch | 🟨 **4 / 4 criteria met** | **4 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. **All three seeds are in (§1.14): Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204.** The ≥3-seed criterion is MET; **the phase gate is the owner's to sign** |
 | 4 GNN Branch | 🟨 **4 / 4 criteria met** | **4 / 4** | All four met by logged runs — `python scripts/report_phase4.py`, §1.13. Overfit test (`8b0a3c1d…`, Top-1 = Top-5 = 1.000); all three variants on real data; depth sweep 2/4/6; ≥3 seeds (gcn depth 4, Top-5 **0.3645 ± 0.0231**). **The phase gate is the owner's to sign.** ADR-002 §D2.5's subtoken half now exists but is **off** in every run above; the A4 comparison is queued |
 | 5 Fusion | ⬜ Not started | 0 / 5 | |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
@@ -779,6 +779,41 @@ the paper makes the claim.
 
 ---
 
+## 1.14 Phase 3's result — LLM-only over three seeds, on normalized text
+
+**Runs `fc902107…` (seed 42), `5b177450…` (seed 1), `e82ff268…` (seed 2). Aggregated by
+`scripts/report_seeds.py`, artefact `artifacts/phase3/seed_report_semantic.json`.**
+Held-out `val`, CodeBERT + line head, ADR-006 normalization confirmed in every run's
+logged params.
+
+| | mean ± std | range |
+|---|---|---|
+| **Top-5 accuracy** | **0.6141 ± 0.0055** | [0.6100, 0.6203] |
+| Top-1 accuracy | 0.3513 ± 0.0138 | [0.3361, 0.3631] |
+| line F1 | 0.3692 ± 0.0204 | [0.3460, 0.3840] |
+| line precision | 0.4732 ± 0.0395 | [0.4394, 0.5166] |
+| line recall | 0.3066 ± 0.0418 | [0.2601, 0.3409] |
+| IFA (mean) | 11.93 ± 0.60 | [11.33, 12.52] |
+
+**Phase 3's last exit criterion is met.** Best checkpoints at epochs 5, 5 and 6; all three
+cross-check clean between MLflow and the on-disk summary.
+
+**Seed variance is small where it matters and larger where it does not.** Top-5 varies by
+±0.0055 across seeds — under one point — while precision and recall swing ±0.04 in
+opposite directions (seed 2 trades 8 points of recall for 8 of precision at the same
+threshold). That is the threshold moving, not the model changing, and it is the clearest
+argument yet for reporting the **threshold-free** ranking metrics as the headline and
+treating P/R/F1 as supporting (\u00a76's metric recommendation).
+
+**Read every line number beside all three ceilings** (\u00a71.6 label noise ~30%, \u00a77 #17 no-node
+coverage, \u00a77 #26 the 512-line cap) — they are embedded in the report artefact for that
+reason. Top-1 0.3513 against a 6.44% `val` base rate is **≈5.5× chance**.
+
+**`function/f1` = 1.000 in all three and is degenerate by construction** (`line_labelled_only`
+leaves fp = tn = 0). It must never be quoted.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -1079,6 +1114,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `5b177450…` / `e82ff268…` | 2026-09-14 | `train_semantic.py train=semantic seed={1,2}` | 1, 2 | — | llm_only | 1.000 *(degenerate)* | 0.6120 / 0.6203 | 12.52 / 11.33 | **The two seeds that close Phase 3** (§1.14). With seed 42: **Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60.** Best checkpoints epoch 5/5/6; all three cross-check clean against their on-disk summaries. 2.24 h and 4.08 h. **Phase 3's ≥3-seed criterion is MET.** |
 | `11c2b890…` / `f083ae38…` | 2026-09-13 | `train_structural.py +gnn=gcn gnn.depth={6,2}` | 42 | — | gnn_only | — | 0.3174 / 0.3361 | — | **The depth sweep, §1.13.** Depth 4 is best (0.3645). **Depth 6 loses to depth 4 while its *feature* ceiling is better** (5.39% vs 7.35%), so ambiguity cannot explain it — over-smoothing or depth-optimisation can. **One seed each; the 0.047 gap is ≈2× the depth-4 seed spread. Suggestive, not conclusive.** |
 | `5892b032…` / `d5a63481…` | 2026-09-13 | `train_structural.py +gnn={gat,ggnn} train=structural seed=42` | 42 | — | gnn_only | — | 0.3506 / 0.3237 | — | **Phase 4 exit criterion: all three variants run on real data.** GAT 0.3506 / Top-1 0.1224; GGNN 0.3237 / Top-1 0.1017; GCN 0.3645. One seed each — the three are **not** separated by more than seed noise and must not be ranked. |
 | `ddb24d81…` | 2026-09-13 | `build_subtoken_vocab.py` (ast, train only) | — | — | — | — | — | — | **The identifier table, ADR-002 §D2.5's second half.** 148,983 units, 0 failures, 56,075 distinct subtokens over 17.7M occurrences; `min_count=5` keeps 31,387 types = **99.72%** of occurrences. Digest `e1d018bd…`. **Built from `train` alone** — identifiers from val/test would hand the model embeddings for evaluation-only names. Data artefact, not a result. |

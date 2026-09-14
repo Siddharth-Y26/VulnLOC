@@ -284,6 +284,13 @@ EXPECTED_TO_DIFFER = frozenset(
         # Run identity, not configuration.
         "train.resume_from",
         "train.checkpoint_dir",
+        # The device REQUEST, which is not the device. `auto` and `cuda` resolve to the
+        # same card, and refusing to aggregate over that difference blocked Phase 3's
+        # own seed report after all three seeds had run. What matters is the device the
+        # run actually used, so that is logged as `resolved_device` and compared instead
+        # — leaving this pair excluded without creating a blind spot.
+        "device.kind",
+        "device.index",
     }
 )
 """Params a set of replicates may differ on without ceasing to be replicates."""

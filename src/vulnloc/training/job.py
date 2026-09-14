@@ -128,6 +128,10 @@ def run_training(
                 # Logged as a parameter because it is the difference between a real
                 # number and the ADR-006 leak; a run without it is not comparable.
                 "normalize_whitespace": bool(cfg.representation.normalize_whitespace),
+                # The device actually used, not the one requested. `auto` and `cuda`
+                # resolve to the same card, so comparing the request refuses replicates
+                # that differ in nothing; comparing this compares what happened.
+                "resolved_device": str(device),
                 **dict(extra_params or {}),
             }
         )

@@ -189,6 +189,8 @@ def train(cfg: DictConfig) -> dict[str, Any]:
                 # Logged as a parameter because it is the difference between a real
                 # number and the ADR-006 leak; a run without it is not comparable.
                 "normalize_whitespace": bool(cfg.representation.normalize_whitespace),
+                # The device actually used, not the one requested — see job.py.
+                "resolved_device": str(device),
             }
         )
         checkpoint_dir = Path(cfg.train.checkpoint_dir) / run_id
