@@ -194,16 +194,16 @@ def api_model() -> dict[str, Any]:
         "decision": "ADR-006",
         "headline": "Trained models exist. No scores are shown anywhere in this tool.",
         "detail": (
-            "Two branches now have logged, honest results on held-out val. Semantic "
-            "(CodeBERT, run fc902107): Top-5 0.610, Top-1 0.363, line F1 0.378. "
-            "Structural (GCN depth 4, three seeds): Top-5 0.3645 ± 0.0231, line F1 "
-            "0.0956. Neither is displayed here, for two separate reasons. The semantic "
-            "arm is one seed and its phase requires three, so it is a measurement and "
-            "not yet a result. And no weights are loaded by this tool at all: scoring a "
-            "function you paste would mean claiming the model generalises to it, which "
-            "nothing measured so far supports. The earlier run 1843412a remains void — "
-            "it scored 0.96 by reading the corpus's indentation (ADR-006), which is why "
-            "every number above was re-measured on normalized text."
+            "Both branches now have three-seed results on held-out val. Semantic "
+            "(CodeBERT): Top-5 0.6141 ± 0.0055, Top-1 0.3513, line F1 0.3692. Structural "
+            "(GCN depth 4 with identifier subtokens): Top-5 0.4302 ± 0.0372. Phases 3 and "
+            "4 both meet every exit criterion. Neither is displayed here, and the reason "
+            "is not that the numbers are provisional: this tool loads no weights at all, "
+            "because scoring a function you paste would claim a generalisation nothing "
+            "measured so far supports — every number above is on held-out corpus data "
+            "from the same distribution. The earlier run 1843412a remains void; it scored "
+            "0.96 by reading the corpus's indentation (ADR-006), which is why everything "
+            "here was re-measured on normalized text."
         ),
         "next_step": "What is running, and what it has produced so far:",
         "unblocks": "python scripts/run_queue.py --status",

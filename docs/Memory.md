@@ -2,7 +2,7 @@
 
 **Purpose:** the project's working memory. Any contributor — human or AI assistant — reads this file **first**, before touching code, and updates it **last**, before ending a session. It exists so that a new chat, a new tool, or a new teammate does not have to re-read the codebase or re-derive decisions.
 
-**Status (2026-09-14):** **Phases 1 and 2 complete.** Phase 3 is 3/4 — the model, the loop and the metrics exist, the overfit test passes, and the first honest full run landed today (seed 42, `fc902107…`, §4); it needs two more seeds. **Phase 4 runs end to end**: overfit test PASSED (`8b0a3c1d…`), GNN-only over 3 seeds (Top-5 0.3645 ± 0.0231, `46ab8056…`/`a993f451…`/`6d105018…`), the remaining two criteria queued. **Phase 3's seeds 1 and 2 are running unattended** via `scripts/run_queue.py`. The earlier run `1843412a…` is void — read §1.10 before trusting any line-level number.
+**Status (2026-09-14):** **Phases 1–4 all meet their exit criteria; the Phase 3 and Phase 4 gates are unsigned and are the owner's.** Semantic branch **Top-5 0.6141 ± 0.0055** over three seeds (§1.14); structural branch **Top-5 0.4302 ± 0.0372** with subtokens (§1.15). **Read §1.16 before quoting any depth or A4 number — two findings were retracted there.** Phase 5 (fusion, experiment A1) is the next real work and is gated on the phase sign-off. Run `1843412a…` remains void — §1.10 is why every line-level number was re-measured.
 
 ---
 
@@ -1066,6 +1066,40 @@ The four wrong guards, all found by asking what would happen rather than waiting
 and seed 42's logged parameters are identical to a semantic run from tonight modulo the
 seed, so the overnight Phase 3 aggregation will not be refused.
 
+**Overnight into 2026-09-14 — both phases closed, and two findings retracted.**
+
+The unattended queue ran **23 of 23 steps**. `scripts/run_queue.py --status` is the record.
+
+- **Phase 3: 4 / 4.** LLM-only over three seeds on normalized text \u2014 **Top-5 0.6141 ±
+  0.0055**, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60 (§1.14).
+- **Phase 4: 4 / 4.** Best structural config is **gcn depth 4 + subtokens, Top-5 0.4302 ±
+  0.0372** (§1.15). Node-type-only was 0.3645.
+- **`train_semantic.py` folded onto `training/job.py`** once its seeds were in, as the
+  `TODO(decision)` there required. 293 → 187 lines. Verified the logged parameter set is
+  unchanged, so a fourth seed still aggregates with the three that closed the phase.
+
+**The two retractions are the important part of this session (§1.16).** Six extra seeds
+were run purely to firm up two claims already written down, and both dissolved:
+
+- **The over-smoothing finding is withdrawn.** At n=1 depth 6 sat 0.047 below depth 4; at
+  n=3 the gap is 0.016 and **no pairwise depth comparison in 2\u20136 exceeds 0.6 sd**.
+- **A4's "1.5× larger at depth 4" was a one-seed artefact.** The gains are +0.0567 and
+  +0.0657, **0.27 sd apart** \u2014 no depth dependence. §1.12's prediction stays unsupported,
+  but the reversal does not stand either.
+
+Both were written with correct caveats \u2014 one seed, the ±0.023 spread named, "suggestive
+not conclusive", "re-run before the paper" \u2014 and both still got written as findings.
+**2 sd of seed noise looks exactly like a result.** The rule that follows: do not write a
+comparison down until every arm has ≥3 seeds (§7 #37).
+
+**Guards that were wrong, all found by running rather than reading:** the overfit config
+under-trained; `config_hash` refused every legitimate seed aggregation; a key added to
+`semantic.yaml` that nothing read; A4 runs would have been averaged into their own
+partners; then the opposite when the filter was over-tightened; two `train.limit=600` CPU
+trials reached an A4 mean; `resolved_device`, added mid-sweep, split a group hours after
+§7 #39 recorded exactly that failure mode; and the frontend had no branch for its own new
+stage states.
+
 ### 2026-09-12 (session 10) — the inspector, Phase 4's foundation, and seed 42 restarted
 
 **Frontend.** `frontend/` is a pipeline inspector: paste a C/C++ function and every built
@@ -1191,130 +1225,61 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 
 Ordered. Top item is what the next session starts with.
 
-### 0. START HERE — what ran overnight (2026-09-13 into 2026-09-14)
+### 0. Where things stand (2026-09-14, end of session 11)
+
+**Phases 3 and 4 both meet 4 / 4 exit criteria.** Nothing is running; the queue is
+finished (23 / 23) and the GPU is idle.
 
 ```bash
-python scripts/run_queue.py --status     # every step, its wall clock and its run id
-python scripts/report_phase4.py          # Phase 4's four criteria, and the A4 comparison
-cat artifacts/phase3/seed_report_semantic.json     # Phase 3, once its 3 seeds exist
+python scripts/run_queue.py --status     # every run, its wall clock and its run id
+python scripts/report_phase4.py          # Phase 4's criteria, the depth sweep, A4
+cat artifacts/phase3/seed_report_semantic.json
 ```
 
-**The queue continues itself.** `scripts/run_queue.py` re-reads its plan after every pass,
-skips completed steps, and continues past a failure with the exit code and log path
-recorded. Re-running the same command is always safe. Per-step logs are in
-`artifacts/queue/logs/`. A watcher process was left running to start a second pass once
-the first finished; if it died, `python scripts/run_queue.py --retry-failed` does the same
-job by hand.
+| | three seeds, held-out `val` |
+|---|---|
+| **Semantic (Phase 3)** | **Top-5 0.6141 ± 0.0055**, Top-1 0.3513, line F1 0.3692 (§1.14) |
+| **Structural (Phase 4)** | **Top-5 0.4302 ± 0.0372** with subtokens, 0.3645 without (§1.15) |
 
-**What was queued, in order:** Phase 4's remaining runs (done), the A4 subtoken comparison
-(4 runs, ~3 min each), Phase 4's report artefacts, then Phase 3's seeds 1 and 2
-(~2 h each), then Phase 3's seed report.
+Read §1.16 before using any depth or A4 number: **two findings were retracted there** and
+the depth sweep has no resolvable effect.
 
-**Three things need a human and nothing else is blocked on them:**
+### 1. FIVE THINGS NEED A HUMAN — everything below is blocked on the first
 
-1. **Sign or refuse the Phase 4 gate.** All four exit criteria are met by logged runs
-   (§1.13, `artifacts/phase4/phase4_report.json`). Closing a phase is not a decision an
-   assistant should take.
-2. **ADR-006 and ADR-007 are both `Proposed`.** ADR-006 is implemented, measured and now
-   load-bearing in the paper; ADR-007's mechanism is built and default-on as a refusal.
-   Both want an owner's accept or an explicit hold.
-3. **ADR-007 D7.4 is open:** which edge handling reports the headline numbers. It needs
-   `ignore` vs `weighted` on the same seeds, on a **CPG** — on an AST there is one
-   relation and the question is moot, so this is not in tonight's queue.
+1. **Sign or refuse the Phase 3 and Phase 4 gates.** Both meet every criterion by logged
+   runs. Closing a phase is not an assistant's decision, and **Phase 5 must not start
+   until this is done** (`Phases.md`: do not build ahead).
+2. **ADR-006 and ADR-007 are both `Proposed`.** ADR-006 is implemented, measured and
+   load-bearing in the paper; ADR-007's refusal is default-on. Accept, or hold explicitly.
+3. **ADR-007 D7.4:** which edge handling reports the headline numbers. Needs `ignore` vs
+   `weighted` **on a CPG** — on an AST there is one relation and the question is moot. Not
+   runnable until you say whether Phase 5 fuses CPG or AST.
+4. **The branching model.** Work is still on `phase-2/representation`, ~25 commits ahead
+   of `main`, two phases past what the branch name says. `Rules.md` §8 assumes a PR flow.
+5. **Two human-only data tasks**, both cheap and both gating paper claims: categorise the
+   40 parse-failure samples (`artifacts/representation/parse_failure_sample.md`, blank
+   `cause:` fields), and add a second reviewer to the label audit so the ~30% noise figure
+   gets an inter-rater number instead of resting on n=20.
 
-### 1. If Phase 3's seeds finished
+### 2. Phase 5 — the experiment this project exists to run
 
-`python scripts/report_seeds.py train=semantic +seeds.allow_source_drift=true`. The
-override is required rather than a shortcut: `src/vulnloc` genuinely changed between seed
-42 and tonight (Phase 4 landed), and it writes the changed file list into the report
-instead of hiding it. **Verified 2026-09-13: seed 42 and a run from tonight have identical
-logged parameters modulo the seed, so the aggregation will not be refused.**
+**A1: cross-attention vs concatenation.** Both arms now exist as honest, three-seed
+baselines on one shared line axis, which is exactly what A1 needs and what did not exist
+before this session. `training/job.py` is the shared loop, so a difference between the
+arms cannot be the training schedule. Gated on item 1.
 
-Then settle the metric question recorded below, and Phase 3 can close.
+### 3. Worth doing, not blocking
 
-0a. **Running unattended as of 2026-09-13 23:35 IST — `scripts/run_queue.py`.** Twelve
-   steps: Phase 4's remaining runs (~3 min each), then its two report artefacts, then
-   Phase 3's seeds 1 and 2 (~3 h 55 m each), then the seed report. Offline, resumable,
-   continues past a failure. **Check it first: `python scripts/run_queue.py --status`.**
-   Re-run the same command to continue anything left; completed steps are skipped.
-0. **Done 2026-09-08 — the corpus is rebuilt.** ADR-006 is applied at L0
-   (`data.normalize_whitespace=true`); `build_splits.py` re-verified `reproduced=True`
-   with fingerprint `0ade7483…` **unchanged**, and `build_cache.py` rewrote the shards
-   (run `8c1cccdd…`). The leak audit on the rebuilt shards reports zero leaking
-   partitions (run `1d89fe71…`). **Training can start from the current cache.**
-1. **Finish Phase 3's last exit criterion: LLM-only metrics over ≥3 seeds.** **Seed 42 is
-   done** — run `fc902107…`, §4, Top-5 0.610 / line F1 0.378, and it learns rather than
-   matching a formatting rule. **Seeds 1 and 2 remain**; seed 1 launched 2026-09-12.
-   `python scripts/train_semantic.py train=semantic seed=<1|2>`. Budget **~3 h 55 m per
-   seed** measured on seed 42 (9 epochs, early stop at 8), not the 2.3 h the void run
-   suggested. Two things to settle before reporting: `line/f1` was still climbing when
-   early stopping fired on a plateaued `line/top_5_accuracy`, so **decide which metric
-   Phase 3 reports against**; and `eval/loss` rises from epoch 1 while the ranking metrics
-   improve, so it is not a usable stopping signal on this task.
-
-   **Recommendation on the metric question, for the owner to accept or reject.** Keep
-   `line/top_5_accuracy` as the watched metric and report the ranking metrics — Top-1,
-   Top-5, IFA — as the headline, with P/R/F1 as supporting. Three reasons. (a) The paper's
-   own §3.2 already frames this as a ranking problem: a developer reads the top-scoring
-   lines, so what matters is whether the flagged line is near the top, not whether its
-   score crosses 0.5. (b) **F1 is threshold-dependent and the ranking metrics are not.**
-   At 0.795% positive lines corpus-wide, F1 at a fixed 0.5 threshold measures the
-   threshold as much as the model. (c) Selecting the checkpoint on the metric you report
-   is the honest pairing; selecting on Top-5 and headlining F1 would be reporting a
-   checkpoint chosen for something else. The cost to state plainly: seed 42's F1 was still
-   climbing at early stopping (0.396 at epoch 8 vs 0.378 at the kept epoch 5), so **the
-   reported F1 understates what an F1-selected checkpoint would give**, and that sentence
-   travels with it.
-   When the seeds are in: `python scripts/report_seeds.py train=semantic`. It aggregates
-   them and **refuses** anything that is not a replicate — differing `config_hash`, a
-   repeated seed, un-normalized text, or a `src/vulnloc` diff between the runs' commits
-   (overridable with `+seeds.allow_source_drift=true`, which records the changed files in
-   the report). It skips the void run, which is now tagged `void` in MLflow, and it
-   cross-checks MLflow against each run's `summary.json`. Below three seeds it still
-   writes a report, stamped `sufficient_for_phase_3: false`.
-   Confirm `normalize_whitespace=true` in the logged params before trusting anything.
-   **Watch the learning curve, not just the final number** — after ADR-006 a model that
-   has to learn should start near chance and improve; a flat curve from epoch 0 is the
-   alarm that caught this leak (§1.10). Report the three partition-specific ceilings
-   beside every line number: truncation (§1.8), no-node coverage (§7 #21) and the line
-   cap (§7 #30). **Expect much lower numbers than the void run — that is the fix
-   working.**
-2. **Re-run `scripts/audit_label_leakage.py` after any corpus or preprocessing change**,
-   and before quoting any line-level result. It is cheap (~30 s) and it is the standing
-   guard for this class of bug (ADR-006 D6.5).
-3. **Phase 4 is wired end to end (2026-09-12) and its exit criteria are now GPU-bound
-   only.** `training/graph_datasets.py` turns shards into node-budget graph batches;
-   `StructuralEncoder` consumes `edge_type` under ADR-007; `StructuralLineModel` is the
-   GNN-only baseline; `configs/gnn/{default,gcn,gat,ggnn}.yaml` make the three variants
-   config-selectable; `scripts/train_structural.py` is the entrypoint, on the shared
-   `training/job.py` loop. **Start with the overfit test:**
-   `python scripts/train_structural.py +gnn=gcn train=overfit_structural`. Remaining: the overfit test,
-   the 2/4/6 depth sweep, GNN-only metrics over ≥3 seeds, and **ADR-007 D7.4's
-   `ignore` vs `weighted` comparison on the same seeds** before Phase 5 fuses anything.
-   Measured while building it: graph construction costs **train 3.23 ms/unit (17.6 s for
-   all 5,457), val 6.50 ms/unit** — under 2% of a semantic epoch, so graphs are built per
-   epoch and **no graph cache exists or is needed**. Note val is 2× train per unit because
-   its functions are larger; never size this from a corpus average (§7 #12).
-4. **Phase 4 (GNN branch) — the rest.** Size batches against §7 #22 (55,486-node
-   worst case), not the 252-node mean; build the node-type vocabulary from the corpus, not
-   from one grammar's symbol list (§7 #27); read §7 #23-24 before claiming what the graphs
-   model.
-4. **Have a human categorise the parse-failure sample** —
-   `artifacts/representation/parse_failure_sample.md`, 40 units drawn at seed 1337, blank
-   `cause:` fields. It exists so the residue's causes get *counted* instead of read off
-   three examples (§7 #26). Cheap, and it decides whether macro-aware preprocessing is
-   worth building.
-5. **Decide the branching model.** `main` still does not exist; work is on
-   `phase-2/representation`. `Rules.md` §8 assumes a `main` to open PRs against; create it.
-6. **Close the last Phase 0 exit criterion.** On a machine with Docker installed, run
-   `make docker-build && make docker-train` and record the result (§7 issue #1).
-7. **Re-run the leakage check with near-duplicate detection** — tokenization now exists
-   (`representation/tokenization.py`), so the blocker named in §7 #15 is gone. The 207
-   exact matches are a floor and the number is expected to grow.
-8. Before the paper: widen the label audit (`data.label_audit.k`) with a **second
-   reviewer**, so the ~30% gets a tighter interval and an inter-rater agreement figure
-   (§1.6). And resolve or formally declare unresolvable the published-vs-measured
-   line-count discrepancy (§7 #11).
+- **`gnn.use_subtokens=true` should probably become the default** — it is +0.06 Top-5 and
+  +0.06 Top-1 for no measured cost. Left off only so the runs logged without it stay
+  reproducible. Flip it deliberately, with a ledger row.
+- **`gat` and `ggnn` are one seed each** and must not be ranked against `gcn` from that.
+  Three seeds each if the paper compares convolutions (~10 min).
+- **Move `gnn` into `config.yaml`'s `defaults`** now that no sweep is in flight, and drop
+  the `+` (see `configs/gnn/README.md` and §7 #38).
+- **The paper has no Results section.** Deliberate: A1 is the result that matters.
+  Methodology §3.8 and §3.16 are current as of this session.
+- Phase 0's Docker criterion (3 / 4) still needs a machine with Docker.
 
 ---
 

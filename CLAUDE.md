@@ -42,17 +42,17 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ---
 
-## 3. Current state (2026-09-13)
+## 3. Current state (2026-09-14)
 
 | | |
 |---|---|
-| Branch | `phase-2/representation`. **`main` exists**, with an `origin` remote — the old "`main` does not exist" note was stale. Branching model still undecided. |
+| Branch | `phase-2/representation` — **the name is two phases stale**, ~25 commits ahead of `main`. Branching model still undecided (§10 #1). |
 | Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker not installed). Blocks nothing downstream. |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
-| Phase 3 | ✅ **4 / 4 criteria met** (gate unsigned). **LLM-only over three seeds on normalized text: Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60** (runs `fc902107…`/`5b177450…`/`e82ff268…`, §1.14). Top-5 varies by under one point across seeds; P/R swing ±0.04 in opposite directions, which is the threshold moving rather than the model. **Run `1843412a…` remains VOID (ADR-006).** `function/f1` = 1.000 is degenerate by construction and must never be quoted. |
+| Phase 3 | ✅ **4 / 4 criteria met** (gate unsigned). **LLM-only over three seeds on normalized text: Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60** (§1.14). Top-5 varies by under a point across seeds while P/R swing ±0.04 in opposite directions — the threshold moving, not the model. Run `1843412a…` remains VOID (ADR-006); `function/f1` = 1.000 is degenerate and must never be quoted. |
 | Phase 4 | ✅ **4 / 4 criteria met** (gate unsigned). Overfit test PASSED (`8b0a3c1d…`). **Best structural config: gcn depth 4 + subtokens, Top-5 0.4302 ± 0.0372 over 3 seeds** (ADR-002 §D2.5's second half, +0.066 over node-type-only — §1.15). Far below the semantic arm's 0.6141. **The depth sweep 2/4/6 shows NO resolvable effect at 3 seeds each** (every pairwise gap <0.6 sd, §1.16) — an earlier one-seed over-smoothing reading was retracted. |
-| Phases 5–10 | ⬜ Not started. |
+| Phases 5–10 | ⬜ Not started. **Phase 5 (cross-attention fusion) is the next real work — experiment A1, the thing this project exists to answer.** Both arms now exist as three-seed baselines on one shared line axis, and `training/job.py` is the shared loop, so a difference between them cannot be the training schedule. **Gated on the Phase 4 sign-off.** |
 | Tests | **698 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 

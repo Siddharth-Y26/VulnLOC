@@ -1,6 +1,6 @@
 {
   "_comment": "Mirrors CLAUDE.md section 3 and docs/Phases.md. This file is a SUMMARY and is not authoritative — when it disagrees with docs/Memory.md, Memory.md wins and this file is the thing to fix. Update it in the same commit as any phase change.",
-  "_updated": "2026-09-13",
+  "_updated": "2026-09-14",
   "stages": [
     {
       "id": "normalize",
@@ -57,10 +57,10 @@
       "layer": "L2",
       "phase": 3,
       "name": "Semantic branch",
-      "state": "trained-one-seed",
+      "state": "trained",
       "adr": null,
       "does": "CodeBERT encoder plus a per-line head, on ADR-006 normalized text. Overfit test passes; one full seed is logged.",
-      "why": "Seed 42 (run fc902107) reports Top-5 0.610, Top-1 0.363, line F1 0.378 on held-out val — the project's first honest line-level numbers. Phase 3 needs three seeds, so no score is shown here and none is citable yet."
+      "why": "Three seeds on held-out val: Top-5 0.6141 +/- 0.0055, Top-1 0.3513, line F1 0.3692. Phase 3's exit criteria are met. No score is shown here because this tool loads no weights — scoring a function you paste would claim a generalisation nothing measured so far supports."
     },
     {
       "id": "structural",
@@ -70,7 +70,7 @@
       "state": "trained",
       "adr": "ADR-007",
       "does": "GCN / GAT / GGNN over the code graphs, pooled onto the same line axis. Node features are a node-type embedding plus — optionally — an identifier subtoken embedding (ADR-002 D2.5). Relations are typed: a graph carrying several edge kinds is refused unless the model is told how to treat them.",
-      "why": "All four Phase 4 exit criteria are met by logged runs. GCN depth 4 over three seeds: Top-5 0.3645 ± 0.0231, Top-1 0.1155, line F1 0.0956 — far weaker than the semantic branch, which is the honest result rather than a failure. With node types alone, 76% of flagged lines are indistinguishable from an unflagged one before message passing, falling to 7% after four hops (run b530f1ff)."
+      "why": "Phase 4's four exit criteria are met. Best config is GCN depth 4 with identifier subtokens: Top-5 0.4302 +/- 0.0372 over three seeds, against 0.3645 without them. Still far below the semantic branch, which is the honest result rather than a failure. The 2/4/6 depth sweep shows no resolvable effect at three seeds per depth."
     },
     {
       "id": "fusion",
