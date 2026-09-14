@@ -166,6 +166,43 @@ def build_plan() -> list[Step]:
         )
     )
 
+    # --- Seeds for the two claims that rested on one run each ---------------------
+    # The depth sweep's over-smoothing signal (6 vs 4) and A4's depth-2 gain were both
+    # single-seed against a depth-4 spread of +/-0.037 — enough to state a direction, not
+    # a magnitude. Three seeds each makes them reportable or kills them.
+    for depth in (2, 6):
+        for seed in (1, 2):
+            steps.append(
+                Step(
+                    name=f"p4-gcn-depth{depth}-seed{seed}",
+                    group="phase4",
+                    why=f"Third seed for the depth-{depth} arm; the sweep was n=1 there.",
+                    args=[
+                        "+gnn=gcn",
+                        "train=structural",
+                        f"gnn.depth={depth}",
+                        f"seed={seed}",
+                        "device.kind=cuda",
+                    ],
+                )
+            )
+    for seed in (1, 2):
+        steps.append(
+            Step(
+                name=f"a4-gcn-subtok-depth2-seed{seed}",
+                group="phase4",
+                why="Third seed for A4 at depth 2; the +0.0436 gain was n=1.",
+                args=[
+                    "+gnn=gcn",
+                    "train=structural",
+                    "gnn.use_subtokens=true",
+                    "gnn.depth=2",
+                    f"seed={seed}",
+                    "device.kind=cuda",
+                ],
+            )
+        )
+
     # --- Phase 4: assemble the criteria while they are fresh ----------------------
     # A report step, not a training one. It runs here so the morning finds an artefact
     # rather than four criteria scattered across seven runs.

@@ -757,7 +757,7 @@ explain away: node features are node-type only in every run above, and §1.12 me
 that costs. A1's premise is that the two branches are complementary, **not** that they are
 equally strong, and a fusion that beats the semantic arm has to earn it.
 
-### The depth sweep — and why 6 vs 4 is the only part that is about over-smoothing
+### The depth sweep — **superseded by §1.16; the reading below did not survive three seeds**
 
 | depth | Top-5 | Top-1 | flagged lines the *features* cannot resolve (§1.12) |
 |---|---|---|---|
@@ -769,17 +769,17 @@ equally strong, and a fusion that beats the semantic arm has to earn it.
 hard ceiling from the representation, so it was always going to lose. Reading that as
 over-smoothing evidence would be reading a feature limit as an architectural one (§7 #37).
 
-**Depth 6 losing to depth 4 is the interesting half.** The feature ceiling *improves* at
-depth 6 — 5.39% against 7.35% — so on representational grounds depth 6 should have matched
-or beaten depth 4, and it is **0.047 Top-5 worse**. Feature ambiguity cannot explain that,
-which leaves over-smoothing (or optimisation difficulty at depth) as the live explanation.
-This is what the residual connections and layer norm were put in to resist, and they did
-not fully hold at 6.
+~~**Depth 6 losing to depth 4 is the interesting half.**~~ **RETRACTED — §1.16.** At one
+seed depth 6 sat 0.047 below depth 4 and I read that as over-smoothing, feature ambiguity
+being unable to explain it. At **three seeds the gap is 0.016 — 0.59 standard deviations**,
+and no depth comparison in 2–6 exceeds 0.6 sd. There is no over-smoothing signal here, and
+no depth signal of any kind on Top-5.
 
-**How firmly to hold it: not very.** Depths 2 and 6 are **one seed each**, and the seed
-spread at depth 4 is ±0.023, so the 0.047 gap is about 2× one standard deviation. It is
-**suggestive and not conclusive**, and Phase 8 should re-run 2 and 6 at three seeds before
-the paper makes the claim.
+**The caveat was right and still insufficient.** It said one seed, named the ±0.023
+spread, called the result suggestive and asked for three seeds before the paper used it.
+All true — and the finding still got written down as a finding. **2 sd of noise looks
+exactly like a result**; the fix is not a better caveat but refusing to write the
+comparison until every arm has ≥3 seeds (§1.16).
 
 ---
 
@@ -836,8 +836,10 @@ headline goes from Top-5 0.3645 to **0.4302**, with Top-1 0.1155 → 0.1750.
 
 §1.12 predicted the gain would be **large at depth 2 and small at depth 4**, because the
 Weisfeiler-Lehman bound leaves 27.91% of flagged lines unresolvable at two hops and only
-7.35% at four. **The measured gain runs the other way** — 1.5× larger at depth 4 than at
-depth 2. Recorded as a falsification rather than quietly dropped.
+7.35% at four. **The measured gain does not follow it.** At one seed it looked 1.5× larger at depth 4;
+at three seeds (§1.16) the two gains are **+0.0567 and +0.0657, 0.27 sd apart** — there is
+no depth dependence at all. The prediction is still not supported; the *reversal* I first
+wrote was itself a one-seed artefact.
 
 The error was not in the WL measurement, which stands. It was in assuming **what subtokens
 are for**. §1.12 modelled their value as *disambiguation*: telling apart two lines that
@@ -857,9 +859,72 @@ Two lesser contributors, both plausible and neither separated here:
 **What still stands from §1.12:** the depth-sweep reading (§7 #37). That argument is about
 comparing *depths at fixed features*, and nothing here touches it.
 
-**Held loosely:** depth 2 is **one seed**, against a depth-4 spread of ±0.037. The
-direction is clear; the 1.5× ratio is not. Re-run depth 2 at three seeds before the paper
-states it.
+**Now at three seeds per arm (§1.16).** The gain is real — ≈+0.06 Top-5 (≈2 sd) and +0.06
+Top-1 (≈2.6 sd at depth 4) — and **flat across depth**. A flat gain is what a mechanism
+independent of disambiguation predicts, so the explanation above is strengthened even
+though the ratio that prompted it is gone.
+
+---
+
+## 1.16 Three seeds dissolved two findings I had already written down
+
+**Runs `cbdc2a1f…`/`8985c411…` (depth 2), `032e4700…`/`f1203001…` (depth 6),
+`e9378a9e…`/`f1b26024…` (A4 depth 2), 2026-09-14.** Each arm of the depth sweep and of A4
+went from **one seed to three**. Both conclusions drawn at n=1 failed.
+
+### The depth sweep shows no resolvable effect at all
+
+| depth | seeds | Top-5 | Top-1 |
+|---|---|---|---|
+| 2 | 42, 1, 2 | 0.3638 ± 0.0240 | 0.0947 ± 0.0229 |
+| 4 | 42, 1, 2 | 0.3645 ± 0.0231 | 0.1155 ± 0.0132 |
+| 6 | 42, 1, 2 | 0.3485 ± 0.0301 | 0.0961 ± 0.0248 |
+
+| comparison | \|Δ Top-5\| | pooled sd | in sd |
+|---|---|---|---|
+| 2 vs 4 | 0.0007 | 0.0236 | **0.03** |
+| 4 vs 6 | 0.0159 | 0.0269 | **0.59** |
+| 2 vs 6 | 0.0152 | 0.0273 | 0.56 |
+
+**RETRACTED — §1.13's over-smoothing reading.** At one seed, depth 6 sat 0.047 below
+depth 4 and I wrote that feature ambiguity could not explain it, leaving over-smoothing as
+the live explanation. At three seeds the gap is 0.016, **0.59 standard deviations**. There
+is no over-smoothing signal in 2–6 on this task; there is no depth signal of any kind on
+Top-5. Top-1 mildly favours depth 4 (0.1155 vs 0.0947 and 0.0961) but at ±0.023–0.025 that
+is about one sd and not something to report either.
+
+**The single-seed number was not wrong, the inference from it was.** §1.13 called it
+"suggestive, not conclusive" and said Phase 8 should re-run at three seeds. That was the
+right caveat; it just was not a strong enough one to stop the finding being written as a
+finding.
+
+### A4's gain is real and does not depend on depth
+
+| depth | seeds | without | with subtokens | Δ |
+|---|---|---|---|---|
+| 2 | 42, 1, 2 | 0.3638 ± 0.0240 | 0.4205 ± 0.0355 | **+0.0567** |
+| 4 | 42, 1, 2 | 0.3645 ± 0.0231 | 0.4302 ± 0.0372 | **+0.0657** |
+
+The two gains differ by **0.27 sd** — indistinguishable. **Subtokens help, at roughly
++0.06 Top-5 (≈2 sd) and +0.06 Top-1 (≈2.6 sd at depth 4), and the benefit does not vary
+with depth over 2–6.**
+
+**PARTLY RETRACTED — §1.15's framing.** §1.12 predicted a gain ~4× larger at depth 2 than
+at depth 4. That prediction is still **not supported**. But §1.15 said the measured effect
+ran *the other way*, 1.5× larger at depth 4, and that was itself a one-seed artefact: the
+correct statement is **no depth dependence**, not reversed depth dependence. §1.15's
+*explanation* survives and is strengthened — if subtokens worked mainly by
+disambiguation, the gain would track the ambiguity ceiling, which falls 4× between depth 2
+and 4. A flat gain is what a mechanism independent of disambiguation predicts.
+
+### The lesson, which this project keeps re-learning
+
+Both retractions come from the same place: **a single seed produced a difference of about
+2 standard deviations, and 2 sd of noise looks exactly like a finding.** The depth-4 seed
+spread (±0.023) was *already recorded* beside both claims when they were written. The
+guard that would have caught this is not a better caveat — it is refusing to write a
+comparison down until every arm has ≥3 seeds, the same rule Phase 3 and Phase 4 apply to
+headline numbers and which neither sweep was held to.
 
 ---
 
@@ -1069,6 +1134,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `cbdc2a1f…`/`8985c411…` (d2), `032e4700…`/`f1203001…` (d6), `e9378a9e…`/`f1b26024…` (A4 d2) | 2026-09-14 | `train_structural.py` — third seeds for every sweep arm | 1, 2 | — | gnn_only | — | see §1.16 | — | **These runs RETRACT two findings.** With three seeds per arm the depth sweep has **no resolvable effect** (2 vs 4 = 0.03 sd, 4 vs 6 = 0.59 sd) — the one-seed over-smoothing reading in §1.13 is withdrawn. And A4's gain is **flat across depth** (+0.0567 at d2, +0.0657 at d4, 0.27 sd apart), so §1.15's "1.5× larger at depth 4" was itself a one-seed artefact. **What stands: subtokens help by ≈+0.06 Top-5 regardless of depth.** |
 | `77370d56…` / `0d324da8…` / `3c570cc1…` + `b92e6985…` | 2026-09-14 | `train_structural.py +gnn=gcn gnn.use_subtokens=true` | 42, 1, 2 (d4); 42 (d2) | — | gnn_only | 1.000 *(degenerate)* | **0.4302 ± 0.0372** (d4) | 20.78 | **A4 — ADR-002 §D2.5's second half, §1.15.** Subtokens lift the structural branch from Top-5 0.3645 to **0.4302** (Top-1 0.1155 → 0.1750). **The gain is LARGER at depth 4 (+0.0657) than at depth 2 (+0.0436), which falsifies §1.12's prediction** — disambiguation is not the main thing subtokens do. Depth 2 is one seed. |
 | `5b177450…` / `e82ff268…` | 2026-09-14 | `train_semantic.py train=semantic seed={1,2}` | 1, 2 | — | llm_only | 1.000 *(degenerate)* | 0.6120 / 0.6203 | 12.52 / 11.33 | **The two seeds that close Phase 3** (§1.14). With seed 42: **Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60.** Best checkpoints epoch 5/5/6; all three cross-check clean against their on-disk summaries. 2.24 h and 4.08 h. **Phase 3's ≥3-seed criterion is MET.** |
 | `11c2b890…` / `f083ae38…` | 2026-09-13 | `train_structural.py +gnn=gcn gnn.depth={6,2}` | 42 | — | gnn_only | — | 0.3174 / 0.3361 | — | **The depth sweep, §1.13.** Depth 4 is best (0.3645). **Depth 6 loses to depth 4 while its *feature* ceiling is better** (5.39% vs 7.35%), so ambiguity cannot explain it — over-smoothing or depth-optimisation can. **One seed each; the 0.047 gap is ≈2× the depth-4 seed spread. Suggestive, not conclusive.** |

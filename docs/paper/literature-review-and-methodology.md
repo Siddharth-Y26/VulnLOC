@@ -421,12 +421,19 @@ still useful for the purpose it does serve, and separating the two is the point.
 
 That purpose is the depth comparison. A
 two-layer model carries a 27.9% ceiling on recall that comes from the representation
-rather than from the architecture, so its losing to a four-layer model is the expected
-outcome before over-smoothing is considered at all. **Only the comparison between six and
-four layers is informative about over-smoothing**, because there the two feature ceilings
-are nearly equal. We report the measurement alongside the sweep for that reason, and we
-recommend that any depth study on code graphs do the same: without it, a representational
-limit and an architectural one are indistinguishable in the results table.
+rather than from the architecture, so any deficit it shows is expected before
+over-smoothing is considered at all, and **only the comparison between six and four layers
+could be informative about over-smoothing**, where the two feature ceilings are nearly
+equal. We recommend that any depth study on code graphs report this measurement alongside
+its sweep: without it, a representational limit and an architectural one are
+indistinguishable in the results table.
+
+In our own sweep the question does not arise, because **there is no depth effect to
+explain**. Over three seeds at each of two, four and six layers, every pairwise difference
+in top-5 accuracy is under 0.6 standard deviations. We note this because a single seed per
+depth had suggested otherwise — six layers trailed four by roughly two standard deviations
+of the seed spread — and that apparent effect did not survive replication. We report the
+null rather than the first measurement.
 
 Graph size varies enormously. AST graphs average 252 nodes across the corpus but average
 1,144 nodes on the evaluation set and reach 56,266 nodes in the largest case. Since memory
