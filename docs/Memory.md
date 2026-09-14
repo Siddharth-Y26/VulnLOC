@@ -18,7 +18,7 @@
 - Never delete a decision — supersede it with a new entry that references the old one.
 - If something in this file contradicts the code, the code is authoritative — fix this file immediately and note the drift.
 - Keep it under ~500 lines. When it grows past that, archive resolved sections to `docs/memory/ARCHIVE-<date>.md` and leave a pointer.
-- **Currently ~1,120 lines, over that target and recorded as over rather than quietly ignored.** Sessions 2–6 were archived 2026-09-12 (`docs/memory/ARCHIVE-2026-09-12.md`, −229 lines). What remains above the line is §1.4–1.11, the measured corpus/representation/truncation/VRAM/leak sections — they are cited by section number from `CLAUDE.md`, the ADRs, the paper draft and code comments, so moving them would break more than it saves. **The next cut is sessions 7–8, once Phase 3 closes.**
+- **Currently ~1,310 lines, over that target and recorded as over rather than quietly ignored.** Sessions 2–6 were archived 2026-09-12 (`docs/memory/ARCHIVE-2026-09-12.md`, −229 lines) and sessions 7–8 on 2026-09-14 (−99), once Phase 3 closed — the condition the previous note set. What remains above the line is §1.4–1.11, the measured corpus/representation/truncation/VRAM/leak sections — they are cited by section number from `CLAUDE.md`, the ADRs, the paper draft and code comments, so moving them would break more than it saves. **The next cut is sessions 10–11, once Phase 5 lands** — they document the phases now closing and are still the most-referenced history.
 
 ---
 
@@ -1004,104 +1004,10 @@ LineMap itself was verified correct and is not implicated.
 under hypothesis and did not reproduce. Not chased. If it recurs, it is a real AST
 invariant violation and takes priority over anything else in flight.
 
-### 2026-08-16 (session 8) — Phase 3: the model, the loop, and the first thing that learns
-Phase: 3 (3 of 4 exit criteria met)
-Did:
-  - **`models/semantic/encoder.py`** — `PretrainedCodeEncoder` behind `@register_semantic`
-    for both `codebert` and `graphcodebert` (one class, two keys: same architecture,
-    different pretraining). `frozen` and `gradient_checkpointing` are constructor
-    arguments because §1.9 measured them as the difference between 22.9 windows/s and a
-    host-RAM spill.
-  - **`models/heads/line_head.py`** — per-line logits, with the function-level score
-    *derived* from them by a masked logsumexp rather than learned separately, so the two
-    cannot contradict each other. Masked lines are pinned to a finite floor.
-  - **`models/semantic/baseline.py`** — the LLM-only baseline: encoder → line alignment →
-    head. One arm of A1.
-  - **`training/{datasets,losses,metrics,loop}.py`** — window-budget batching, focal /
-    weighted-BCE losses, Top-k + IFA + coverage metrics, and a loop with AMP, gradient
-    accumulation, early stopping on a *line* metric, and provenance-carrying checkpoints.
-  - **`scripts/train_semantic.py`** + `configs/{llm,head,train}` wired into composition.
-  - 50 new tests (**568 passing**).
-Runs logged:
-  - `ffe3d03a25ac47d1a44b29ce7f54a359` — **overfit test: PASSED.** Top-5 accuracy **1.0**
-    on 32 samples, loss 1.237 → 0.0026 over 40 epochs. Never cite this as a result.
-Learned:
-  - **The VRAM probe predicted real training to within 0.5%**: §1.9 measured 2,456 MiB for
-    AMP + gradient checkpointing at batch 16, and the real loop peaks at **2,467.7 MiB**
-    (60.3% of the card). The probe was worth building.
-  - **The 512-line cap costs `val` 17.07% of its flagged lines against `train`'s 0.70%** —
-    a 24× difference (§7 #30). A *third* partition-specific ceiling, after truncation
-    (§1.8) and no-node coverage (§7 #21), and it lands on the reported split again. The
-    dataset counts it per split instead of dropping it silently.
-  - The registry-emptiness test caught Phase 3 populating `head` and `semantic`, which is
-    what it is for. Both packages now register on import, following `data/loaders`.
-  - **A full seed-42 training run was started and stopped by the user after ~16 minutes**,
-    partway through epoch 0. **No checkpoint, no metrics, no result** — checkpoints are
-    written at epoch boundaries only, so nothing survived and the run must restart from
-    scratch. It is *not* in §4 and must never be cited. Measured while it ran: 2,467.7 MiB
-    peak, GPU at 100%, and **epoch 0 had not finished after 16 minutes**, so the real cost
-    is >16 min/epoch — well above the ~9 min the probe implied.
-Next:
-  - **Make long runs interruptible before starting one.** Checkpointing every epoch is
-    what made this stop lossy; a per-N-steps checkpoint would have preserved it. This is
-    now the first thing to do in Phase 3, ahead of the seeds.
-  - Then seeds (Phase 3 needs ≥3), after which the LLM-only numbers go in §4 and the
-    phase closes. Then Phase 4, or Phase 5 if the GNN branch is deferred.
+> **Sessions 7 and 8 are archived** in
+> [`docs/memory/ARCHIVE-2026-09-14.md`](memory/ARCHIVE-2026-09-14.md) — Phase 3's
+> foundation, moved once Phase 3's criteria were met. Nothing superseded.
 
----
-
-### 2026-08-16 (session 7) — Phase 3 foundation: the token→line bridge, and what 512 tokens costs
-Phase: 3 (in progress)
-Did:
-  - **`representation/tokenization.py`** — the semantic half of the line-alignment bridge.
-    `LineTokenizer` produces `TokenizedUnit` / `TokenWindow` with `token_to_line` built
-    from the tokenizer's **character** offsets through `LineMap.char_to_line`, plus
-    striding windows so a long function is not cut. Torch-free, like `to_pyg`.
-  - **`models/alignment.py`** — `LineAligner` and the `scatter_mean_lines` primitive both
-    branches share (`Architecture.md` §4.3). 31 tests, per its billing as the module that
-    gets the most thorough tests in the repo.
-  - **`scripts/report_truncation.py`**, run over all 188,636 functions
-    (run `b7ccc9ca68c14b41890e3303e819f010`) — the measurement §7 #14 demanded.
-  - **`scripts/probe_vram.py`** — measures what actually fits in 4 GiB rather than
-    estimating it (§7 #7).
-  - `configs/llm/default.yaml` wired into the root composition; 49 new tests.
-Files touched:
-  - `src/vulnloc/representation/tokenization.py`, `src/vulnloc/models/alignment.py`
-  - `scripts/{report_truncation,probe_vram}.py`, `configs/llm/default.yaml`, `configs/config.yaml`
-  - `tests/unit/test_{tokenization,alignment}.py`, `docs/Memory.md`, `CLAUDE.md`
-Runs logged:
-  - `b7ccc9ca68c14b41890e3303e819f010` — truncation report, full corpus.
-  - `1904c2950055457888db06b4297b80a8` — VRAM probe, 24-point grid on the RTX 3050 Ti.
-Learned:
-  - **Truncation destroys 38.1% of all flagged lines** — 17,741 of 46,513 — and **44.5%
-    on `clean_eval`**, where 38.05% of line-labelled functions lose a label they are
-    graded on (§1.8). Windowing recovers 100% in every partition. Windowing is therefore
-    **required**, not a refinement.
-  - **§1.4's "≈250 tokens, truncation risk smaller than assumed" was wrong**, and wrong in
-    the direction that mattered. Real means: train 358, `clean_eval` **1,502**. The
-    estimate divided characters by ~3.6 and used the corpus denominator instead of the
-    evaluation one. Struck through in §1.4 rather than deleted.
-  - **`val` is the worst-hit partition at 44.21% of flagged lines kept** — worse than
-    `clean_eval`. Truncation loss is not monotone in mean length and has to be reported
-    per partition.
-  - **One unit is not one forward pass**: `clean_eval` averages 4.17 windows and reaches
-    88; the longest function is 287 windows (§7 #28). Batch in windows, not units.
-  - **Exceeding VRAM on Windows does not raise — it pages to host RAM** (§7 #29). Three of
-    24 probe configurations peaked above the 4,095 MiB card and ran anyway at 10–25× the
-    cost. "Do not discover this during a sweep" (§7 #7) would have failed even with OOM
-    handling: the sweep would have finished, with valid numbers, a day late.
-  - **AMP + gradient checkpointing is both the cheapest and the fastest** trainable
-    configuration measured — 2,456 MiB at batch 16 and 22.9 windows/s, against plain
-    fp32's 3,982 MiB and 0.9 windows/s at batch 8 (§1.9). §7 #7 is now resolved.
-  - transformers 5 removed `build_inputs_with_special_tokens` from fast tokenizers, so the
-    special-token wrapper is **probed** at construction instead of assumed. That also
-    guards against a tokenizer that wraps its input differently.
-Next:
-  - Finish Phase 3: `SemanticEncoder` (CodeBERT/GraphCodeBERT), the line head, the
-    training loop with class-imbalance loss, and the overfit test. Default to AMP +
-    gradient checkpointing at batch 16 **windows** (§1.9), not units (§7 #28).
-
----
 
 > **Sessions 2 through 6 are archived** in
 > [`docs/memory/ARCHIVE-2026-09-12.md`](memory/ARCHIVE-2026-09-12.md) — Phase 0, Phase 1
