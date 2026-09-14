@@ -21,15 +21,13 @@ which ``scripts/train.py`` still depends on)::
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import hydra
-import mlflow
 import torch
 import transformers
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
@@ -39,11 +37,8 @@ from vulnloc.models.semantic.encoder import PretrainedCodeEncoder
 from vulnloc.representation.tokenization import LineTokenizer
 from vulnloc.training.datasets import LineLabelledDataset, WindowBatchSampler, collate_units
 from vulnloc.training.device import resolve_device
-from vulnloc.training.loop import EarlyStopping, Trainer, evaluate
-from vulnloc.training.losses import LineLoss
+from vulnloc.training.job import run_training
 from vulnloc.training.seeding import seed_everything
-from vulnloc.training.tracking import start_run
-from vulnloc.utils.config import git_sha
 from vulnloc.utils.logging import get_logger, setup_logging
 
 _LOGGER = get_logger(__name__)
@@ -156,139 +151,26 @@ def train(cfg: DictConfig) -> dict[str, Any]:
     )
 
     model = build_model(cfg, device)
-    criterion = LineLoss(
-        kind=str(cfg.train.loss),
-        pos_weight=(
-            train_set.positive_line_weight()
-            if bool(cfg.train.auto_pos_weight)
-            else float(cfg.train.pos_weight)
-        ),
-        alpha=float(cfg.train.focal_alpha),
-        gamma=float(cfg.train.focal_gamma),
-        function_weight=float(cfg.train.function_weight),
+
+    return run_training(
+        cfg,
+        model=model,
+        train_set=train_set,
+        eval_set=eval_set,
+        make_loader=lambda dataset, shuffle: build_loader(dataset, cfg, shuffle=shuffle, seed=seed),
+        device=device,
+        # Exactly the semantic-specific parameters this script logged before it moved onto
+        # the shared loop, and no others. `run_training` already logs seed, loss,
+        # pos_weight, the unit counts, flagged_beyond_line_cap, normalize_whitespace and
+        # resolved_device. Adding anything new here would make a fourth seed incomparable
+        # with the three that closed Phase 3 (Memory.md §7 #39).
+        extra_params={
+            "model_name": str(cfg.llm.model_name),
+            "frozen": bool(cfg.llm.frozen),
+            "windowing": bool(cfg.llm.windowing),
+            "max_windows_per_batch": int(cfg.train.max_windows_per_batch),
+        },
     )
-    optimizer = torch.optim.AdamW(
-        [p for p in model.parameters() if p.requires_grad],
-        lr=float(cfg.train.lr),
-        weight_decay=float(cfg.train.weight_decay),
-    )
-
-    with start_run(cfg, run_name=str(cfg.train.name)) as run_id:
-        mlflow.log_params(
-            {
-                "seed": seed,
-                "model_name": str(cfg.llm.model_name),
-                "frozen": bool(cfg.llm.frozen),
-                "windowing": bool(cfg.llm.windowing),
-                "loss": str(cfg.train.loss),
-                "pos_weight": round(criterion.pos_weight, 3),
-                "max_windows_per_batch": int(cfg.train.max_windows_per_batch),
-                "train_units": len(train_set),
-                "eval_units": len(eval_set),
-                "flagged_beyond_line_cap": train_set.flagged_beyond_cap,
-                # Logged as a parameter because it is the difference between a real
-                # number and the ADR-006 leak; a run without it is not comparable.
-                "normalize_whitespace": bool(cfg.representation.normalize_whitespace),
-                # The device actually used, not the one requested — see job.py.
-                "resolved_device": str(device),
-            }
-        )
-        checkpoint_dir = Path(cfg.train.checkpoint_dir) / run_id
-        trainer = Trainer(
-            model,
-            criterion,
-            optimizer,
-            device,
-            checkpoint_dir=checkpoint_dir,
-            use_amp=bool(cfg.train.amp),
-            accumulation_steps=int(cfg.train.accumulation_steps),
-            max_grad_norm=float(cfg.train.max_grad_norm),
-            watch_metric=str(cfg.train.watch_metric),
-            early_stopping=EarlyStopping(
-                patience=int(cfg.train.patience), mode=str(cfg.train.watch_mode)
-            ),
-            checkpoint_every_n_steps=int(cfg.train.checkpoint_every_n_steps),
-        )
-
-        start_epoch = 0
-        if str(cfg.train.resume_from):
-            payload = trainer.load_checkpoint(Path(str(cfg.train.resume_from)))
-            # The interrupted epoch is redone from its start: the sampler's position
-            # within it is not part of the checkpoint, and silently skipping the units it
-            # had already seen would be worse than seeing a few of them twice.
-            start_epoch = trainer.state.epoch
-            _LOGGER.info(
-                "Resumed from checkpoint",
-                extra={
-                    "path": str(cfg.train.resume_from),
-                    "resumed_epoch": start_epoch,
-                    "global_step": trainer.state.global_step,
-                    "from_run": payload.get("provenance", {}).get("run_id", "?"),
-                },
-            )
-
-        train_loader = build_loader(train_set, cfg, shuffle=True, seed=seed)
-        eval_loader = build_loader(eval_set, cfg, shuffle=False, seed=seed)
-        best: dict[str, float] = {}
-        best_path = checkpoint_dir / "best.pt"
-
-        for epoch in range(start_epoch, int(cfg.train.epochs)):
-            trainer.state.epoch = epoch
-            train_loader.batch_sampler.set_epoch(epoch)  # type: ignore[union-attr]
-            train_metrics = trainer.train_epoch(train_loader)
-            eval_metrics = evaluate(
-                model,
-                eval_loader,
-                criterion,
-                device,
-                threshold=float(cfg.train.threshold),
-                use_amp=trainer.use_amp,
-            )
-
-            mlflow.log_metrics({f"train/{k}": v for k, v in train_metrics.items()}, step=epoch)
-            mlflow.log_metrics({f"eval/{k}": v for k, v in eval_metrics.items()}, step=epoch)
-            _LOGGER.info(
-                "Epoch complete",
-                extra={
-                    "epoch": epoch,
-                    "train_loss": round(train_metrics["loss"], 5),
-                    "eval_loss": round(eval_metrics["loss"], 5),
-                    "watched": round(eval_metrics.get(trainer.watch_metric, 0.0), 4),
-                    "seconds": train_metrics["seconds"],
-                },
-            )
-
-            watched = eval_metrics.get(trainer.watch_metric, 0.0)
-            assert trainer.early_stopping is not None
-            if trainer.early_stopping.update(watched):
-                best = dict(eval_metrics)
-                trainer.state.best_metric = watched
-                trainer.save_checkpoint(
-                    best_path,
-                    eval_metrics,
-                    run_id=run_id,
-                    git_sha=git_sha(),
-                    epoch=epoch,
-                    seed=seed,
-                )
-            if trainer.early_stopping.should_stop:
-                _LOGGER.info("Early stopping", extra={"epoch": epoch})
-                break
-
-        summary = {
-            "run_id": run_id,
-            "seed": seed,
-            "best": best,
-            "checkpoint": str(best_path) if best else None,
-            "config": OmegaConf.to_container(cfg.train, resolve=True),
-        }
-        summary_path = checkpoint_dir / "summary.json"
-        summary_path.parent.mkdir(parents=True, exist_ok=True)
-        summary_path.write_text(json.dumps(summary, indent=2, default=str) + "\n", encoding="utf-8")
-        mlflow.log_artifact(str(summary_path), artifact_path="training")
-
-    _LOGGER.info("Training finished", extra={"run_id": run_id, "checkpoint": str(best_path)})
-    return summary
 
 
 @hydra.main(version_base="1.3", config_path="../configs", config_name="config")

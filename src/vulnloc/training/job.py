@@ -12,14 +12,16 @@ through two separately-maintained loops, a difference between them could be earl
 stopping, or the resume path, or which epoch got checkpointed — and the write-up would
 still call it architecture. One loop makes that class of explanation unavailable.
 
-``scripts/train_semantic.py`` does **not** call this yet, and the duplication is
-deliberate rather than overlooked: Phase 3's seed sweep is unfinished (seed 42 logged,
-seeds 1 and 2 not), and rewriting the path that produced the logged seed — however
-carefully — would put "was it the refactor?" between those seeds and their comparison.
+Both entrypoints call this. ``scripts/train_semantic.py`` deliberately did not, while
+Phase 3's seed sweep was in flight: rewriting the path that produced a logged seed —
+however carefully — would have put "was it the refactor?" between those seeds and their
+comparison. All three landed on 2026-09-14 (``Memory.md`` §1.14), and the duplication was
+removed the same day.
 
-**TODO(decision):** fold ``scripts/train_semantic.py`` onto this function once Phase 3's
-three seeds are logged. Until then, a change made here must be made there too, and the
-tests that pin the loop's behaviour live in ``tests/unit/test_training_pipeline.py``.
+One rule survives that move and is easy to break by accident: **do not add a logged
+parameter here or in either caller without checking who becomes incomparable.** A fourth
+semantic seed has to match the three that closed Phase 3, and the comparability guard in
+``scripts/report_seeds.py`` compares the whole parameter set (§7 #39).
 """
 
 from __future__ import annotations
