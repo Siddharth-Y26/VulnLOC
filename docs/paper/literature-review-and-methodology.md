@@ -409,7 +409,17 @@ a message-passing network can distinguish. On our training split, the share of f
 lines that remain indistinguishable from an unflagged line is **76.2% using node types
 alone, 27.9% after two hops, 7.4% after four and 5.4% after six.**
 
-This is not a diagnostic curiosity; it changes how the depth comparison may be read. A
+Two uses of that measurement must be separated, because we drew the second and it was
+wrong. It bounds **disambiguation** — whether two lines can be told apart at all — and it
+does **not** predict what richer node features are worth. We predicted from it that
+identifier features would help most at shallow depth, where ambiguity is highest, and
+measured the opposite: they helped roughly 1.5 times more at four layers than at two. An
+identifier such as `memcpy` is predictive of a memory-safety flaw on its own, whatever the
+surrounding structure does or does not resolve, and a ceiling on disambiguation says
+nothing about that mechanism. We report the failed prediction because the measurement is
+still useful for the purpose it does serve, and separating the two is the point.
+
+That purpose is the depth comparison. A
 two-layer model carries a 27.9% ceiling on recall that comes from the representation
 rather than from the architecture, so its losing to a four-layer model is the expected
 outcome before over-smoothing is considered at all. **Only the comparison between six and

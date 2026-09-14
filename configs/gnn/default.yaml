@@ -62,7 +62,17 @@ language: best_of_two
 # What it is worth, measured without training anything (Memory.md §1.12, run `b530f1ff…`):
 # with node types alone **76.22% of flagged lines are indistinguishable from an unflagged
 # one** before message passing, 27.91% after two hops, 7.35% after four. So the gap is
-# large at shallow depth and small at depth 4 — expect the most from this at depth 2.
+# large at shallow depth and small at depth 4.
+#
+# That bound is about DISAMBIGUATION, and it did NOT predict the measured gain. A4
+# (Memory.md §1.15) found subtokens worth MORE at depth 4 (+0.066 Top-5, three seeds)
+# than at depth 2 (+0.044, one seed) — the opposite of what this comment used to claim.
+# An identifier like `memcpy` is predictive on its own, whatever the structure around it
+# does or does not resolve, and a ceiling on disambiguation says nothing about that.
+#
+# Turning this on is currently the single largest improvement to the structural branch:
+# Top-5 0.3645 -> 0.4302, Top-1 0.1155 -> 0.1750. It stays OFF by default only so the
+# runs logged without it remain reproducible; Phase 5 should fuse the stronger arm.
 #
 # The table is built from the TRAINING SPLIT ONLY (`build_subtoken_vocab.py`): identifiers
 # from val/test would hand the model embeddings for names that only occur in evaluation

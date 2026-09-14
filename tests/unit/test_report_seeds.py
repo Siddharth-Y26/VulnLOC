@@ -116,12 +116,38 @@ def test_a_differing_seed_is_not_a_differing_configuration() -> None:
     assert sorted(provenance["config_hashes"]) == ["one", "two"]
 
 
-def test_a_param_one_run_logged_and_another_did_not_is_a_difference() -> None:
-    """Two runs that did not record the same things about themselves are not replicates."""
+def test_a_param_only_one_run_logged_is_reported_rather_than_refused() -> None:
+    """Comparing it would compare a fact against a gap in the record.
+
+    This used to raise, and it was wrong twice in one day: adding a logged parameter
+    mid-sweep threw every run started minutes earlier out of its own comparison group —
+    `use_subtokens` first, then `resolved_device`, which landed between the first and
+    second A4 seed. The asymmetry is surfaced instead, so it is visible without being
+    fatal.
+    """
     a, b = _run(RUN_A, seed=42), _run(RUN_B, seed=1)
-    a.data.params["gnn_depth"] = "4"
+    a.data.params["resolved_device"] = "cuda:0"
+
+    provenance = report_seeds._check_comparable([a, b])
+
+    assert provenance["params_not_logged_by_every_run"] == {"resolved_device": ["aaaaaaaa"]}
+
+
+def test_a_param_both_runs_logged_with_different_values_still_refuses() -> None:
+    """The weakened rule must not weaken the case it exists for."""
+    a, b = _run(RUN_A, seed=42), _run(RUN_B, seed=1)
+    a.data.params["resolved_device"] = "cuda:0"
+    b.data.params["resolved_device"] = "cpu"
     with pytest.raises(ConfigError, match="do not share a configuration"):
         report_seeds._check_comparable([a, b])
+
+
+def test_a_subsampled_run_is_a_probe_and_never_a_result() -> None:
+    """Two CPU trials at train.limit=600 reached an A4 mean before this check existed."""
+    probe = _run(RUN_A, seed=7)
+    probe.data.params["train.limit"] = "600"
+    assert "600" in (report_seeds._excluded_because(probe) or "")
+    assert report_seeds._excluded_because(_run(RUN_B, seed=1)) is None
 
 
 def test_the_offending_parameter_is_named() -> None:

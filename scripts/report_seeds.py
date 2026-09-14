@@ -181,6 +181,12 @@ def _excluded_because(run: Any) -> str | None:
         return "train.overfit=true — a debugging instrument, never a result"
     if run.data.params.get("normalize_whitespace") != "True":
         return "trained on un-normalized text (ADR-006); it measures a different task"
+    if run.data.params.get("train.limit", "0") not in {"0", "None", ""}:
+        # A run on a subsample is a probe. Two CPU trials at train.limit=600 were grouped
+        # with full-corpus runs and shifted an A4 depth-2 mean before anyone noticed;
+        # tagging them void afterwards works, but only if someone remembers. This does not
+        # need remembering.
+        return f"train.limit={run.data.params['train.limit']} — a subsample, not a result"
     return None
 
 
@@ -314,15 +320,43 @@ def _differing_params(runs: list[Any]) -> dict[str, set[str]]:
         ``{param: {values seen}}`` for every param that is not identical across runs,
         excluding :data:`EXPECTED_TO_DIFFER`. Empty means the runs are replicates.
     """
-    keys = {key for run in runs for key in run.data.params}
+    everywhere = set.intersection(*(set(run.data.params) for run in runs)) if runs else set()
     differing: dict[str, set[str]] = {}
-    for key in keys - EXPECTED_TO_DIFFER:
-        # A param logged by one run and absent from another counts as a difference: the
-        # two runs then did not record the same things about themselves.
-        values = {run.data.params.get(key, "<absent>") for run in runs}
+    for key in everywhere - EXPECTED_TO_DIFFER:
+        values = {run.data.params[key] for run in runs}
         if len(values) > 1:
             differing[key] = values
     return differing
+
+
+def _asymmetric_params(runs: list[Any]) -> dict[str, list[str]]:
+    """Parameters some runs logged and others did not.
+
+    Treated as **not** a difference, and surfaced instead. Comparing a parameter one run
+    never recorded compares a fact against a gap in the record, and it fails every time a
+    new logged parameter is added mid-sweep: a run started ten minutes earlier has no such
+    key and is thrown out of its own comparison group. That happened twice in one day —
+    once for ``use_subtokens`` and again for ``resolved_device``, which was added between
+    the first A4 seed and the second.
+
+    The weaker guard is acceptable because the checks that actually matter do not rely on
+    it: ``normalize_whitespace`` has its own dedicated refusal (ADR-006) that runs first,
+    and the source-tree check catches code differences independently. What is lost is the
+    ability to notice that two runs recorded *different things* about themselves, so that
+    is reported rather than discarded.
+
+    Args:
+        runs: The candidate runs.
+
+    Returns:
+        ``{param: [run ids that logged it]}`` for every param not logged by all of them.
+    """
+    everywhere = set.intersection(*(set(run.data.params) for run in runs)) if runs else set()
+    anywhere = {key for run in runs for key in run.data.params}
+    return {
+        key: sorted(r.info.run_id[:8] for r in runs if key in r.data.params)
+        for key in sorted(anywhere - everywhere - EXPECTED_TO_DIFFER)
+    }
 
 
 def _check_comparable(runs: list[Any], *, allow_source_drift: bool = False) -> dict[str, Any]:
@@ -400,9 +434,16 @@ def _check_comparable(runs: list[Any], *, allow_source_drift: bool = False) -> d
             extra={"span": span, "changed_files": changed},
         )
     dirty = [r.info.run_id[:8] for r in runs if r.data.tags.get("git_sha", "").endswith("-dirty")]
+    asymmetric = _asymmetric_params(runs)
+    if asymmetric:
+        _LOGGER.warning(
+            "Some parameters were not logged by every run; they are reported, not compared",
+            extra={"asymmetric_params": sorted(asymmetric)},
+        )
 
     return {
         "comparable_params": "identical across every run, excluding seed and run identity",
+        "params_not_logged_by_every_run": asymmetric,
         "config_hashes": sorted({r.data.tags.get("config_hash", "?") for r in runs}),
         "git_shas": shas,
         "src_vulnloc_compared": compared,

@@ -177,7 +177,23 @@ def build(cfg: DictConfig) -> dict[str, Any]:
         order_by=["attributes.start_time ASC"],
         max_results=500,
     )
-    real = [r for r in found if r.data.params.get("train.overfit", "False") != "True"]
+
+    def _is_result(run: Any) -> bool:
+        """A run that may enter a reported group.
+
+        Three ways out, each of which has actually happened: an overfit run is a
+        debugging instrument; a run on a subsample is a probe (two CPU trials at
+        train.limit=600 reached an A4 depth-2 mean before this check existed); and a run
+        tagged `void` was disowned deliberately.
+        """
+        params = run.data.params
+        return (
+            params.get("train.overfit", "False") != "True"
+            and params.get("train.limit", "0") in {"0", "None", ""}
+            and not run.data.tags.get("void")
+        )
+
+    real = [r for r in found if _is_result(r)]
     overfits = [r for r in found if r.data.params.get("train.overfit", "False") == "True"]
 
     groups: dict[tuple[str, ...], list[Any]] = {}

@@ -722,9 +722,13 @@ every radius (68.98 / 62.08 / 28.90 / 10.75 / 8.94).
 
 **Two things follow, and the second one is a trap.**
 
-1. **The §D2.5 gap is expensive at shallow depth and cheap at depth 4.** Node types alone
-   cannot distinguish three quarters of flagged lines; four hops of context recovers all
-   but 7%. Subtoken features are worth most where the receptive field is small.
+1. **The §D2.5 gap is expensive at shallow depth and cheap at depth 4** — *as a
+   disambiguation ceiling.* Node types alone cannot distinguish three quarters of flagged
+   lines; four hops recovers all but 7%. **The inference drawn from this — that subtoken
+   features are worth most where the receptive field is small — was tested in §1.15 and is
+   FALSE**: the measured gain is larger at depth 4 than at depth 2. Disambiguation is not
+   the main thing subtokens do; `memcpy` is predictive on its own. The measurement below
+   stands, its predictive use for A4 does not.
 2. **The 2/4/6 depth sweep is NOT a clean over-smoothing experiment.** Depth 2 carries a
    **27.91% hard recall ceiling from the representation itself**. If depth 2
    underperforms depth 4, that is the expected result *before* over-smoothing is
@@ -811,6 +815,51 @@ reason. Top-1 0.3513 against a 6.44% `val` base rate is **≈5.5× chance**.
 
 **`function/f1` = 1.000 in all three and is degenerate by construction** (`line_labelled_only`
 leaves fp = tn = 0). It must never be quoted.
+
+---
+
+## 1.15 A4 — what subtokens are worth, and the prediction it falsified
+
+**Runs `77370d56…`/`0d324da8…`/`3c570cc1…` (depth 4, seeds 42/1/2) and `b92e6985…`
+(depth 2, seed 42), against their node-type-only partners.** ADR-002 §D2.5's second half,
+`gnn.use_subtokens=true`, vocabulary `e1d018bd…`.
+
+| depth | seeds | node-type only | + subtokens | Δ Top-5 | §1.12 said unresolvable without |
+|---|---|---|---|---|---|
+| 2 | 42 | 0.3361 | 0.3797 | **+0.0436** | **27.91%** |
+| 4 | 42, 1, 2 | 0.3645 | **0.4302 ± 0.0372** | **+0.0657** | 7.35% |
+
+**Subtokens are a large, real gain**, larger than the seed spread: the structural branch's
+headline goes from Top-5 0.3645 to **0.4302**, with Top-1 0.1155 → 0.1750.
+
+### The prediction was wrong, and the reason matters
+
+§1.12 predicted the gain would be **large at depth 2 and small at depth 4**, because the
+Weisfeiler-Lehman bound leaves 27.91% of flagged lines unresolvable at two hops and only
+7.35% at four. **The measured gain runs the other way** — 1.5× larger at depth 4 than at
+depth 2. Recorded as a falsification rather than quietly dropped.
+
+The error was not in the WL measurement, which stands. It was in assuming **what subtokens
+are for**. §1.12 modelled their value as *disambiguation*: telling apart two lines that
+look identical to the model. That is one mechanism. The likelier dominant one is
+**semantic**: `memcpy`, `strcpy`, `malloc`, `free` are predictive of a memory-safety flaw
+in and of themselves, whatever the surrounding structure does or does not resolve. A
+ceiling on disambiguation says nothing about that, and there is no reason it should shrink
+as the receptive field grows.
+
+Two lesser contributors, both plausible and neither separated here:
+
+- **WL upper-bounds distinguishability, not learnability.** Mean-aggregating GCN is
+  strictly weaker than WL, so the structure that is *in principle* separable at four hops
+  may not be extractable — and subtokens supply directly what message passing could not.
+- **Distinguishable is not learnable from 5,457 units.**
+
+**What still stands from §1.12:** the depth-sweep reading (§7 #37). That argument is about
+comparing *depths at fixed features*, and nothing here touches it.
+
+**Held loosely:** depth 2 is **one seed**, against a depth-4 spread of ±0.037. The
+direction is clear; the 1.5× ratio is not. Re-run depth 2 at three seeds before the paper
+states it.
 
 ---
 
@@ -1020,6 +1069,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `77370d56…` / `0d324da8…` / `3c570cc1…` + `b92e6985…` | 2026-09-14 | `train_structural.py +gnn=gcn gnn.use_subtokens=true` | 42, 1, 2 (d4); 42 (d2) | — | gnn_only | 1.000 *(degenerate)* | **0.4302 ± 0.0372** (d4) | 20.78 | **A4 — ADR-002 §D2.5's second half, §1.15.** Subtokens lift the structural branch from Top-5 0.3645 to **0.4302** (Top-1 0.1155 → 0.1750). **The gain is LARGER at depth 4 (+0.0657) than at depth 2 (+0.0436), which falsifies §1.12's prediction** — disambiguation is not the main thing subtokens do. Depth 2 is one seed. |
 | `5b177450…` / `e82ff268…` | 2026-09-14 | `train_semantic.py train=semantic seed={1,2}` | 1, 2 | — | llm_only | 1.000 *(degenerate)* | 0.6120 / 0.6203 | 12.52 / 11.33 | **The two seeds that close Phase 3** (§1.14). With seed 42: **Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60.** Best checkpoints epoch 5/5/6; all three cross-check clean against their on-disk summaries. 2.24 h and 4.08 h. **Phase 3's ≥3-seed criterion is MET.** |
 | `11c2b890…` / `f083ae38…` | 2026-09-13 | `train_structural.py +gnn=gcn gnn.depth={6,2}` | 42 | — | gnn_only | — | 0.3174 / 0.3361 | — | **The depth sweep, §1.13.** Depth 4 is best (0.3645). **Depth 6 loses to depth 4 while its *feature* ceiling is better** (5.39% vs 7.35%), so ambiguity cannot explain it — over-smoothing or depth-optimisation can. **One seed each; the 0.047 gap is ≈2× the depth-4 seed spread. Suggestive, not conclusive.** |
 | `5892b032…` / `d5a63481…` | 2026-09-13 | `train_structural.py +gnn={gat,ggnn} train=structural seed=42` | 42 | — | gnn_only | — | 0.3506 / 0.3237 | — | **Phase 4 exit criterion: all three variants run on real data.** GAT 0.3506 / Top-1 0.1224; GGNN 0.3237 / Top-1 0.1017; GCN 0.3645. One seed each — the three are **not** separated by more than seed noise and must not be ranked. |
