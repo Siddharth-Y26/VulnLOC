@@ -1,14 +1,20 @@
-# Pipeline inspector
+# VulnLoc — Findings and the pipeline inspector
 
-Paste a C or C++ function; watch the real VulnLoc pipeline run on it, stage by stage.
+Paste a C or C++ function. Two tabs:
+
+- **Findings** — the lines to review first, ranked by the Phase 3 semantic model, each with
+  any known weakness pattern on that line and its usual fix.
+- **Detailed report** — the real VulnLoc pipeline running on the paste, stage by stage.
 
 ```powershell
 .venv\Scripts\python.exe frontend\server.py
 # then open http://127.0.0.1:8000
 ```
 
-First analysis is slow — it loads the CodeBERT tokenizer. After that it is instant, and
-the tokenizer and Tree-sitter parser are cached for the life of the process.
+The server loads the scoring model in the background at startup. It memory-maps the 1.4 GB
+checkpoint, so on an idle machine that takes seconds; **while training holds most of the RAM
+it took 165 s** in session 13, and a paste made before then waits for it. After that a
+function scores in ~0.3 s on CPU. `?sample=0&tab=report` opens straight onto a sample.
 
 ---
 
@@ -29,23 +35,32 @@ It is outside the `import-linter` layer graph for the same reason (the contracts
 
 ---
 
-## There are no vulnerability scores here, on purpose
+## The Findings tab, and what its scores are not
 
-The project has **no valid trained model**. Its only end-to-end run (`1843412a…`)
-reported val line F1 0.9606 — above the project's own ~30% line-label-noise ceiling,
-which makes the number impossible. It had learned a one-line whitespace rule rather than
-anything about vulnerability: on the corpus as shipped, *"does this line start with a
-space?"* recovers the flaw label at precision 1.0000 with zero false positives on all six
-partitions. See ADR-006 and `docs/Memory.md` §1.10.
+Until 2026-09-15 this tool showed no scores at all. The project owner then decided its
+first job is to tell a developer which lines to look at. The reasons for the old rule did
+not go away, so they are on screen next to every score instead of being argued away:
 
-So this tool shows the pipeline that *feeds* a model and stops exactly where the evidence
-stops. The `Semantic branch` panel says the architecture is built and untrained; the
-`Localization head` panel says it is not built at all. Neither invents a number.
+| What | Why |
+|---|---|
+| **It ranks lines. It cannot say a function is safe.** | The Phase 3 model trained on line-labelled functions only, and every one is vulnerable. Its function-level output is meaningless and is never shown. |
+| **Seed 42 (`fc902107…`), not the best of three.** | Picking the checkpoint with the best `val` score would be selecting on the evaluation set. |
+| **Accuracy is quoted from the seed report, not typed in.** | First pick 36%, top five 61%, on held-out Big-Vul — the same distribution it trained on. Pasted code is outside it. |
+| **Rank first, score second.** | The scores are not calibrated — ordinary lines score 0.7–0.97, because the model has never seen a safe function. |
+| **Punctuation-only lines get no card.** | A lone `}` is not a finding. Skipping lines that essentially never hold a flaw can only raise the chance the real one is shown, so the quoted Top-5 stays a lower bound. The skipped lines are listed. |
+| **Normalization is not optional here.** | A score on un-normalized text is the ADR-006 leak, not a finding. |
 
-`Rules.md` forbids reporting a figure that did not come from a logged run. A demo is not
-an exemption — a screenshot of a fake score outlives the caveat next to it.
+**Fix advice comes from `fix_templates.py`, not from the model.** Eleven single-line
+patterns (unbounded copies, format strings, allocation-size arithmetic, …) plus three
+cross-line ones (use after free, double free, unchecked allocation), each with its MITRE CWE
+id, what to check, the usual fix, and a generic before/after. A template matches line text
+and knows nothing about the model; it can fire on safe code, and a regex cannot always tell.
+**A highly ranked line with no template says exactly that** and is never given generic advice
+that would read like an explanation. This is not Phase 7 and not an answer to Q4.
 
-When the three seeds have been run, `/api/model` is the single place that changes.
+Run `1843412a…` remains void: it reported val line F1 0.9606 by learning a one-line
+whitespace rule (ADR-006, `docs/Memory.md` §1.10). **No fused score is shown anywhere** —
+experiment A1 has not produced one.
 
 ---
 
@@ -58,8 +73,10 @@ When the three seeds have been run, `/api/model` is the single place that change
 | Graphs | `representation/graphs/*`, ADR-002 | yes |
 | Tokenize | `representation/tokenization.py` | yes |
 | Line axis | derived from the two above | yes |
-| Semantic branch | `models/semantic/*` | built, untrained |
-| Structural, Fusion, Localization, Explanation, Evaluation, Serving | — | not built |
+| Semantic branch | `models/semantic/*`, seed report | trained; runs in Findings |
+| Structural branch | — | trained; not run on the paste |
+| Fusion | — | A1 running, no result |
+| Localization, Explanation, Evaluation, Serving | — | not built |
 
 Two panels earn their place beyond "it works":
 
@@ -96,7 +113,9 @@ jumps across the function.
 
 | Path | Role |
 |---|---|
-| `pipeline.py` | Runs the real stages. All the analysis lives here. |
+| `pipeline.py` | Runs the real stages (`analyse`) and assembles Findings (`findings`). |
+| `scoring.py` | Loads the seed-42 checkpoint from its own logged config; the only place a score is made. |
+| `fix_templates.py` | The weakness patterns and their fixes. Pinned by `tests/unit/test_fix_templates.py`. |
 | `server.py` | FastAPI around `pipeline.py`. No logic. |
 | `phases.json` | The stage manifest. **Mirrors `CLAUDE.md` §3 — update it in the same commit as any phase change.** |
 | `static/` | `index.html`, `styles.css`, `app.js`. No build step, no npm. |

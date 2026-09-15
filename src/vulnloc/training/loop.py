@@ -110,6 +110,7 @@ def _move(batch: Mapping[str, Any], device: torch.device) -> dict[str, Any]:
 
 
 @torch.no_grad()
+@torch.no_grad()
 def evaluate(
     model: torch.nn.Module,
     loader: DataLoader[Any],
@@ -120,6 +121,17 @@ def evaluate(
     use_amp: bool = True,
 ) -> dict[str, float]:
     """Run one evaluation pass.
+
+    ``model.eval()`` settles dropout and normalisation; it does **not** stop autograd from
+    recording the forward pass. Without ``no_grad`` every activation needed for a backward
+    that never happens is retained until the next batch replaces it — roughly doubling the
+    peak memory of evaluation for nothing, since neither the metrics nor the reported loss
+    read a gradient.
+
+    That is not a tidiness point on a 4 GiB card — see ``Memory.md`` §1.17 for what it
+    was measured to cost on the largest `val` unit of the fused model, and §7 #29 for why
+    the cost arrives as a silent slowdown rather than as an error on Windows. Adding this
+    changes no number, because no number here was ever computed from a gradient.
 
     Args:
         model: The model.

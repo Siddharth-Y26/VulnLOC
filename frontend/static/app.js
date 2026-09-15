@@ -1,8 +1,17 @@
-/* VulnLoc pipeline inspector — client.
+/* VulnLoc — client.
+
+   Two views over one paste. FINDINGS is for the developer: the lines to review first,
+   ranked by the Phase 3 semantic model, with any known weakness pattern on each line and
+   its usual fix. DETAILED REPORT is the pipeline inspector: every stage that ran.
 
    Renders what the server measured. It computes nothing about the pipeline itself: if a
    number is on screen it came from `/api/*`, which in turn came from `src/vulnloc` or a
    logged run. The only arithmetic here is layout.
+
+   The model and the templates are two different sources and are never blended on screen.
+   The model ranks a line and gives no reason; a template matches the line's text and knows
+   nothing about the model. Merging them into one "because" would invent an explanation
+   Phase 7 has not built.
 
    The stage list is driven by `phases.json`, so a stage that is planned but not built
    still gets a panel, at the same visual weight, saying what it will do. Absence is
@@ -27,15 +36,68 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 /* ── Bootstrap ─────────────────────────────────────────────────────────────── */
 
 async function boot() {
+  setupTabs();
   await Promise.all([loadModel(), loadPhases(), loadSamples(), loadCorpus()]);
   $("run").addEventListener("click", run);
   $("code").addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run();
   });
+
+  // `?sample=0&tab=report` opens straight onto a sample — for sharing a view, and for
+  // headless screenshots that cannot click.
+  const params = new URLSearchParams(location.search);
+  if (TABS.includes(params.get("tab"))) selectTab(params.get("tab"));
+  const index = Number(params.get("sample"));
+  if (params.has("sample") && SAMPLES[index]) {
+    $("code").value = SAMPLES[index].code;
+    run();
+  }
 }
+
+/* ── Tabs ──────────────────────────────────────────────────────────────────── */
+
+const TABS = ["findings", "report"];
+
+function selectTab(name, focus = false) {
+  for (const tab of TABS) {
+    const button = $(`tab-${tab}`);
+    const selected = tab === name;
+    button.setAttribute("aria-selected", String(selected));
+    button.tabIndex = selected ? 0 : -1;
+    $(`panel-${tab}`).hidden = !selected;
+    if (selected && focus) button.focus();
+  }
+  try {
+    localStorage.setItem("vulnloc.tab", name);
+  } catch {
+    /* Storage can be unavailable; the tab still switches, it just is not remembered. */
+  }
+}
+
+function setupTabs() {
+  TABS.forEach((name, index) => {
+    const button = $(`tab-${name}`);
+    button.addEventListener("click", () => selectTab(name));
+    button.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      const step = e.key === "ArrowRight" ? 1 : -1;
+      selectTab(TABS[(index + step + TABS.length) % TABS.length], true);
+    });
+  });
+  let remembered = null;
+  try {
+    remembered = localStorage.getItem("vulnloc.tab");
+  } catch {
+    remembered = null;
+  }
+  selectTab(TABS.includes(remembered) ? remembered : "findings");
+}
+
+let MODEL = null;
 
 async function loadModel() {
   const model = await fetch("/api/model").then((r) => r.json());
+  MODEL = model;
   const banner = $("model-banner");
   banner.hidden = false;
   banner.append(el("h2", null, model.headline));
@@ -69,8 +131,11 @@ async function loadPhases() {
   }
 }
 
+let SAMPLES = [];
+
 async function loadSamples() {
   const samples = await fetch("/api/samples").then((r) => r.json());
+  SAMPLES = samples;
   const host = $("samples");
   for (const sample of samples) {
     const button = el("button", "sample");
@@ -81,6 +146,7 @@ async function loadSamples() {
       $("code").value = sample.code;
       run();
     });
+    button.title = sample.note;
     host.append(button);
   }
 }
@@ -117,8 +183,44 @@ async function run() {
   button.textContent = "Analysing…";
   $("error-slot").replaceChildren();
 
+  // The two views are independent requests: the report is fast, the model is not on its
+  // first call, and neither should wait for the other.
+  const code = $("code").value;
+  await Promise.all([runReport(code), runFindings(code)]);
+  button.disabled = false;
+  button.textContent = "Analyse";
+}
+
+async function runFindings(code) {
+  const host = $("findings");
+  host.replaceChildren(
+    el(
+      "p",
+      "empty loading",
+      "Ranking lines… The first analysis loads the model, which can take a minute while training runs on this machine."
+    )
+  );
+  try {
+    const response = await fetch("/api/findings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await response.json();
+    host.replaceChildren();
+    if (!response.ok) {
+      host.append(errorBox(data));
+      return;
+    }
+    renderFindings(host, data);
+  } catch (err) {
+    host.replaceChildren(errorBox({ error: String(err), kind: "network" }));
+  }
+}
+
+async function runReport(code) {
   const body = {
-    code: $("code").value,
+    code,
     policy: $("policy").value,
     graph: $("graph").value,
     normalize: $("normalize").checked,
@@ -142,24 +244,211 @@ async function run() {
     renderStages(data);
   } catch (err) {
     showError({ error: String(err), kind: "network" });
-  } finally {
-    button.disabled = false;
-    button.textContent = "Analyse";
   }
 }
 
-function showError(data) {
+function errorBox(data) {
   const box = el("div", "error");
-  box.append(
-    el(
-      "h2",
-      null,
-      data.kind === "input" ? "Nothing to analyse" : "The pipeline raised"
-    )
-  );
+  const title =
+    data.kind === "input"
+      ? "Nothing to analyse"
+      : data.kind === "model"
+        ? "The model raised"
+        : "The pipeline raised";
+  box.append(el("h2", null, title));
   box.append(el("p", "empty", data.error));
   if (data.traceback) box.append(el("pre", null, data.traceback));
-  $("error-slot").append(box);
+  return box;
+}
+
+function showError(data) {
+  $("error-slot").append(errorBox(data));
+}
+
+/* ── Findings ──────────────────────────────────────────────────────────────── */
+
+const pct = (x) => `${Math.round(x * 100)}%`;
+
+function renderFindings(host, data) {
+  const m = data.measured;
+  const run = m.run || {};
+
+  // The one paragraph a developer needs before trusting a ranking. Numbers come from the
+  // seed report on disk; nothing here is typed in by hand.
+  const trust = el("div", "trust");
+  const trustHead = el("p", "trust-lead");
+  trustHead.append(el("b", null, "Lines to review first, ranked by the model. "));
+  trustHead.append(
+    document.createTextNode(
+      run.top_1 != null
+        ? `On held-out ${m.eval_split} functions the real flawed line was its first pick ${pct(run.top_1)} of the time and in its top ${data.top_k} ${pct(run.top_5)} of the time.`
+        : "Its held-out accuracy could not be read from the seed report."
+    )
+  );
+  trust.append(trustHead);
+  const caveats = el("ul", "trust-caveats");
+  caveats.append(
+    el("li", null, "It assumes the function has a flaw and ranks where. It cannot tell you code is safe."),
+    el("li", null, "Measured on Big-Vul (mostly Chrome and Linux). Your code is outside that data."),
+    el("li", null, "Fix advice comes from pattern templates, not from the model's reasoning.")
+  );
+  trust.append(caveats);
+  host.append(trust);
+
+  const list = el("ol", "findings");
+  for (const finding of data.top) {
+    list.append(findingCard(finding, data));
+  }
+  host.append(list);
+  if (data.skipped_punctuation_lines.length) {
+    host.append(
+      el(
+        "p",
+        "note",
+        `Skipped ${plural(data.skipped_punctuation_lines.length, "line", "lines")} the model ranked this high that hold only punctuation (${data.skipped_punctuation_lines.map((l) => `L${l}`).join(", ")}), which is why the ranks above can jump.`
+      )
+    );
+  }
+
+  if (data.patterns_elsewhere.length) {
+    const other = el("section", "elsewhere");
+    other.append(el("h3", null, "Patterns on lines the model ranked lower"));
+    other.append(
+      el(
+        "p",
+        "note",
+        "A template matched these lines, but the model did not put them in its top five. Worth a look; not a finding."
+      )
+    );
+    const rows = el("ul", "elsewhere-list");
+    for (const item of data.patterns_elsewhere) {
+      for (const p of item.patterns) {
+        const li = el("li");
+        li.append(el("span", "ln-chip", `L${item.line}`));
+        li.append(el("span", "cwe", p.cwe));
+        li.append(el("span", null, `${p.title} — `));
+        li.append(el("code", null, item.text));
+        li.append(el("span", "dim", item.rank ? ` · model rank ${item.rank}` : " · not scored"));
+        rows.append(li);
+      }
+    }
+    other.append(rows);
+    host.append(other);
+  }
+
+  host.append(sourceMap(data));
+
+  const foot = el("p", "note");
+  foot.textContent =
+    `Scores from ${data.model.name}, run ${data.model.run_id.slice(0, 8)}… (seed ${run.seed}), on ${data.model.device}. ` +
+    `Scores are shown for ordering only: the model never saw a safe function, so they are not calibrated probabilities. ` +
+    `About ${m.label_noise} of the line labels it learned from are wrong (Memory.md §1.6).`;
+  if (data.beyond_line_cap) {
+    foot.textContent += ` ${plural(data.beyond_line_cap, "line", "lines")} past line 512 cannot be scored.`;
+  }
+  host.append(foot);
+}
+
+function findingCard(finding, data) {
+  const li = el("li", "finding");
+  li.id = `finding-L${finding.line}`;
+
+  const head = el("div", "finding-head");
+  head.append(el("span", "finding-rank", `#${finding.rank}`));
+  head.append(el("span", "finding-line", `Line ${finding.line}`));
+  const meter = el("span", "meter");
+  meter.title = `score ${finding.score.toFixed(3)} — for ordering, not a probability`;
+  const fill = el("span", "meter-fill");
+  fill.style.width = `${Math.max(4, finding.score * 100)}%`;
+  meter.append(fill);
+  head.append(meter);
+  head.append(
+    el(
+      "span",
+      finding.patterns.length ? "finding-tag has-pattern" : "finding-tag",
+      finding.patterns.length ? plural(finding.patterns.length, "known pattern", "known patterns") : "no known pattern"
+    )
+  );
+  li.append(head);
+
+  const snippet = el("div", "snippet");
+  for (const row of finding.context) {
+    const line = el("div", "snippet-row");
+    if (row.line === finding.line) line.dataset.focus = "true";
+    line.append(el("span", "ln", String(row.line)));
+    line.append(el("code", "src", row.text || " "));
+    snippet.append(line);
+  }
+  li.append(snippet);
+
+  if (!finding.patterns.length) {
+    li.append(
+      el(
+        "p",
+        "no-pattern",
+        "No template matches this line. The model ranks it highly but gives no reason, so read it with the lines around it: what reaches it, and what it writes."
+      )
+    );
+    return li;
+  }
+
+  for (const p of finding.patterns) {
+    const block = el("div", "pattern");
+    const title = el("p", "pattern-title");
+    title.append(el("span", "cwe", p.cwe), document.createTextNode(p.title));
+    block.append(title);
+
+    const check = el("p", "pattern-text");
+    check.append(el("b", null, "Check  "), document.createTextNode(p.problem));
+    block.append(check);
+    const fix = el("p", "pattern-text");
+    fix.append(el("b", null, "Fix  "), document.createTextNode(p.fix));
+    block.append(fix);
+
+    const pair = el("div", "before-after");
+    const before = el("div");
+    before.append(el("span", "pair-label", "typical"), el("pre", null, p.example.before));
+    const after = el("div");
+    after.append(el("span", "pair-label", "safer"), el("pre", null, p.example.after));
+    pair.append(before, after);
+    block.append(pair);
+    li.append(block);
+  }
+  return li;
+}
+
+/* The whole function with the model's ordering alongside. Top-ranked lines carry their rank
+   and link to their card; every other scored line is shaded by score, faintly, so the eye
+   reads rank first and gradient second. */
+function sourceMap(data) {
+  const wrap = el("section", "source-map");
+  wrap.append(el("h3", null, "Whole function"));
+  const rankByLine = new Map(data.top.map((f) => [f.line, f.rank]));
+  const box = el("div", "axis");
+  for (const entry of data.scores) {
+    const row = el("div", "map-row");
+    const rank = rankByLine.get(entry.line);
+    if (rank) row.dataset.top = "true";
+    row.append(el("span", "ln", String(entry.line)));
+    const heat = el("span", "heat");
+    if (entry.score == null) {
+      heat.textContent = "—";
+      heat.title = "no tokens on this line, so it is not scored";
+    } else if (rank) {
+      const a = el("a", "heat-rank", `#${rank}`);
+      a.href = `#finding-L${entry.line}`;
+      heat.append(a);
+    } else {
+      heat.style.setProperty("--heat", String(entry.score));
+      heat.classList.add("heat-shade");
+      heat.title = `rank ${entry.rank}`;
+    }
+    row.append(heat);
+    row.append(el("code", "src", data.lines[entry.line - 1] || " "));
+    box.append(row);
+  }
+  wrap.append(box);
+  return wrap;
 }
 
 /* ── Stage scaffolding ─────────────────────────────────────────────────────── */
@@ -182,6 +471,10 @@ function stagePanel(stage) {
     head.append(el("span", "badge badge-trained", "trained, measured"));
   if (stage.state === "trained-one-seed")
     head.append(el("span", "badge badge-signal", "trained · one seed, not yet a result"));
+  if (stage.state === "built-unrun")
+    head.append(el("span", "badge badge-signal", "built · not yet run, gated"));
+  if (stage.state === "running")
+    head.append(el("span", "badge badge-signal", "running · no result yet"));
   if (stage.state === "planned") head.append(el("span", "badge badge-void", "not built"));
   if (stage.adr) head.append(el("span", "stage-layer", stage.adr));
   section.append(head);
@@ -263,13 +556,15 @@ function renderStages(data) {
 function renderPlanned(body, stage) {
   const list = el("ul", "planned-list");
   list.append(el("li", null, stage.does));
-  list.append(
-    el(
-      "li",
-      null,
-      `Nothing is shown here because nothing is built. When Phase ${stage.phase} lands, this panel is where its output goes.`
-    )
-  );
+  // The fallback used to say "nothing is built" for every stage without a renderer, which
+  // was false for the trained structural branch. What is absent differs by state.
+  const absent = {
+    planned: `Nothing is shown here because nothing is built. When Phase ${stage.phase} lands, this panel is where its output goes.`,
+    trained: "Built and measured, but this tool does not run it on your paste; only the semantic model scores lines in Findings.",
+    "built-unrun": "Built, not yet run. No output exists to show.",
+    running: "Being run now. No output exists to show until a result is logged.",
+  };
+  list.append(el("li", null, absent[stage.state] || "No output to show for this stage."));
   body.append(list);
 }
 
@@ -629,32 +924,27 @@ function trackCell(count, max, cls, title, blind) {
   return cell;
 }
 
-function renderSemantic(body, data) {
+function renderSemantic(body) {
+  const m = MODEL?.measured;
+  const three = m?.three_seed;
+  if (!three) {
+    body.append(el("p", "note note-warn", "The Phase 3 seed report could not be read, so no measured number is shown."));
+    return;
+  }
   body.append(
     readout([
       ["Encoder", "CodeBERT", "live"],
-      ["Line head", "built", "live"],
-      ["Overfit test", "passes", "live"],
-      ["Valid trained weights", "none", "void"],
-      ["Scores shown", "none", "void"],
+      ["Seeds", String(m.n_seeds), "live"],
+      [`Top-5 (${m.eval_split})`, three.top_5_mean.toFixed(4), "live", `± ${three.top_5_std.toFixed(4)}`],
+      [`Top-1 (${m.eval_split})`, three.top_1_mean.toFixed(4), "live"],
+      ["Scores shown", "Findings tab", "signal", `seed ${m.run.seed}`],
     ])
   );
   body.append(
     el(
       "p",
       "note",
-      "The architecture runs and memorises a 32-sample subset, which proves the head, the loss and the line alignment are wired correctly. It does not produce a number anyone may quote. The only full run was voided by ADR-006, so this tool deliberately has nowhere to display a per-line score."
-    )
-  );
-  body.append(
-    table(
-      ["what exists", "state"],
-      [
-        ["models/semantic/encoder.py", "built"],
-        ["models/heads/line_head.py", "built"],
-        ["training/loop.py, losses.py, metrics.py", "built"],
-        ["LLM-only metrics over ≥3 seeds", "not started — Phase 3 exit criterion"],
-      ]
+      `Findings runs this model (run ${m.run.run_id.slice(0, 8)}…, seed ${m.run.seed} — the default seed, not the best of three, so the choice is not made on validation data) on your paste. Its function-level F1 of 1.000 is degenerate — every evaluation unit is vulnerable — and is never shown. Run 1843412a… remains void (ADR-006).`
     )
   );
 }

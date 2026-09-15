@@ -109,13 +109,50 @@ a {
   margin: 0;
 }
 
-/* The model banner is the first thing anyone sees, and it says the tool has no scores.
-   That placement is the point: it is the most important fact about the project's state. */
+/* ─── Tabs ─────────────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 1.1rem;
+}
+
+.tabs button {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--dim);
+  padding: 0.55rem 0.95rem 0.6rem;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  margin-bottom: -1px;
+}
+
+.tabs button:hover {
+  color: var(--type);
+}
+
+.tabs button[aria-selected="true"] {
+  color: var(--type);
+  background: var(--ground);
+  border-color: var(--rule);
+  box-shadow: inset 0 2px 0 var(--signal);
+}
+
+.tabs button:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
+
+/* Says what scores lines and what does not. Informational, not an alarm: the thing it used
+   to announce — no scores anywhere — is no longer true. */
 .model-banner {
-  margin: 1.25rem 0 0;
-  border: 1px solid var(--void);
-  border-left-width: 3px;
-  background: var(--void-soft);
+  margin: 0 0 0.25rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--signal);
+  background: var(--panel);
   padding: 0.85rem 1.1rem;
   border-radius: 3px;
 }
@@ -123,13 +160,13 @@ a {
 .model-banner h2 {
   margin: 0 0 0.3rem;
   font-size: 0.95rem;
-  color: #e8a096;
+  color: var(--signal);
 }
 
 .model-banner p {
   margin: 0;
   font-size: 0.875rem;
-  color: #cbb4b0;
+  color: var(--dim);
   max-width: 92ch;
 }
 
@@ -374,6 +411,8 @@ input[type="number"] {
 
 .sample {
   all: unset;
+  /* `all: unset` also resets box-sizing, and width:100% plus padding then overflows. */
+  box-sizing: border-box;
   cursor: pointer;
   display: block;
   width: 100%;
@@ -847,11 +886,348 @@ footer p {
   max-width: 88ch;
 }
 
+/* ─── Composer: report options ─────────────────────────────────────────────── */
+
+.report-options {
+  margin-top: 1rem;
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 0.75rem;
+}
+
+.report-options summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--dim);
+}
+
+.report-options summary:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+/* ─── Findings ─────────────────────────────────────────────────────────────── */
+
+.loading {
+  color: var(--signal);
+}
+
+/* Read before the cards, and short enough that people do read it. */
+.trust {
+  border-left: 3px solid var(--signal);
+  padding: 0.1rem 0 0.1rem 1rem;
+  margin: 0 0 1.5rem;
+  max-width: 80ch;
+}
+
+.trust-lead {
+  margin: 0 0 0.4rem;
+  font-size: 0.92rem;
+}
+
+.trust-lead b {
+  font-weight: 500;
+  color: var(--type);
+}
+
+.trust-caveats {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--dim);
+  font-size: 0.82rem;
+}
+
+.findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* minmax(0, …), not the implicit `auto`: an auto track grows to its widest <pre>, which
+     pushed the whole page sideways at phone width. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.finding {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--panel);
+  scroll-margin-top: 1rem;
+}
+
+.finding:target {
+  border-color: var(--signal);
+}
+
+.finding-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.finding-rank {
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--signal);
+  font-variant-numeric: tabular-nums;
+  min-width: 2ch;
+}
+
+.finding-line {
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  color: var(--type);
+}
+
+.meter {
+  width: 5rem;
+  height: 0.35rem;
+  background: var(--rule-soft);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--signal);
+  opacity: 0.75;
+}
+
+.finding-tag {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--dim);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.05rem 0.4rem;
+}
+
+.finding-tag.has-pattern {
+  color: var(--live);
+  border-color: var(--live);
+}
+
+.snippet {
+  background: var(--ground);
+  border-bottom: 1px solid var(--rule-soft);
+  overflow-x: auto;
+}
+
+.snippet-row {
+  display: grid;
+  grid-template-columns: var(--gutter) minmax(0, 1fr);
+}
+
+.snippet-row .src {
+  color: var(--dimmer);
+}
+
+.snippet-row[data-focus="true"] {
+  background: var(--signal-soft);
+}
+
+.snippet-row[data-focus="true"] .ln {
+  color: var(--signal);
+  border-right-color: var(--signal);
+}
+
+.snippet-row[data-focus="true"] .src {
+  color: var(--type);
+}
+
+.no-pattern {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  font-size: 0.84rem;
+  color: var(--dim);
+  max-width: 80ch;
+}
+
+.pattern {
+  padding: 0.8rem 1rem 0.9rem;
+}
+
+.pattern + .pattern {
+  border-top: 1px dashed var(--rule-soft);
+}
+
+.pattern-title {
+  margin: 0 0 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  color: var(--type);
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.cwe {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--live);
+  border: 1px solid var(--live);
+  border-radius: 2px;
+  padding: 0 0.35rem;
+  white-space: nowrap;
+}
+
+.pattern-text {
+  margin: 0 0 0.3rem;
+  font-size: 0.86rem;
+  max-width: 80ch;
+}
+
+.pattern-text b {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 0.74rem;
+  color: var(--dim);
+  display: inline-block;
+  width: 3rem;
+}
+
+.before-after {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.before-after > div {
+  min-width: 0;
+}
+
+.pair-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--dimmer);
+  margin-bottom: 0.2rem;
+}
+
+.before-after pre {
+  margin: 0;
+  background: var(--ground);
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  padding: 0.5rem 0.65rem;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--code);
+  overflow-x: auto;
+}
+
+.before-after > div:last-child pre {
+  border-left: 2px solid var(--live);
+}
+
+.elsewhere,
+.source-map {
+  margin-top: 1.75rem;
+}
+
+.elsewhere h3,
+.source-map h3 {
+  font-size: 0.88rem;
+  color: var(--type);
+  margin: 0 0 0.3rem;
+}
+
+.elsewhere-list {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  font-size: 0.84rem;
+}
+
+.elsewhere-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.elsewhere-list code {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--code);
+}
+
+.ln-chip {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--dim);
+  min-width: 2.5rem;
+}
+
+.dim {
+  color: var(--dimmer);
+  font-size: 0.78rem;
+}
+
+.source-map .axis {
+  margin-top: 0.6rem;
+}
+
+.map-row {
+  display: grid;
+  grid-template-columns: var(--gutter) 3rem minmax(0, 1fr);
+  align-items: center;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.map-row:last-child {
+  border-bottom: none;
+}
+
+.map-row[data-top="true"] {
+  background: var(--signal-soft);
+}
+
+.map-row[data-top="true"] .src {
+  color: var(--type);
+}
+
+.heat {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--dimmer);
+  border-right: 1px solid var(--rule-soft);
+}
+
+/* Faint on purpose: a rank-6 line should not look like a finding. */
+.heat-shade {
+  background: rgb(232 161 58 / calc(var(--heat, 0) * 0.22));
+}
+
+.heat-rank {
+  color: var(--signal);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.heat-rank:hover,
+.heat-rank:focus-visible {
+  text-decoration: underline;
+}
+
 /* ─── Responsive ───────────────────────────────────────────────────────────── */
 
 @media (max-width: 60rem) {
   .workbench {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .composer {

@@ -1,0 +1,37 @@
+# Phase 5 sanity check: the fused model must reach ~100% on a 32-sample subset.
+#
+# A debugging instrument, not a result. It proves gradient reaches BOTH branches, the two
+# line axes actually line up, and the fusion is reading what it claims to. Never cite a
+# number from this config.
+#
+# Run it for every fusion arm before any of them, not just for cross-attention: an arm
+# that cannot memorise 32 functions has a bug, and A1 comparing a working arm against a
+# broken one would look exactly like a result.
+defaults:
+  - fused
+
+name: overfit_fused
+
+limit: 32
+eval_limit: 32
+overfit: true
+
+# Between the semantic arm's 40 and the structural arm's 150. The fused model contains
+# both, and Memory.md §7 #35 is the measurement behind the high end: a from-scratch GNN
+# needs far more passes to memorise than a fine-tuned transformer, and an overfit config
+# that stops early turns a healthy model into a bug report.
+epochs: 150
+patience: 150
+
+lr: 3.0e-3
+encoder_lr: 5.0e-5
+weight_decay: 0.0
+accumulation_steps: 1
+
+# Dropout is regularisation and an overfit test is trying to defeat it.
+zero_dropout: true
+
+# Plain weighted BCE: focal loss deliberately down-weights confident predictions, which is
+# exactly what an overfit test is trying to produce.
+loss: bce
+auto_pos_weight: true

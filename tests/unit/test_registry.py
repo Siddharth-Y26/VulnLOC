@@ -36,7 +36,6 @@ ALL_REGISTRIES = [
 # an entry appearing in one of these is a real failure, not a stale test. Move a
 # registry out of this list only when its phase legitimately lands.
 UNPOPULATED_REGISTRIES = [
-    FUSION_REGISTRY,  # Phase 5
     EXPLAINER_REGISTRY,  # Phase 7
     METRIC_REGISTRY,  # Phase 8
 ]
@@ -153,6 +152,26 @@ def test_semantic_registry_holds_exactly_the_encoders_that_exist():
     import vulnloc.models.semantic  # noqa: F401  (registration happens on import)
 
     assert SEMANTIC_REGISTRY.keys() == ["codebert", "graphcodebert"]
+
+
+def test_fusion_registry_holds_exactly_the_strategies_that_exist():
+    # Phase 5. One treatment arm and five comparators behind one interface, so
+    # `fusion=cross_attention` against `fusion=concat` is a flag flip rather than a code
+    # change — which is the exit criterion. `Phases.md` names the comparator `none`;
+    # `Architecture.md` §4.4 splits it into `llm_only` and `gnn_only`, and that is the form
+    # built, because "no fusion" means something different depending on which branch
+    # survives. A key here without a strategy behind it would make an A1 arm selectable
+    # against code that does not exist.
+    import vulnloc.models.fusion  # noqa: F401  (registration happens on import)
+
+    assert FUSION_REGISTRY.keys() == [
+        "concat",
+        "cross_attention",
+        "gated",
+        "gnn_only",
+        "llm_only",
+        "sum",
+    ]
 
 
 def test_head_registry_holds_exactly_the_heads_that_exist():

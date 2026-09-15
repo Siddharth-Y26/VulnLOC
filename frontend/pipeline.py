@@ -7,11 +7,11 @@ is invented. Where a phase is not built, this module returns nothing for it rath
 plausible-looking placeholder — `Rules.md` forbids reporting a figure that did not come
 from a real run, and a demo is not an exemption.
 
-**There are no vulnerability scores anywhere in this file, deliberately.** The project's
-only end-to-end training run (`1843412a…`) was voided by ADR-006: it learned the corpus's
-indentation artefact rather than the vulnerability. Until the ≥3-seed criterion is met
-there is no model whose output could honestly be shown, so the inspector shows the
-pipeline that *feeds* a model and stops exactly where the evidence stops.
+**Scores come from one place only: :func:`findings`**, which calls ``scoring.py`` (the
+Phase 3 semantic model, seed 42) — added 2026-09-15 by the owner's decision. Everything
+else in this file is the detailed report and computes no score. Run ``1843412a…`` remains
+void (ADR-006): it learned the corpus's indentation artefact rather than the vulnerability,
+which is why :func:`findings` never scores un-normalized text.
 
 This is **not** the Phase 9 serving API. Phase 9 is unstarted, and `Phases.md` forbids
 building ahead; this is a development instrument that lives outside `src/vulnloc`.
@@ -19,6 +19,7 @@ building ahead; this is a development instrument that lives outside `src/vulnloc
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,7 +29,7 @@ from vulnloc.representation.line_map import split_lines
 from vulnloc.representation.units import CodeUnit
 from vulnloc.utils.text import normalize_source_whitespace
 
-__all__ = ["AnalysisOptions", "analyse", "sample_functions"]
+__all__ = ["AnalysisOptions", "analyse", "findings", "sample_functions"]
 
 # A pasted function is small, but a pathological paste is not. The AST of a 500-line
 # function reaches a few thousand nodes, and shipping all of them to a browser that draws
@@ -444,6 +445,95 @@ def analyse(code: str, options: AnalysisOptions) -> dict[str, Any]:
             "max_length": options.max_length,
             "stride": options.stride,
         },
+    }
+
+
+CONTEXT_LINES = 2
+"""Source lines shown either side of a finding."""
+
+_PUNCTUATION_ONLY = re.compile(r"^[\s{}()\[\];,]*$")
+"""Lines with no identifier, keyword or literal — braces, a lone `);`, blank."""
+
+
+def findings(code: str) -> dict[str, Any]:
+    """The Findings tab: which lines to look at first, and what a known pattern says about them.
+
+    Two sources, kept separate all the way to the screen (see ``fix_templates.py``):
+    the **model** ranks lines and gives no reason; a **template** matches line text and
+    knows nothing about the model. Normalization is always on here — a score computed on
+    un-normalized text would be the ADR-006 leak, not a finding.
+
+    Args:
+        code: The pasted source.
+
+    Returns:
+        A JSON-serializable report.
+
+    Raises:
+        ValueError: If ``code`` is empty.
+    """
+    from frontend.fix_templates import match_templates
+    from frontend.scoring import score_lines
+
+    if not code.strip():
+        raise ValueError("Paste a function first — there is nothing to analyse.")
+
+    unit = CodeUnit.from_source("paste", code, language="C", normalize_whitespace=True)
+    lines = list(unit.lines)
+    scored = score_lines(unit)
+    patterns = match_templates(lines)
+    by_line = {entry["line"]: entry for entry in scored["scores"]}
+
+    def context(line: int) -> list[dict[str, Any]]:
+        first = max(1, line - CONTEXT_LINES)
+        last = min(len(lines), line + CONTEXT_LINES)
+        return [{"line": n, "text": lines[n - 1]} for n in range(first, last + 1)]
+
+    # Cards go to the highest-ranked lines that carry code. A lone `}` in the top five of a
+    # six-line function is noise to a reader, not a finding. The model's own ranks are kept,
+    # so a card can read "#4" after a skipped "#3". Removing lines that essentially never
+    # hold the flaw can only raise the chance the real line is shown, so the measured Top-5
+    # quoted beside these cards stays a lower bound rather than becoming an overstatement.
+    ranked = sorted((e for e in scored["scores"] if e["rank"] is not None), key=lambda e: e["rank"])
+    skipped = [e["line"] for e in ranked if _PUNCTUATION_ONLY.match(lines[e["line"] - 1])]
+    chosen = [e for e in ranked if e["line"] not in skipped][: scored["top_k"]]
+    top_lines = {entry["line"] for entry in chosen}
+    top = [
+        {
+            **entry,
+            "text": lines[entry["line"] - 1],
+            "context": context(entry["line"]),
+            "patterns": patterns.get(entry["line"], []),
+        }
+        for entry in chosen
+    ]
+    skipped_above = [
+        line
+        for line in skipped
+        if by_line[line]["rank"] <= max((e["rank"] for e in chosen), default=0)
+    ]
+    elsewhere = [
+        {
+            "line": line,
+            "text": lines[line - 1],
+            "rank": by_line.get(line, {}).get("rank"),
+            "score": by_line.get(line, {}).get("score"),
+            "patterns": found,
+        }
+        for line, found in sorted(patterns.items())
+        if line not in top_lines
+    ]
+    return {
+        "lines": lines,
+        "scores": scored["scores"],
+        "top": top,
+        "skipped_punctuation_lines": skipped_above,
+        "patterns_elsewhere": elsewhere,
+        "unscored_lines": scored["unscored_lines"],
+        "beyond_line_cap": scored["beyond_line_cap"],
+        "top_k": scored["top_k"],
+        "model": scored["model"],
+        "measured": scored["measured"],
     }
 
 

@@ -1,0 +1,139 @@
+# Published line-level results on Big-Vul — QUOTED, NOT REPRODUCED.
+#
+# `Rules.md` §5.7: *baselines are reproduced, not quoted; numbers copied from a paper are
+# labelled `(reported)` and never compared directly to our numbers as if they were run
+# under our splits.* This file is where that label is attached. Every value below was read
+# off the cited source on `retrieved`, and every entry carries the one field that matters
+# more than the number — `not_comparable_because`.
+#
+# `Rules.md` §0.1 forbids inventing a benchmark number. So: no value enters this file from
+# memory. Add a row only with a URL you have opened, and record which artefact you read it
+# from (`source_of_values`) — the paper and the authors' own repository disagree for
+# LineVul's IFA, which is precisely why that field exists.
+#
+# These numbers are NEVER plotted on the same axis as ours. They render as a table in
+# `artifacts/review3/results.md`, beside the reason each comparison does not hold.
+
+schema: 1
+retrieved: 2026-09-14
+corpus: Big-Vul (Fan et al., MSR 2020)
+
+# What every row here has in common, stated once so no row has to repeat it.
+shared_caveats:
+  - >-
+    **Different split.** Every entry in the table uses a random function-level split. Ours is
+    project-wise (ADR-001 §D1.3), which is strictly harder: a random split over a corpus
+    that is 65.8% Chrome + linux puts near-duplicate functions from the same project on
+    both sides. ADR-004 measured 207 hashes / 426 functions that are byte-identical
+    across *different* projects, and exact match is a floor.
+  - >-
+    **Different denominator.** Our line metrics are computed over line-labelled units
+    only, on the partition named in the table. A metric averaged over a different
+    population is a different metric with the same name.
+  - >-
+    **Possibly different inputs.** ADR-006 found that the LineVul release of Big-Vul
+    encodes the flaw label in the indentation, at precision 1.0000 with zero false
+    positives on all six partitions. We normalize it away. Whether any published number
+    below is affected is an **untested hypothesis about other people's code** — see
+    the hypothesis stated at the end of this section. It is not a finding and must not be
+    presented as one.
+
+systems:
+  - system: LineVul
+    citation: Fu & Tantithamthavorn, MSR 2022
+    url: https://doi.org/10.1145/3524842.3528452
+    repo: https://github.com/awsm-research/LineVul
+    approach: >-
+      CodeBERT fine-tuned for function-level classification; lines are ranked by the
+      encoder's own self-attention, not by a line-level supervised signal.
+    split: random; sizes not stated in the paper or the repository README
+    source_of_values: paper abstract and results tables, corroborated by the repo README
+    metrics:
+      - name: Function-level F1
+        value: "0.91"
+        note: with precision 0.97 and recall 0.86
+      - name: Line-level Top-10 accuracy
+        value: "0.65"
+        note: self-attention ranking
+      - name: Line-level IFA (mean)
+        value: "4.56"
+        note: >-
+          from the repository README. The paper reports "the lowest median IFA of 1" —
+          a median, not a mean. The two are not the same statistic and IFA is heavily
+          right-skewed, so quoting one for the other overstates or understates by a lot.
+    not_comparable_because: >-
+      Top-10 against our Top-5 — a strictly more generous cut-off on a corpus averaging
+      31 lines per function, so on short functions Top-10 approaches "the whole
+      function". Line ranking is unsupervised (attention), ours is a supervised line
+      head. Plus the shared caveats.
+
+  - system: LineVD
+    citation: Hin et al., MSR 2022
+    url: https://arxiv.org/abs/2203.05181
+    approach: >-
+      Statement-level GNN over a code property graph with a transformer-encoded statement
+      representation; the closest published relative of this project's structural branch.
+    split: random 80:10:10, with the training set undersampled to function-level balance
+    source_of_values: paper results tables
+    metrics:
+      - name: Statement-level F1
+        value: "0.360"
+        note: with precision 0.271 and recall 0.533
+      - name: Statement-level ROC-AUC
+        value: "0.913"
+      - name: Statement-level PR-AUC
+        value: "0.642"
+    not_comparable_because: >-
+      The training set is undersampled to class balance and ours is not, which moves
+      precision and recall in opposite directions without moving the model. Statements
+      are not lines — a multi-line statement is one unit there and several here. Plus
+      the shared caveats.
+
+  - system: IVDetect
+    citation: Li, Wang & Nguyen, ESEC/FSE 2021
+    url: https://arxiv.org/abs/2106.10478
+    approach: Feature-attention GNN with a GNNExplainer-style interpretation step.
+    split: as re-run by LineVD's authors, not as published by IVDetect's
+    source_of_values: LineVD's comparison table — a third-party reproduction
+    metrics:
+      - name: Statement-level F1
+        value: "0.176"
+        note: with precision 0.238 and recall 0.140
+    not_comparable_because: >-
+      This is a *reproduction by a competing paper*, which is the weakest class of
+      number in this file. Kept because it is the floor LineVD measured itself against,
+      and dropping it would make LineVD's improvement look uncontested. Plus the
+      shared caveats.
+
+# The single most useful row in this file, and the reason it is not a bar chart.
+independent_remeasurement:
+  - system: LineVul, re-measured by a later paper
+    citation: LEAP — Statement-Level Vulnerability Detection, arXiv 2209.10414
+    url: https://arxiv.org/abs/2209.10414
+    setting: unsupervised, K=10
+    source_of_values: the paper's Big-Vul comparison table
+    metrics:
+      - name: Line-level Top-10 accuracy
+        value: "0.740"
+      - name: Line-level IFA
+        value: "3.7"
+    why_it_matters: >-
+      The same system, on the same corpus, measured at Top-10 0.740 here and 0.65 in its
+      own paper — a 9-point spread with no change of method. Whatever differs is the
+      evaluation setting. That spread is larger than most of the improvements reported in
+      this literature, and it is the concrete reason these numbers render as a table with
+      a caveat column rather than as bars beside ours.
+
+hypothesis:
+  claim: >-
+    Line-level results trained on the LineVul release of Big-Vul without whitespace
+    normalization are contaminated by the indentation artefact ADR-006 documents.
+  status: UNTESTED
+  what_would_settle_it: >-
+    Running each published system's released preprocessing over the release and checking
+    whether the leading-space feature survives into its model input. ADR-006 says this is
+    cheap to test and paper-grade if true — and that it is a claim about other people's
+    work, so it must be verified against their released code before being made anywhere.
+  how_to_present_it_until_then: >-
+    As a stated hypothesis with its test named. Never as an explanation for a gap between
+    their numbers and ours, and never as a reason ours are lower.

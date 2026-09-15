@@ -150,6 +150,18 @@ def test_a_subsampled_run_is_a_probe_and_never_a_result() -> None:
     assert report_seeds._excluded_because(_run(RUN_B, seed=1)) is None
 
 
+def test_a_memory_probe_is_never_a_result() -> None:
+    """A probe carries `train.name` like any other run and logs no eval metric at all.
+
+    `scripts/probe_vram_fused.py` was kept out of discovery only by its run NAME, and a
+    naming convention is not a guard. Same family as the `train.limit` check above.
+    """
+    probe = _run(RUN_A, seed=7)
+    probe.data.params["probe"] = "fused_vram"
+    assert "probe" in (report_seeds._excluded_because(probe) or "")
+    assert report_seeds._excluded_because(_run(RUN_B, seed=1)) is None
+
+
 def test_the_offending_parameter_is_named() -> None:
     """A guard that says "these differ" without saying how is a guard you work around."""
     a, b = _run(RUN_A, seed=42), _run(RUN_B, seed=1)
@@ -370,3 +382,12 @@ def test_an_absent_parameter_matches_a_requested_off_value() -> None:
 
     assert [r.info.run_id for r in runs] == [RUN_A]
     assert excluded and excluded[0]["run_id"] == RUN_B
+
+
+def test_arms_sharing_a_train_name_get_separate_reports() -> None:
+    """All six A1 arms are `train=fused`; untagged, each report would overwrite the last."""
+    module = _load()
+
+    assert module.report_filename("fused", "concat") == "seed_report_fused_concat.json"
+    assert module.report_filename("fused", "concat") != module.report_filename("fused", "sum")
+    assert module.report_filename("semantic", None) == "seed_report_semantic.json"

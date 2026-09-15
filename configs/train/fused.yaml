@@ -1,0 +1,70 @@
+# The fused arm (Phase 5) — the config experiment A1 is run under.
+#
+# Inherits the semantic recipe, because the semantic branch is the expensive half and its
+# schedule is the one measured against this hardware (Memory.md §1.9). Overrides only what
+# genuinely differs when a second branch is present.
+defaults:
+  - semantic
+
+name: fused
+
+# Batching is bounded by BOTH costs at once. A unit costs windows on one side and nodes on
+# the other and the two are uncorrelated, so respecting only one leaves peak memory to
+# whichever the batch happened not to be sized by.
+#
+# Halved from the semantic arm's 16 windows and the structural arm's 8192 nodes, because
+# this model holds both encoders plus a quadratic-in-lines attention at once.
+#
+# MEASURED 2026-09-14 (Memory.md §1.17, runs `f96a0744…` / `c1a2fbab…`), and the result is
+# that THESE NUMBERS DO NOT CONTROL PEAK MEMORY. Every budget from (2, 1024) to (16, 8192)
+# produced the same worst batch — one oversized unit, 54 windows / 9,233 nodes, peaking at
+# 3,786 MiB, 92.4% of the card. A unit over budget gets its own batch by design, so the
+# worst batch is the worst *unit* whatever these say.
+#
+# What they do buy is throughput and the cost of a typical batch. What bounds the ceiling
+# is 1,922 MiB of static optimizer state (46.9% of the card) before a single activation.
+# If the fused arm does not fit, the lever is `llm.frozen` or a smaller optimizer — not
+# these two values.
+max_windows_per_batch: 8
+max_nodes_per_batch: 4096
+max_units_per_batch: 8
+
+# TWO learning rates, and the split is not a convenience.
+#
+# Phase 3 fine-tuned a 124M-parameter pretrained transformer at 2e-5; Phase 4 trained a
+# ~10^5-parameter GNN from scratch at 1e-3. A single rate across the fused model has to be
+# wrong for one of them: 2e-5 barely moves the GNN, 1e-3 destroys CodeBERT. `encoder_lr`
+# applies to the pretrained semantic encoder, `lr` to everything else — the GNN, the
+# fusion and the head.
+#
+# Both are held fixed across every A1 arm, so the comparison between them is still
+# controlled; what this split changes is how good all the arms are, not which one wins.
+lr: 1.0e-3
+encoder_lr: 2.0e-5
+
+# ADR-009 (accepted 2026-09-15): A1 runs on a FROZEN semantic encoder whose line features
+# are computed once by scripts/build_semantic_cache.py and read from disk. Requires
+# `llm.frozen=true` on the command line — train_fused.py refuses the cache otherwise, and
+# the cache's own digest carries `llm.frozen` too, so it cannot be read by a fine-tuned run.
+#
+# A1's result under this is "with a fixed semantic representation, X beats Y" — never the
+# unqualified form (ADR-009 D9.1). `enabled: false` is the live path, which D9.7's
+# fine-tuned confirmation runs use.
+semantic_cache:
+  enabled: true
+  dir: ./artifacts/semantic_cache
+
+accumulation_steps: 2
+amp: true
+
+# Zero every dropout — for the overfit test only, which overrides this to true. Declared
+# here for the reason `structural.yaml` declares it: group selection is order-dependent,
+# so `+fusion=concat` placed after an experiment config would silently restore the
+# dropout and the overfit test would fail for a reason nothing reports (Memory.md §7 #36).
+zero_dropout: false
+
+# The same watched metric as both baselines, for the same reason (Memory.md §6) and with
+# one more: a fused number watched on a different metric could not be put beside the two
+# arms it exists to be compared with.
+watch_metric: line/top_5_accuracy
+watch_mode: max

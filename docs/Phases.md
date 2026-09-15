@@ -144,6 +144,11 @@ most likely to be underestimated.** CFG/DFG construction is real compiler work.
 **Deliverables**
 - `fusion/cross_attention.py` — bidirectional MHA, attention maps retained
 - Comparator fusions: `concat`, `sum`, `gated`, `none` — all same interface
+  - `none` is built as **two** arms, `llm_only` and `gnn_only`, per `Architecture.md`
+    §4.4 and ADR-008 §D8.6: "no fusion" means something different depending on which
+    branch survives. They are not re-runs of the Phase 3 / Phase 4 baselines — they run
+    a single branch through the *fused scaffold*, which is what separates a fusion
+    result from a scaffold result.
 - Line-axis alignment verified between branches
 - Attention-map export API for Phase 7
 

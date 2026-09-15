@@ -1,0 +1,6 @@
+# A1 comparator: `gated`. See src/vulnloc/models/fusion/comparators.py for what it is for.
+defaults:
+  - default
+
+name: gated
+kind: gated

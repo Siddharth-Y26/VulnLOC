@@ -1,0 +1,10 @@
+# A1 ablation: the structural branch alone, inside the fused scaffold. The mirror of
+# `llm_only.yaml`, and NOT a re-run of Phase 4's baseline (Memory.md §1.15).
+#
+# Its line mask is the structural branch's coverage alone, which excludes the 7.84% of
+# flagged lines that carry no graph node at all (Memory.md §7 #17).
+defaults:
+  - default
+
+name: gnn_only
+kind: gnn_only

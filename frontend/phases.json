@@ -1,6 +1,6 @@
 {
   "_comment": "Mirrors CLAUDE.md section 3 and docs/Phases.md. This file is a SUMMARY and is not authoritative — when it disagrees with docs/Memory.md, Memory.md wins and this file is the thing to fix. Update it in the same commit as any phase change.",
-  "_updated": "2026-09-14",
+  "_updated": "2026-09-15",
   "stages": [
     {
       "id": "normalize",
@@ -59,8 +59,8 @@
       "name": "Semantic branch",
       "state": "trained",
       "adr": null,
-      "does": "CodeBERT encoder plus a per-line head, on ADR-006 normalized text. Overfit test passes; one full seed is logged.",
-      "why": "Three seeds on held-out val: Top-5 0.6141 +/- 0.0055, Top-1 0.3513, line F1 0.3692. Phase 3's exit criteria are met. No score is shown here because this tool loads no weights — scoring a function you paste would claim a generalisation nothing measured so far supports."
+      "does": "CodeBERT encoder plus a per-line head, on ADR-006 normalized text. Three seeds logged; Phase 3 gate signed 2026-09-15.",
+      "why": "Three seeds on held-out val: Top-5 0.6141 +/- 0.0055, Top-1 0.3513, line F1 0.3692. Seed 42 is the model the Findings tab ranks lines with — trained only on vulnerable functions, so it ranks where a flaw most likely is and cannot say whether there is one."
     },
     {
       "id": "structural",
@@ -70,17 +70,17 @@
       "state": "trained",
       "adr": "ADR-007",
       "does": "GCN / GAT / GGNN over the code graphs, pooled onto the same line axis. Node features are a node-type embedding plus — optionally — an identifier subtoken embedding (ADR-002 D2.5). Relations are typed: a graph carrying several edge kinds is refused unless the model is told how to treat them.",
-      "why": "Phase 4's four exit criteria are met. Best config is GCN depth 4 with identifier subtokens: Top-5 0.4302 +/- 0.0372 over three seeds, against 0.3645 without them. Still far below the semantic branch, which is the honest result rather than a failure. The 2/4/6 depth sweep shows no resolvable effect at three seeds per depth."
+      "why": "Phase 4's four exit criteria are met; gate signed 2026-09-15. Best config is GCN depth 4 with identifier subtokens: Top-5 0.4302 +/- 0.0372 over three seeds, against 0.3645 without them. Still far below the semantic branch, which is the honest result rather than a failure. The 2/4/6 depth sweep shows no resolvable effect at three seeds per depth."
     },
     {
       "id": "fusion",
       "layer": "L2",
       "phase": 5,
       "name": "Cross-attention fusion",
-      "state": "planned",
-      "adr": null,
-      "does": "Bidirectional multi-head attention between the two branches, attention maps retained.",
-      "why": "The project's central novelty, and experiment A1: if it does not beat plain concatenation, that is the result and it gets reported."
+      "state": "running",
+      "adr": "ADR-008, ADR-009",
+      "does": "Bidirectional multi-head attention between the two branches over the shared line axis, attention maps retained for the explanation layer. Five comparators sit behind the same interface — concat, sum, gated, llm_only, gnn_only — so switching arms is a flag, not a code change.",
+      "why": "The project's central novelty, and experiment A1: if it does not beat plain concatenation, that is the result and it gets reported. Gates signed 2026-09-15; A1 is being run with a frozen semantic encoder whose line features are cached (ADR-009), so its claim is 'with a fixed semantic representation'. No fused result exists, so nothing in this tool shows a fused score."
     },
     {
       "id": "localize",
@@ -100,7 +100,7 @@
       "state": "planned",
       "adr": null,
       "does": "An evidence-grounded account of why a line was flagged, built from retained attention and graph paths.",
-      "why": "Whether generative quality can be claimed at all depends on open decision Q4."
+      "why": "Whether generative quality can be claimed at all depends on open decision Q4. Until then, the fix advice in Findings comes from pattern templates that match line text, and says so."
     },
     {
       "id": "evaluate",

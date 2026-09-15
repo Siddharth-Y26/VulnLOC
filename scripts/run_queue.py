@@ -279,6 +279,62 @@ def build_plan() -> list[Step]:
         )
     )
 
+    # --- Phase 5: experiment A1 -------------------------------------------------------
+    # Added 2026-09-15, after the owner signed the Phase 3 and 4 gates and accepted
+    # ADR-008 and ADR-009. Every arm runs on the FROZEN encoder, reading the semantic
+    # feature cache (build it first: scripts/build_semantic_cache.py), over AST graphs with
+    # identifier subtokens — the best Phase 4 structural config, chosen by the owner the
+    # same day. These args are A1's controlled constants: change one and every logged seed
+    # stops being comparable with the rest (Memory.md §7 #38).
+    a1_constants = [
+        "+gnn=gcn",
+        "gnn.use_subtokens=true",
+        "llm.frozen=true",
+        "device.kind=cuda",
+    ]
+    arms = ("cross_attention", "concat", "sum", "gated", "llm_only", "gnn_only")
+
+    # Overfit first, for EVERY arm: an arm with a broken branch trains, converges, and
+    # A1 comparing it against a working one would look exactly like a result.
+    for arm in arms:
+        steps.append(
+            Step(
+                name=f"p5-overfit-{arm}",
+                # Its own group, because an overfit run that FAILS to memorise still exits
+                # zero. Run `--only p5check`, read the metrics, then `--only phase5`.
+                group="p5check",
+                why=f"Sanity: {arm} must memorise 32 functions on the A1 config. Never a result.",
+                script="scripts/train_fused.py",
+                args=[f"+fusion={arm}", "train=overfit_fused", *a1_constants],
+            )
+        )
+
+    # The core comparison before the ablations, seed by seed, so a run cut short still
+    # leaves A1's two arms at equal seed counts.
+    for seed in (42, 1, 2):
+        for arm in ("cross_attention", "concat"):
+            steps.append(
+                Step(
+                    name=f"a1-{arm}-seed{seed}",
+                    group="phase5",
+                    why=f"A1 core ({'treatment' if arm == 'cross_attention' else 'control'}), "
+                    f"frozen encoder, seed {seed} of 3.",
+                    script="scripts/train_fused.py",
+                    args=[f"+fusion={arm}", "train=fused", f"seed={seed}", *a1_constants],
+                )
+            )
+    for seed in (42, 1, 2):
+        for arm in ("sum", "gated", "llm_only", "gnn_only"):
+            steps.append(
+                Step(
+                    name=f"a1-{arm}-seed{seed}",
+                    group="phase5",
+                    why=f"A1 ablation arm {arm}, frozen encoder, seed {seed} of 3.",
+                    script="scripts/train_fused.py",
+                    args=[f"+fusion={arm}", "train=fused", f"seed={seed}", *a1_constants],
+                )
+            )
+
     return steps
 
 
@@ -430,7 +486,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--status", action="store_true", help="Print the slate and exit.")
     parser.add_argument("--dry-run", action="store_true", help="Print commands, run nothing.")
-    parser.add_argument("--only", default=None, help="Run one group (phase3, phase4).")
+    parser.add_argument(
+        "--only", default=None, help="Run one group (phase3, phase4, p5check, phase5)."
+    )
     parser.add_argument(
         "--retry-failed",
         action="store_true",

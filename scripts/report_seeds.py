@@ -53,6 +53,7 @@ Usage::
     python scripts/report_seeds.py '+seeds.runs=[fc902107...,7ea077a0...]'
     python scripts/report_seeds.py +seeds.min_seeds=5
     python scripts/report_seeds.py train=structural '+seeds.where={gnn_kind: gcn, gnn_depth: 4}'
+    python scripts/report_seeds.py train=fused '+seeds.where={fusion_kind: sum}' +seeds.tag=sum
 """
 
 from __future__ import annotations
@@ -175,6 +176,13 @@ def _excluded_because(run: Any) -> str | None:
     """
     if run.data.tags.get("void"):
         return f"tagged void: {run.data.tags['void']}"
+    if run.data.params.get("probe"):
+        # A probe measures memory or throughput and logs no eval metric at all. It carries
+        # `train.name` like any other run, so only its run NAME currently keeps it out of
+        # discovery — and a naming convention is not a guard. Same family as the
+        # `train.limit` check below: a probe is not a result, and this does not need
+        # remembering.
+        return f"probe={run.data.params['probe']} — a measurement instrument, not a result"
     if run.data.params.get("train.overfit", "False") == "True":
         # An overfit run is a debugging instrument (Top-5 = 1.0 on 32 samples) and is
         # never a result, even when it shares a train name with a real run.
@@ -639,7 +647,7 @@ def build(cfg: DictConfig) -> dict[str, Any]:
 
     output_dir = Path(str(OmegaConf.select(cfg, "seeds.output_dir") or "./artifacts/phase3"))
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"seed_report_{train_name}.json"
+    output_path = output_dir / report_filename(train_name, OmegaConf.select(cfg, "seeds.tag"))
     output_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     with start_run(cfg, run_name="seed-report"):
@@ -676,6 +684,22 @@ def build(cfg: DictConfig) -> dict[str, Any]:
             extra={"metric": key, "mean": round(summary["mean"], 4), "spread": spread},
         )
     return report
+
+
+def report_filename(train_name: str, tag: str | None) -> str:
+    """Name the report file, so arms sharing one ``train.name`` do not overwrite each other.
+
+    All six A1 arms run as ``train=fused``; without a tag, each arm's report would replace
+    the previous one and the last arm aggregated would be the only one on disk.
+
+    Args:
+        train_name: The runs' ``train.name``.
+        tag: ``seeds.tag`` — e.g. the fusion arm. ``None`` keeps the historical name.
+
+    Returns:
+        ``seed_report_<train>.json`` or ``seed_report_<train>_<tag>.json``.
+    """
+    return f"seed_report_{train_name}_{tag}.json" if tag else f"seed_report_{train_name}.json"
 
 
 @hydra.main(version_base="1.3", config_path="../configs", config_name="config")

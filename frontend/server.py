@@ -41,7 +41,7 @@ from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
-from frontend.pipeline import AnalysisOptions, analyse, sample_functions  # noqa: E402
+from frontend.pipeline import AnalysisOptions, analyse, findings, sample_functions  # noqa: E402
 
 _ARTIFACTS = _REPO / "artifacts"
 
@@ -94,6 +94,37 @@ def api_analyse(request: AnalyseRequest) -> JSONResponse:
             {
                 "error": f"{type(exc).__name__}: {exc}",
                 "kind": "pipeline",
+                "traceback": traceback.format_exc(limit=12),
+            },
+            status_code=500,
+        )
+
+
+class FindingsRequest(BaseModel):
+    """One Findings request. No options: normalization is not optional when scoring."""
+
+    code: str
+
+
+@app.post("/api/findings")
+def api_findings(request: FindingsRequest) -> JSONResponse:
+    """Rank a pasted function's lines and attach any known weakness pattern to them.
+
+    Args:
+        request: The code.
+
+    Returns:
+        The findings report, or a 400/500 carrying the real error.
+    """
+    try:
+        return JSONResponse(findings(request.code))
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc), "kind": "input"}, status_code=400)
+    except Exception as exc:  # noqa: BLE001 - returned to the caller, never hidden
+        return JSONResponse(
+            {
+                "error": f"{type(exc).__name__}: {exc}",
+                "kind": "model",
                 "traceback": traceback.format_exc(limit=12),
             },
             status_code=500,
@@ -172,42 +203,52 @@ def api_corpus() -> dict[str, Any]:
 
 @app.get("/api/model")
 def api_model() -> dict[str, Any]:
-    """Report the model state — which is, deliberately, that there is no usable model.
+    """Report what scores lines in this tool, and what does not.
 
-    The inspector never shows a vulnerability score. The one end-to-end training run
-    (``1843412a…``) was voided by ADR-006 because it learned the corpus's indentation
-    artefact rather than the vulnerability, and Phase 3's ≥3-seed exit criterion is
-    unstarted. Valid runs now exist for both branches, and this endpoint still reports
-    `available: false` — deliberately. Two different reasons, and conflating them would
-    be the dishonest part: the semantic arm has one seed where its phase requires three,
-    and separately this tool loads no weights at all, because scoring a pasted function
-    would assert a generalisation nothing measured so far supports. The endpoint exists
-    to say that in the interface rather than leave a blank panel that reads like a
-    loading state.
+    Until 2026-09-15 this said no scores were shown anywhere. The project owner then chose
+    to let the Findings tab rank lines with the Phase 3 semantic model (seed 42); the
+    caveats that rule protected now travel with the scores instead. No fused score exists
+    anywhere — experiment A1 has not produced one.
 
     Returns:
-        The model availability record.
+        The model record, including the held-out numbers read from the seed report.
     """
+    from frontend.scoring import RUN_ID, _measured
+
     return {
-        "available": False,
-        "reason": "not-enough-seeds",
-        "decision": "ADR-006",
-        "headline": "Trained models exist. No scores are shown anywhere in this tool.",
+        "available": True,
+        "scores_with": "phase-3-semantic",
+        "run_id": RUN_ID,
+        "measured": _measured(),
+        "headline": (
+            "Findings ranks lines with the Phase 3 semantic model. No fused score exists yet."
+        ),
         "detail": (
-            "Both branches now have three-seed results on held-out val. Semantic "
-            "(CodeBERT): Top-5 0.6141 ± 0.0055, Top-1 0.3513, line F1 0.3692. Structural "
-            "(GCN depth 4 with identifier subtokens): Top-5 0.4302 ± 0.0372. Phases 3 and "
-            "4 both meet every exit criterion. Neither is displayed here, and the reason "
-            "is not that the numbers are provisional: this tool loads no weights at all, "
-            "because scoring a function you paste would claim a generalisation nothing "
-            "measured so far supports — every number above is on held-out corpus data "
-            "from the same distribution. The earlier run 1843412a remains void; it scored "
-            "0.96 by reading the corpus's indentation (ADR-006), which is why everything "
-            "here was re-measured on normalized text."
+            "The semantic model (CodeBERT, seed 42) ranks the lines of your paste in the "
+            "Findings tab. It was trained only on vulnerable functions, so it ranks where "
+            "a flaw most likely is and cannot say whether one exists, and its accuracy was "
+            "measured on held-out Big-Vul functions, not on code like yours. Fusion "
+            "(experiment A1) is being run on a frozen semantic encoder (ADR-009) and has "
+            "no result. Run 1843412a remains void: it scored 0.96 by reading the corpus's "
+            "indentation (ADR-006)."
         ),
         "next_step": "What is running, and what it has produced so far:",
         "unblocks": "python scripts/run_queue.py --status",
     }
+
+
+@app.on_event("startup")
+def warm_model() -> None:
+    """Load the scoring model in the background, so the first paste does not wait for it.
+
+    A failure here is logged by the thread and surfaces again, verbatim, on the first
+    ``/api/findings`` call — it is not swallowed.
+    """
+    import threading
+
+    from frontend.scoring import _load
+
+    threading.Thread(target=_load, name="warm-model", daemon=True).start()
 
 
 app.mount("/", StaticFiles(directory=_HERE / "static", html=True), name="static")

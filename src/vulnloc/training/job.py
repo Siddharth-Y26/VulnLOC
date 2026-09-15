@@ -41,7 +41,7 @@ from vulnloc.utils.config import git_sha
 from vulnloc.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
 
     from torch.utils.data import DataLoader
 
@@ -78,6 +78,7 @@ def run_training(
     make_loader: Callable[[LineDataset, bool], DataLoader[Any]],
     device: torch.device,
     extra_params: Mapping[str, Any] | None = None,
+    param_groups: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Train ``model`` under ``cfg`` and return the run summary.
 
@@ -95,6 +96,13 @@ def run_training(
         device: Where the model lives.
         extra_params: Branch-specific values to log beside the shared ones. Logged, not
             merged into the config, so a run's parameters say what produced it.
+        param_groups: Optimizer parameter groups, when one learning rate is not enough.
+            ``None`` — the default, and what both single-branch entrypoints pass — keeps
+            the previous behaviour exactly: every trainable parameter at ``cfg.train.lr``.
+            Phase 5 needs the split because a fused model holds a 124M-parameter
+            pretrained transformer that wants 2e-5 next to a from-scratch GNN that wants
+            1e-3, and a single rate has to be wrong for one of them. Groups without their
+            own ``lr`` fall back to ``cfg.train.lr``.
 
     Returns:
         ``{"run_id", "seed", "best", "checkpoint", "config"}``, also written to
@@ -112,8 +120,13 @@ def run_training(
         gamma=float(cfg.train.focal_gamma),
         function_weight=float(cfg.train.function_weight),
     )
+    trainable: Any = (
+        [dict(group) for group in param_groups]
+        if param_groups is not None
+        else [p for p in model.parameters() if p.requires_grad]
+    )
     optimizer = torch.optim.AdamW(
-        [p for p in model.parameters() if p.requires_grad],
+        trainable,
         lr=float(cfg.train.lr),
         weight_decay=float(cfg.train.weight_decay),
     )

@@ -25,7 +25,7 @@ from vulnloc.training.datasets import (
     collate_units,
     line_label_coverage,
 )
-from vulnloc.training.loop import EarlyStopping, Trainer
+from vulnloc.training.loop import EarlyStopping, Trainer, evaluate
 from vulnloc.training.losses import LineLoss
 from vulnloc.utils.exceptions import DataError, ModelError
 
@@ -438,3 +438,78 @@ def test_negative_interval_raises(tmp_path):
             checkpoint_dir=tmp_path,
             checkpoint_every_n_steps=-1,
         )
+
+
+# --- evaluation must not pay for a backward that never happens ----------------------
+
+
+class _GradRecorder(torch.nn.Module):
+    """A minimal model that records whether autograd was recording when it ran."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.scale = torch.nn.Parameter(torch.zeros(1))
+        self.grad_was_enabled: list[bool] = []
+
+    def forward(self, batch):  # type: ignore[no-untyped-def]
+        self.grad_was_enabled.append(torch.is_grad_enabled())
+        n_units, n_lines = batch["line_labels"].shape
+        line_logits = self.scale.expand(n_units, n_lines) * 1.0
+        return {
+            "line_logits": line_logits,
+            "function_logits": line_logits.max(dim=-1).values,
+            "line_mask": torch.ones(n_units, n_lines, dtype=torch.bool),
+        }
+
+
+def _eval_batch(n_units: int = 2, n_lines: int = 4) -> dict[str, object]:
+    labels = torch.zeros(n_units, n_lines)
+    labels[0, 1] = 1.0
+    return {
+        "line_labels": labels,
+        "line_valid": torch.ones(n_units, n_lines, dtype=torch.bool),
+        "targets": torch.tensor([1.0] + [0.0] * (n_units - 1)),
+    }
+
+
+def test_evaluate_does_not_record_an_autograd_graph():
+    """`model.eval()` settles dropout; it does not stop autograd from recording.
+
+    Without `no_grad` every activation needed for a backward that never comes is retained
+    until the next batch replaces it. Measured on the fused model, that was the difference
+    between the largest `val` unit fitting on the card and being paged to host RAM at
+    10-25x the cost (Memory.md §1.17, §7 #29) — and on Windows the paging does not raise.
+    """
+    model = _GradRecorder()
+
+    evaluate(
+        model,
+        [_eval_batch(), _eval_batch()],
+        LineLoss(kind="bce"),
+        torch.device("cpu"),
+        use_amp=False,
+    )
+
+    assert model.grad_was_enabled == [False, False]
+
+
+def test_evaluate_leaves_no_gradient_behind():
+    """Nothing in the evaluation path reads a gradient, so nothing should produce one."""
+    model = _GradRecorder()
+
+    evaluate(model, [_eval_batch()], LineLoss(kind="bce"), torch.device("cpu"), use_amp=False)
+
+    assert model.scale.grad is None
+
+
+def test_evaluate_still_reports_the_line_metrics():
+    """The guard above must not have cost the numbers it was protecting."""
+    model = _GradRecorder()
+
+    results = evaluate(
+        model, [_eval_batch()], LineLoss(kind="bce"), torch.device("cpu"), use_amp=False
+    )
+
+    assert "loss" in results
+    assert "line/top_5_accuracy" in results
+    assert isinstance(results["loss"], float)

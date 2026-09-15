@@ -1,0 +1,54 @@
+# Fusion strategies (Phase 5, Architecture.md §4.4). The base every variant inherits;
+# `+fusion=cross_attention|concat|sum|gated|llm_only|gnn_only` selects one.
+#
+# Experiment A1 is the reason this group exists: cross-attention against concatenation
+# under identical conditions. Everything that is NOT the fusion mechanism therefore lives
+# here, in the shared base, so no arm can accidentally carry extra capacity or a different
+# line axis into the comparison.
+name: default
+
+# A FUSION_REGISTRY key. `name` is the config's identity, `kind` is the code's.
+kind: cross_attention
+
+# Run the fusion and the head on only as many line slots as the batch reaches, then pad
+# the logits back to `llm.n_lines`. Cross-attention is quadratic in the line axis while
+# the corpus mean is 31 lines per function (Memory.md §1.4), so the full 512-slot axis
+# spends ~250k positions per unit per direction to carry about a thousand real ones.
+#
+# Numerically identical, and test-pinned to be: an optimization that changes a number is
+# not an optimization. `false` is the unoptimized path the test compares against.
+trim_line_axis: true
+
+# Passed to the strategy's constructor verbatim. Nested rather than flat so that a knob
+# only exists for the arms that read it — `heads` lives in `cross_attention.yaml` alone,
+# and a `heads` setting that reached `concat` and did nothing would be Memory.md §7 #22
+# sitting inside the comparison A1 rests on. An unknown key here is a hard failure.
+args:
+  # D. Both branches are projected onto this width before anything combines them, and the
+  # head is built from it. 256 matches the structural branch's own width, so the GNN's
+  # projection is close to an identity and the 768-wide semantic branch is the one being
+  # compressed — the cheaper direction on a 4 GiB card.
+  hidden_dim: 256
+  dropout: 0.1
+
+# VRAM probe (scripts/probe_vram_fused.py). Closes Memory.md §7 #44 with a measurement
+# rather than the guess `configs/train/fused.yaml` currently ships.
+#
+# One arm per invocation, because the arm is a config group and `heads`/`n_layers` exist
+# for `cross_attention` alone. See configs/fusion/README.md.
+probe:
+  # (max_windows, max_nodes) pairs, bracketing train=fused's shipped (8, 4096). The grid
+  # goes below it as well as above: "nothing fits" is a result the fused arm has to be
+  # able to return, not an outcome to discover eight hours into a sweep.
+  budgets: [[2, 1024], [4, 2048], [8, 4096], [16, 8192]]
+
+  # Timed steps after one warm-up. Memory is stable across repeats (Phase 3 measured 0.3%);
+  # throughput is indicative only, so there is nothing to buy with a longer run.
+  steps: 3
+
+  # 0 means the whole shard, which is the point: the probe has to see the corpus's largest
+  # single unit, because a unit over budget still gets its own batch and is therefore a
+  # floor on peak memory that no budget setting can lower (Memory.md §7 #18, §1.8).
+  limit: 0
+
+  output_dir: "./artifacts/fusion"

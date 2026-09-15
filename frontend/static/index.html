@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>VulnLoc pipeline inspector</title>
+    <title>VulnLoc</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,20 +15,21 @@
   <body>
     <header class="masthead">
       <div class="masthead-top">
-        <h1 class="wordmark">VulnLoc <span>pipeline inspector</span></h1>
+        <h1 class="wordmark">VulnLoc <span>line-level review</span></h1>
         <p class="masthead-note">
-          Paste a C or C++ function and watch the real pipeline run on it, one stage at a
-          time. Every number here is computed live or cites the run that produced it.
+          Paste a C or C++ function. Findings shows the lines to review first and what to
+          check on each. Detailed report shows every pipeline stage that ran.
         </p>
       </div>
 
-      <!-- Filled from /api/model. It says there is no model; that is the single most
-           important fact about the project's state, so it sits above everything. -->
-      <div class="model-banner" id="model-banner" hidden></div>
-
-      <nav aria-label="Pipeline stages">
-        <ol class="rail" id="rail"></ol>
-      </nav>
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button type="button" role="tab" id="tab-findings" aria-controls="panel-findings" aria-selected="true">
+          Findings
+        </button>
+        <button type="button" role="tab" id="tab-report" aria-controls="panel-report" aria-selected="false" tabindex="-1">
+          Detailed report
+        </button>
+      </div>
     </header>
 
     <main class="workbench">
@@ -40,47 +41,52 @@
           placeholder="Paste a C or C++ function."
         ></textarea>
 
-        <div class="controls">
-          <div>
-            <label for="policy">Grammar (ADR-005)</label>
-            <select id="policy">
-              <option value="best_of_two">best_of_two</option>
-              <option value="cpp">cpp</option>
-              <option value="c">c</option>
-              <option value="declared">declared</option>
-            </select>
-          </div>
-          <div>
-            <label for="graph">Graph (ADR-002)</label>
-            <select id="graph">
-              <option value="cpg">cpg</option>
-              <option value="ast">ast</option>
-              <option value="cfg">cfg</option>
-              <option value="dfg">dfg</option>
-            </select>
-          </div>
-          <div>
-            <label for="max_length">Window tokens</label>
-            <input id="max_length" type="number" min="64" max="512" step="64" value="512" />
-          </div>
-          <div>
-            <label for="stride">Stride</label>
-            <input id="stride" type="number" min="0" max="448" step="32" value="128" />
-          </div>
-        </div>
-
-        <div class="toggles">
-          <label class="toggle">
-            <input type="checkbox" id="normalize" checked />
-            Normalize whitespace
-          </label>
-          <label class="toggle">
-            <input type="checkbox" id="windowing" checked />
-            Window long input
-          </label>
-        </div>
-
         <button class="run" id="run">Analyse</button>
+
+        <!-- Only the detailed report reads these. Findings always runs the configuration
+             the model was trained under, because scoring any other is not a finding. -->
+        <details class="report-options">
+          <summary>Detailed report options</summary>
+          <div class="controls">
+            <div>
+              <label for="policy">Grammar (ADR-005)</label>
+              <select id="policy">
+                <option value="best_of_two">best_of_two</option>
+                <option value="cpp">cpp</option>
+                <option value="c">c</option>
+                <option value="declared">declared</option>
+              </select>
+            </div>
+            <div>
+              <label for="graph">Graph (ADR-002)</label>
+              <select id="graph">
+                <option value="cpg">cpg</option>
+                <option value="ast">ast</option>
+                <option value="cfg">cfg</option>
+                <option value="dfg">dfg</option>
+              </select>
+            </div>
+            <div>
+              <label for="max_length">Window tokens</label>
+              <input id="max_length" type="number" min="64" max="512" step="64" value="512" />
+            </div>
+            <div>
+              <label for="stride">Stride</label>
+              <input id="stride" type="number" min="0" max="448" step="32" value="128" />
+            </div>
+          </div>
+
+          <div class="toggles">
+            <label class="toggle">
+              <input type="checkbox" id="normalize" checked />
+              Normalize whitespace
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="windowing" checked />
+              Window long input
+            </label>
+          </div>
+        </details>
 
         <div class="samples">
           <h3>Samples</h3>
@@ -88,12 +94,27 @@
         </div>
       </section>
 
-      <section class="stage-column" aria-label="Pipeline output">
-        <div id="error-slot"></div>
-        <div id="stages">
-          <p class="empty">
-            Paste a function, or pick a sample, then choose Analyse.
-          </p>
+      <section class="stage-column">
+        <div role="tabpanel" id="panel-findings" aria-labelledby="tab-findings">
+          <div id="findings">
+            <p class="empty">Paste a function, or pick a sample, then choose Analyse.</p>
+          </div>
+        </div>
+
+        <div role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden>
+          <!-- Filled from /api/model: what the tool scores with, and what it does not. -->
+          <div class="model-banner" id="model-banner" hidden></div>
+
+          <nav aria-label="Pipeline stages">
+            <ol class="rail" id="rail"></ol>
+          </nav>
+
+          <div id="error-slot"></div>
+          <div id="stages">
+            <p class="empty">
+              Paste a function, or pick a sample, then choose Analyse.
+            </p>
+          </div>
         </div>
       </section>
     </main>

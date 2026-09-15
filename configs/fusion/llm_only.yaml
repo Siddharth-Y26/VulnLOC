@@ -1,0 +1,13 @@
+# A1 ablation: the semantic branch alone, inside the fused scaffold.
+#
+# NOT a re-run of Phase 3's baseline — that has its own model and its own three logged
+# seeds (Memory.md §1.14). This arm isolates what the fused SCAFFOLD contributes on its
+# own, which is the difference between "cross-attention helped" and "the extra projection
+# and layer norm helped".
+#
+# Its line mask is the semantic branch's coverage alone, never the union.
+defaults:
+  - default
+
+name: llm_only
+kind: llm_only

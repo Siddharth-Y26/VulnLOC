@@ -1,0 +1,24 @@
+# A1's treatment arm: bidirectional cross-attention (Architecture.md §4.4).
+#
+# Identical to `concat.yaml` apart from the attention blocks — same projections, same
+# output projection, same residual, same width. The parameter difference between the two
+# is exactly the multi-head attention and the layer norms around it.
+defaults:
+  - default
+
+name: cross_attention
+kind: cross_attention
+
+args:
+  # H. Must divide `hidden_dim`, or MultiheadAttention becomes a different-width model and
+  # a sweep over head count stops comparing head counts — the same trap
+  # `configs/gnn/default.yaml` records for GAT.
+  heads: 4
+
+  # Bidirectional blocks to stack. 1 is the claim as stated in Architecture.md §4.4; the
+  # attention maps returned for Phase 7 are always the LAST block's.
+  #
+  # NOT swept, and not to be swept casually: Memory.md §7 #37 is the depth sweep that
+  # dissolved at three seeds. Three seeds per arm before any depth difference is written
+  # down.
+  n_layers: 1

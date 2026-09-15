@@ -192,3 +192,117 @@ def test_zero_dropout_does_not_depend_on_override_order(compose_config, order):
     silently back and the test fails for a reason nothing reports.
     """
     assert compose_config(*order).train.zero_dropout is True
+
+
+# --- the fusion group (Phase 5, experiment A1) -------------------------------------
+
+FUSION_ARMS = ["cross_attention", "concat", "sum", "gated", "llm_only", "gnn_only"]
+
+
+@pytest.mark.parametrize("arm", FUSION_ARMS)
+def test_every_fusion_arm_is_selectable_by_config_alone(compose_config, arm):
+    """Phase 5 exit criterion: switching arms is a flag flip, not a code change.
+
+    Selectable means from the config tree, not from an argument in a script. If A1 needs a
+    code change to switch arms, it is not this criterion.
+    """
+    cfg = compose_config(f"+fusion={arm}")
+
+    assert cfg.fusion.kind == arm
+    assert cfg.fusion.name == arm
+
+
+def test_the_comparator_arms_differ_only_in_which_strategy_is_selected(compose_config):
+    """Otherwise A1 measures a difference between configurations, not between fusions."""
+    configs = {
+        arm: compose_config(f"+fusion={arm}") for arm in FUSION_ARMS if arm != "cross_attention"
+    }
+    differing = {
+        key
+        for key in configs["concat"].fusion
+        if len({str(OmegaConf.select(cfg, f"fusion.{key}")) for cfg in configs.values()}) > 1
+    }
+
+    assert differing == {"name", "kind"}
+
+
+def test_every_arm_shares_the_fused_width_and_the_line_axis_policy(compose_config):
+    """The shared controls of the experiment.
+
+    One arm carrying a wider fused representation than another would put capacity inside
+    the comparison.
+    """
+    for arm in FUSION_ARMS:
+        cfg = compose_config(f"+fusion={arm}")
+        assert cfg.fusion.args.hidden_dim == 256
+        assert cfg.fusion.trim_line_axis is True
+
+
+def test_only_cross_attention_carries_the_attention_knobs(compose_config):
+    """A knob must exist only for the arm that reads it.
+
+    A `heads` setting that reached `concat` and did nothing would be landmine #22 sitting
+    inside the comparison A1 rests on. `build_fusion` forwards these unfiltered, so a key
+    present here must be one the arm actually consumes.
+    """
+    cross = compose_config("+fusion=cross_attention").fusion.args
+
+    assert cross.heads == 4
+    assert cross.n_layers == 1
+    for arm in FUSION_ARMS:
+        if arm == "cross_attention":
+            continue
+        assert "heads" not in compose_config(f"+fusion={arm}").fusion.args
+        assert "n_layers" not in compose_config(f"+fusion={arm}").fusion.args
+
+
+def test_the_fusion_group_is_absent_until_it_is_asked_for(compose_config):
+    """Landmine #38, and the reason `+fusion=` takes a plus.
+
+    Putting `fusion` in `config.yaml`'s `defaults` changes the resolved config — and so
+    the `config_hash` — of EVERY run, including the three semantic seeds and the three
+    structural seeds Phase 5 is measured against. `scripts/report_seeds.py` uses that hash
+    to decide whether two runs are replicates, so it would make the baselines incomparable
+    with each other, which is worse than typing a plus sign.
+    """
+    assert OmegaConf.select(compose_config("train=fused"), "fusion") is None
+
+
+def test_the_fused_train_config_splits_the_learning_rate(compose_config):
+    """One rate cannot serve both halves.
+
+    A 124M-parameter fine-tune and a from-scratch GNN in one model: a single learning rate
+    has to be wrong for one of them.
+    """
+    cfg = compose_config("train=fused")
+
+    assert cfg.train.encoder_lr < cfg.train.lr
+    assert cfg.train.max_windows_per_batch > 0
+    assert cfg.train.max_nodes_per_batch > 0
+    # The same watched metric as both baselines, or the three numbers cannot be compared.
+    assert cfg.train.watch_metric == compose_config("train=semantic").train.watch_metric
+    assert cfg.train.watch_metric == compose_config("train=structural").train.watch_metric
+
+
+def test_the_fused_overfit_config_defeats_regularisation_and_trains_long_enough(compose_config):
+    """The schedule has to suit the slower half.
+
+    Memory.md §7 #35: a from-scratch GNN needs far more passes to memorise than a
+    fine-tuned transformer, and the fused model contains both.
+    """
+    cfg = compose_config("train=overfit_fused")
+
+    assert cfg.train.overfit is True
+    assert cfg.train.zero_dropout is True
+    assert cfg.train.epochs >= 120
+    assert cfg.train.loss == "bce"
+    assert compose_config("train=fused").train.zero_dropout is False
+
+
+@pytest.mark.parametrize(
+    "order",
+    [["+fusion=concat", "train=overfit_fused"], ["train=overfit_fused", "+fusion=concat"]],
+)
+def test_fused_zero_dropout_does_not_depend_on_override_order(compose_config, order):
+    """It lives in `train` for the reason Memory.md §7 #36 records for the GNN."""
+    assert compose_config(*order).train.zero_dropout is True

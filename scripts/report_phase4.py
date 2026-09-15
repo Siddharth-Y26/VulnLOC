@@ -181,15 +181,18 @@ def build(cfg: DictConfig) -> dict[str, Any]:
     def _is_result(run: Any) -> bool:
         """A run that may enter a reported group.
 
-        Three ways out, each of which has actually happened: an overfit run is a
-        debugging instrument; a run on a subsample is a probe (two CPU trials at
-        train.limit=600 reached an A4 depth-2 mean before this check existed); and a run
-        tagged `void` was disowned deliberately.
+        Four ways out, each of which has actually happened or nearly did: an overfit run
+        is a debugging instrument; a run on a subsample is a probe (two CPU trials at
+        train.limit=600 reached an A4 depth-2 mean before this check existed); a run
+        carrying a `probe` parameter measures memory or throughput and logs no eval metric
+        at all, yet carries `train.name` like any other run; and a run tagged `void` was
+        disowned deliberately.
         """
         params = run.data.params
         return (
             params.get("train.overfit", "False") != "True"
             and params.get("train.limit", "0") in {"0", "None", ""}
+            and not params.get("probe")
             and not run.data.tags.get("void")
         )
 

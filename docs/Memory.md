@@ -26,12 +26,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Active phase** | **Phase 3 — LLM Branch, 3 / 4 exit criteria.** Model, loop and both design measurements are built and the overfit test passes. **The one full training run is VOID (ADR-006).** The ≥3-seed criterion is unstarted; no valid training result exists |
-| **Phase status** | ✅ **Phase 2 COMPLETE — 5 / 5** (2026-08-16). Phases 3 and 4 are both unblocked |
-| **Last updated** | 2026-09-08 |
-| **Open decision** | **None blocking.** Q9 closed 2026-09-08 (ADR-006 D6.6: normalize at L0; the split is unchanged). Q8 closed 2026-08-16 by ADR-005. Q4/Q5 deferred to Phases 6–7 |
+| **Active phase** | **Phase 5 — Fusion. A1 is being run** on a frozen semantic encoder with cached line features (ADR-009), AST graphs with identifier subtokens. Overfit sanity for every arm first (`run_queue.py --only p5check`), then the screen (`--only phase5`). **No fused result exists yet** |
+| **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15.** ADR-008 and ADR-009 accepted the same day |
+| **Last updated** | 2026-09-15 (session 13) |
+| **Open decision** | **None blocking A1.** Q10 closed 2026-09-15 (ADR-009). ADR-006 and ADR-007 are still `Proposed`. Q4/Q5 deferred to Phases 6–7 — the inspector's fix templates are explicitly not an answer to Q4 (§1.20) |
 | **Last commit** | `bfe7631` (per-N-step checkpointing) on `phase-2/representation`. **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
-| **Best model run ID** | — *(a model exists and passes its overfit test; the only full run, `1843412a…`, is **void** — it learned a formatting artefact. **No valid trained result exists**, so no claims are permitted)* |
+| **Best model run ID** | Semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
 | **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` (project-wise, 80/10/10, seed 42) |
 | **Blocking issues** | None. Q1/Q2/Q3/Q6/Q7/Q8 closed by ADR-001/002/003/004/005. Q4, Q5 deferred to Phases 6–7 |
 | **Biggest live constraint** | **~30% line-level label noise** (§1.6) — the ceiling on every line-level number this project will report |
@@ -43,9 +43,9 @@
 | 0 Foundation | 🟨 In progress | 3 / 4 | Docker criterion blocked — see §7 issue #1 |
 | 1 Data Layer | ✅ **Done** | **5 / 5** | Closed 2026-08-11. Loader, labelling, splits, cache, leakage report and human label audit all complete — see §1.1b |
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
-| 3 LLM Branch | 🟨 **4 / 4 criteria met** | **4 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. **All three seeds are in (§1.14): Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204.** The ≥3-seed criterion is MET; **the phase gate is the owner's to sign** |
-| 4 GNN Branch | 🟨 **4 / 4 criteria met** | **4 / 4** | All four met by logged runs — `python scripts/report_phase4.py`, §1.13. Overfit test (`8b0a3c1d…`, Top-1 = Top-5 = 1.000); all three variants on real data; depth sweep 2/4/6; ≥3 seeds (gcn depth 4, Top-5 **0.3645 ± 0.0231**). **The phase gate is the owner's to sign.** ADR-002 §D2.5's subtoken half now exists but is **off** in every run above; the A4 comparison is queued |
-| 5 Fusion | ⬜ Not started | 0 / 5 | |
+| 3 LLM Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. **All three seeds are in (§1.14): Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204.** The ≥3-seed criterion is MET; **gate signed by the owner 2026-09-15** |
+| 4 GNN Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | All four met by logged runs — `python scripts/report_phase4.py`, §1.13. Overfit test (`8b0a3c1d…`, Top-1 = Top-5 = 1.000); all three variants on real data; depth sweep 2/4/6; ≥3 seeds (gcn depth 4, Top-5 **0.3645 ± 0.0231**). **Gate signed by the owner 2026-09-15.** A4 (§1.15): subtokens lift Top-5 to **0.4302 ± 0.0372**, and A1 uses them |
+| 5 Fusion | 🟨 **Running** | **3 / 5 by code; 0 by measurement** | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **NOT met: the head-to-head over ≥3 seeds** — queued, not yet run. **No fused result has been logged**; only overfit sanity runs exist |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
 | 7 Explanation | ⬜ Not started | 0 / 4 | |
 | 8 Evaluation | ⬜ Not started | 0 / 4 | |
@@ -120,7 +120,7 @@ A1, A4, A5 untouched.
 | MLflow tracking | ✅ | `src/vulnloc/training/tracking.py` |
 | Train entrypoint (no-op loop) | ✅ | `scripts/train.py` |
 | Quality gates | ✅ | ruff, black, mypy, import-linter, pre-commit, `.github/workflows/ci.yml` |
-| Tests | ✅ **568 passing / 2 skipped** | `tests/unit/`, `tests/integration/` |
+| Tests | ✅ **791 passing / 2 skipped** | `tests/unit/`, `tests/integration/` |
 | Corpus acquisition + audit | ✅ | `data/{sources,download,audit}.py`, `scripts/{prepare_data,audit_data}.py` |
 | Big-Vul loader (`@register_dataset`) | ✅ | `data/loaders/bigvul.py` |
 | Line-label derivation (`labels_v1`) | ✅ | `data/labeling.py` |
@@ -155,8 +155,18 @@ A1, A4, A5 untouched.
 | Line + function metrics (Top-k, IFA) | ✅ | `training/metrics.py` |
 | Training loop, early stopping, checkpoints | ✅ | `training/loop.py` |
 | Training entrypoint | ✅ | `scripts/train_semantic.py` |
-| GNN branch | ⬜ | — |
-| Fusion module | ⬜ | — |
+| Structural encoder (GCN/GAT/GGNN, one scaffold) | ✅ | `models/structural/encoder.py` |
+| GNN-only baseline model | ✅ | `models/structural/baseline.py` |
+| Node-budget graph dataset / sampler / collate | ✅ | `training/graph_datasets.py` |
+| Shared training job (both branches, one loop) | ✅ | `training/job.py` |
+| Structural entrypoint | ✅ | `scripts/train_structural.py` |
+| Fusion: cross-attention + 5 comparators | ✅ **built, unrun** | `models/fusion/{base,cross_attention,comparators}.py` |
+| Fused model (both branches, one line axis) | ✅ **built, unrun** | `models/fused.py` |
+| Fused dataset (joined on `unit_id`) / sampler / collate | ✅ **built, unrun** | `training/fused_datasets.py` |
+| Fused entrypoint | ✅ **built, unrun** | `scripts/train_fused.py` |
+| Fused VRAM probe (real batches, worst case) | ✅ measured | `scripts/probe_vram_fused.py` |
+| Review III figures + tables (from logged runs only, labelled validation-selected) | ✅ | `scripts/make_review3_figures.py` → `artifacts/review3/` |
+| Published baselines, quoted — never plotted (§1.19) | ✅ | `docs/prior_work.yaml`, guarded by `tests/unit/test_prior_work.py` |
 | Localization head | ⬜ | — |
 | Explanation module | ⬜ | — |
 | API / serving | ⬜ | — |
@@ -928,12 +938,219 @@ headline numbers and which neither sweep was held to.
 
 ---
 
+## 1.17 What the fused model costs on 4 GiB, and the guard that was missing (Phase 5)
+
+Runs `f96a0744…` (cross_attention) and `c1a2fbab…` (concat), `artifacts/fusion/vram_probe_*.json`;
+regenerate with `python scripts/probe_vram_fused.py +fusion=<arm> +gnn=gcn train=fused`.
+Real corpus batches — not synthetic tensors — because a unit costs *windows* on one side
+and *nodes* on the other and the two are uncorrelated. **NVIDIA RTX 3050 Ti Laptop,
+4,095.5 MiB.**
+
+### The batch budgets do not control peak memory. At all.
+
+| Budget (windows / nodes) | Worst batch found | Peak | % of card |
+|---|---|---|---|
+| 2 / 1,024 | 1 unit, 54 windows, 9,233 nodes | 3,786 MiB | **92.4%** |
+| 4 / 2,048 | *the same unit* | 3,786 MiB | 92.4% |
+| 8 / 4,096 | *the same unit* | 3,786 MiB | 92.4% |
+| 16 / 8,192 | *the same unit* | 3,786 MiB | 92.4% |
+
+Every budget in the grid is dominated by **one** oversized unit. A unit larger than the
+budget still gets its own batch — both samplers do this deliberately, because dropping it
+would discard the largest functions, which carry the most flagged lines (§1.8) — so the
+worst batch is the worst *unit*, whatever the budget says. `train.max_windows_per_batch`
+and `train.max_nodes_per_batch` therefore buy throughput, not headroom.
+
+**Where the headroom actually went**, by arithmetic on the measured parameter count
+(125,976,837 trainable): params 481 MiB + gradients 481 + AdamW moments 961 =
+**1,922 MiB of static state, 46.9% of the card, before a single activation**. That is why
+the budget cannot help: only ~2.1 GiB is ever available for activations.
+
+`concat` peaks 8 MiB below `cross_attention` for 527,360 fewer parameters — the two A1
+arms cost the same, which is the fairness property the experiment needs. Loss and
+gradients stayed **finite under AMP** on every probe point, so `train.amp=true` does not
+break the GNN half the way `configs/train/structural.yaml` feared.
+
+### `evaluate()` was building an autograd graph for a backward that never came
+
+`model.eval()` settles dropout; it does **not** stop autograd recording. `training/loop.py`
+had no `no_grad`, so every activation of the evaluation forward was retained until the next
+batch replaced it — across Phase 3, Phase 4 and anything using the shared loop.
+
+The mechanism is worse than it sounds and is verifiable in the library, not inferred:
+`transformers/modeling_layers.py` gates gradient checkpointing on `self.training`, so **in
+eval mode checkpointing is bypassed entirely**. Turning on `llm.gradient_checkpointing`
+does nothing for evaluation, which made evaluation the *most* expensive pass in the loop
+rather than the cheapest.
+
+Fixed 2026-09-14 with `@torch.no_grad()` and three tests. **It cannot have moved a single
+logged metric** — nothing in the evaluation path reads a gradient, so every Phase 3 and
+Phase 4 number stands exactly as reported. What it changes is memory and wall clock.
+
+**The size of the effect is measured but NOT yet from a logged run** — the probe run that
+would have logged it was cancelled. `scripts/probe_vram_fused.py` now carries an
+`eval_grad` row for exactly this comparison, held out of the fit verdict. Re-run either arm
+to make the number citable under `Rules.md` §0.3; until then it is an observation, not a
+figure, and must not appear in the paper.
+
+---
+
+## 1.18 Every headline number is validation-selected, and now says so (Phase 3/4 reporting)
+
+**Nothing here is a new measurement. It is a correction to how the existing ones are
+labelled**, which is the kind of error that survives review precisely because no value
+changes.
+
+`configs/train/semantic.yaml` and `configs/train/structural.yaml` both set
+`watch_metric: line/top_5_accuracy`, `watch_mode: max`, on `eval_split: val`. Early
+stopping therefore picks the epoch with the best **val Top-5**, and §1.14's and §1.15's
+headline numbers are read from that epoch. So:
+
+| | |
+|---|---|
+| **Top-5 accuracy** | Selected on *itself*, on the split it is reported on. Optimistically biased by an unmeasured amount. |
+| Top-1, line F1, precision, recall, IFA | Reported at an epoch chosen by Top-5, on the same split. A weaker version of the same problem, not an escape from it. |
+| `test` (18,442 functions), `clean_eval` (1,589) | **Never touched.** `Rules.md` §5.3 spends them once, at the end of an experiment family. The fusion family is not finished. |
+
+The honest phrasing is **"the best this model reached on `val`"**, never "what it would
+score on unseen data". `scripts/make_review3_figures.py` now writes that into every figure
+subtitle, both axis labels and §1 of `artifacts/review3/results.md`, so a chart cropped
+onto a slide carries the caveat with it.
+
+**Why this is worth a section.** The bias is real but its *size* is unknown, and the
+temptation when someone asks "how good is it?" is to quote the number without the adverb.
+Spending `test` now to get an unbiased figure for a review deck would cost the project its
+one clean measurement and buy a sentence. The sentence is not worth it.
+
+---
+
+## 1.19 Where this sits against published work — quoted, never plotted
+
+`docs/prior_work.yaml` holds the only published numbers this repo quotes. `Rules.md` §5.7:
+*baselines are reproduced, not quoted; anything copied from a paper is labelled
+`(reported)` and never compared directly to ours as if it were run under our splits.*
+Retrieved 2026-09-14, each with its source URL and which artefact the value was read from.
+
+| System | Metric | Value | |
+|---|---|---|---|
+| **LineVul** (Fu & Tantithamthavorn, MSR 2022) | Function F1 | 0.91 | P 0.97 / R 0.86 |
+| | Line Top-10 accuracy | 0.65 | self-attention ranking, not a supervised line head |
+| | Line IFA | 4.56 mean (repo) / 1 median (paper) | **not the same statistic** |
+| **LineVD** (Hin et al., MSR 2022) | Statement F1 | 0.360 | P 0.271 / R 0.533; the closest published relative of our structural branch |
+| **IVDetect** (Li, Wang & Nguyen, FSE 2021) | Statement F1 | 0.176 | as re-run by LineVD's authors — a third-party reproduction |
+
+**The single most useful row is not in that table.** A later paper (LEAP, arXiv 2209.10414)
+re-measures **LineVul** on Big-Vul at **Top-10 0.740** against the **0.65** in its own
+paper — a 9-point spread with no change of method, wider than most of the improvements
+reported in this literature. Whatever differs is the evaluation setting. **That is why
+these numbers render as a table with a caveat column and never as bars beside ours**; a
+shared axis asserts "same kind of thing" and has no room to take it back.
+`tests/unit/test_prior_work.py` fails if a quoted value ever appears in an SVG.
+
+**What can honestly be said today:**
+
+1. Our line F1 **0.3692** lands in the same region as LineVD's **0.360**. Same region,
+   different benchmark — "not obviously off the map" and nothing stronger.
+2. **We cannot be placed against LineVul at all**, because we report Top-5 and it reports
+   Top-10, and on a corpus averaging 31 lines/function that gap is not cosmetic. Computing
+   Top-10 from the logged predictions is cheap and is the one change that would make a row
+   of this table mean something. Not done, so not claimed.
+3. Our IFA **11.93** is worse than every figure above. Part of the gap is the statistic
+   (our mean against their median, on a right-skewed distribution) and part is real.
+   **Which part is unmeasured.**
+4. **A1 is not in this table and never will be.** Cross-attention against concatenation,
+   both arms ours, both under ADR-008's fixed conditions — internal by construction, which
+   is exactly why it can be answered when the table above cannot.
+
+**The ADR-006 hypothesis stays a hypothesis.** *Line-level results trained on the LineVul
+release of Big-Vul without whitespace normalization are contaminated by the indentation
+artefact.* Status **UNTESTED**. It would be settled by running each published system's
+released preprocessing over the release and checking whether the leading-space feature
+survives into its model input. Until then it is never an explanation for a gap between
+their numbers and ours, and never a reason ours are lower — it is a claim about other
+people's work and ADR-006 requires verification against their released code first.
+
+## 1.20 The semantic feature cache — built, measured, and two ADR assumptions it broke (Phase 5)
+
+ADR-009, accepted 2026-09-15. `scripts/build_semantic_cache.py train=fused llm.frozen=true`,
+run `c99764bc…`: every line-labelled `train` and `val` unit encoded once by the frozen
+CodeBERT, stored as **line-aligned** states at each unit's own reach.
+
+| | units | windows | rows | size (fp32) | encode |
+|---|---|---|---|---|---|
+| `train` | 5,457 | 11,514 | 302,364 | 932 MB | 132 s |
+| `val` | 488 | 1,690 | 43,126 | 133 MB | 19 s |
+
+Line counts (step 0): `train` mean 60.3 / median 27 / p99 567; `val` mean 114.2 / median 48
+/ p99 998. Digests `77f7b07e…` (train), `a710b3bc…` (val). Encoder revision `3b0952fe…`,
+which resolves identically with `HF_HUB_OFFLINE=1` — it has to, or every queued run would
+refuse the cache.
+
+### What the measurements changed
+
+1. **"Bitwise identical" was the wrong test, and the failure was not dropout.** The first
+   build refused itself at a max difference of 9.5e-7. Measured separately: token states are
+   **bitwise identical** across passes; pooled line states differ by up to **1.9e-6** because
+   CUDA `index_add_` has no fixed accumulation order. Dropout p=0.1 on the same states moves
+   them by up to **13.8**. The check is now two-stage (§7 #50).
+2. **The encoder does not emit fp16 under AMP.** RoBERTa's final LayerNorm autocasts to fp32,
+   so ADR-009 §D9.6's reason for fp16 storage was false. Stored fp32 (§7 #51).
+3. **A second dropout ADR-009 did not name.** `PretrainedCodeEncoder.dropout` wraps the
+   token states outside the frozen module and is live in `train()`. The cached path applies
+   the same module to the line states instead: identical in eval, and identical across arms.
+
+### Equivalence on real hardware
+
+Cached vs live frozen path, same model, same 6 budget-sized batches of 24 real `val` units,
+RTX 3050 Ti, AMP, eval mode:
+
+| | max line-logit diff | max function-logit diff |
+|---|---|---|
+| cached vs live, 5 semantic-using arms | **4.9e-4** | 4.6e-5 |
+| **live vs live** (`cross_attention`, `gated`) | **4.9e-4** | 3.4e-5 |
+
+The line figures are one to two fp16 quanta at logit scale. **The cache adds nothing
+measurable above the GPU's own run-to-run noise.** Not a logged run — a scratch measurement;
+the reproducible pin is `tests/unit/test_semantic_cache.py` (6 arms, 1e-5, CPU).
+
+### Overfit on the cached path — a sanity check, never a result
+
+With `gnn.use_subtokens` **off**: `cross_attention` `117df3a4…` (Top-1 1.000, loss 2.95 →
+0.0085), `concat` `aebd4407…` (Top-1 1.000), `sum` `3b32a40d…` (Top-1 1.000), 150 epochs,
+~7.7 min each. `d4ac0260…` (gated) was stopped at epoch 1 and **tagged void**. All six arms
+were then re-queued with subtokens **on**, because that is the configuration A1 compares.
+
+### The inspector now scores lines — an owner decision with its caveats attached
+
+`frontend/` gained a **Findings** tab (the pipeline inspector moved to **Detailed report**).
+It ranks the pasted function's lines with `fc902107…` (seed 42 — the default seed, not the
+best of three, so the choice is not made on `val`) on CPU, and attaches **fix templates**
+(`frontend/fix_templates.py`, 11 single-line patterns + use-after-free / double-free /
+unchecked allocation) that match line text. What travels with every score on screen:
+
+- It **ranks where a flaw is likeliest; it cannot say whether one exists.** Trained on
+  line-labelled units only, all vulnerable. The function-level output is never shown.
+- Its accuracy — first pick 36%, top five 61% on `val` for seed 42 — is **same-distribution
+  Big-Vul**. Pasted code is outside it.
+- **Scores are not calibrated** (the sample's normal lines score 0.7–0.97), so the UI leads
+  with rank.
+- Punctuation-only lines are skipped from the cards; that can only raise the chance the real
+  line is shown, so the quoted Top-5 stays a lower bound.
+- **Templates are not Phase 7 and not an answer to Q4.** They say what a known pattern looks
+  like, never why the model ranked a line; a highly ranked line with no template says so.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-09-15 | **The owner signed the Phase 3 and Phase 4 gates and accepted ADR-008 and ADR-009.** A1 fuses the **AST** with **identifier subtokens on**, set per run in `run_queue.py`'s A1 constants | CPG (makes ADR-007 D7.4 live: an edge-handling sweep first); subtokens off (the default, and the weaker structural arm) | AST is what every Phase 4 number was measured on. Subtokens are the best structural config (+0.066 Top-5); fusing the weaker arm would bias A1 towards "structure adds nothing". Set per run, not in `configs/gnn/default.yaml`, so no earlier run's resolved config moves | **ADR-008 D8.7 resolved; ADR-009 accepted (Q10)** |
+| 2026-09-15 | **The inspector ranks a pasted function's lines with the Phase 3 semantic model and attaches template fix advice**, in a new Findings tab; the stage-by-stage view moves to a Detailed report tab | Keep showing no scores (the inspector's rule since session 10); wait for a fused model; generate fixes with an LLM | Owner decision: the tool's purpose is to tell a developer what to look at. The reasons for the old rule are kept as on-screen caveats instead: ranks-not-verdicts, same-distribution accuracy, uncalibrated scores. Templates, not generation, because Q4 recommends a template baseline and a generated fix has no reference set to be judged against | — (`frontend/`, outside the package) |
+| 2026-09-14 | **A1 is run with the semantic encoder frozen, and its line features are computed once and cached.** §1.9 measured `frozen` at 37.8 win/s against `checkpoint`'s 22.9, at 1,234 MiB against 2,456 — but the throughput understates it, because a frozen encoder is a *pure function of its input* and encoding the same 5,945 units eighteen times is a cost of how the experiment is written, not of the experiment. The cache holds **line-aligned** features at each unit's own line count, refuses itself on any digest mismatch, and is gated on a per-arm equivalence test against the live path | Run A1 as specified (60-80 GPU-h); cache token states instead (~100× the disk, buys nothing); fewer seeds; fewer arms; truncation instead of windowing; a lower line cap | A1's core two arms cost 20-30 h and the full grid 60-80 on a 4 GiB laptop, and **the obvious cuts are all forbidden** — truncation destroys 38.1% of flagged lines (§7 #23), a lower cap costs `val` 17.07% (§7 #26), and fewer seeds is §7 #37, which this project has already been caught by twice. Freezing stays controlled by exactly ADR-008 §D8.4's argument, and is the **harder** test of the novelty: a fine-tuned encoder can reshape its own line features until a trivial combiner suffices, which makes “concat did as well” ambiguous. Cost: A1 answers a narrower question and must be phrased that way (D9.1), and the fine-tuned confirmation (D9.7) is triggered by the margin, not skipped by default | **ADR-009 — proposed 2026-09-14, accepted 2026-09-15 (Q10); built and verified, §1.20** |
+| 2026-09-14 | **What is held fixed across A1's arms is fixed by construction, not by intention.** Shared projections/masking/width in `FusionModule`; fused line mask = the union of both branches' coverage; two learning rates (`train.encoder_lr` for the pretrained encoder, `train.lr` for the rest), identical across arms; the two branch datasets joined on `unit_id` with the population difference logged; `Phases.md`'s `none` built as `llm_only` **and** `gnn_only`; the line axis trimmed per batch and test-pinned to change nothing | Put the projections in the cross-attention module (gives it free parameters); positional join between the branches (correct today, silently wrong the first time a graph fails to build); one learning rate (has to be wrong for one half); score every arm on the union (lets `llm_only` predict lines it has no tokens for) | A1 is the one question here that can be answered *wrongly* with nothing failing — both arms train, both converge, both produce a number. §7 #39 and #40 are the softer version of the same failure and were both live bugs on one day. Every item is reversible at zero cost today and expensive the moment a seed is logged under it | **ADR-008 — proposed 2026-09-14, accepted 2026-09-15** |
 | 2026-09-12 | **A relation is allowed to matter, or the encoder refuses to run.** `StructuralEncoder.edge_handling` ∈ {`auto`, `ignore`, `weighted`}; `weighted` learns one softplus-positive scalar per relation, uniform across GCN/GAT/GGNN; `auto` (default) resolves to `ignore` on a single-relation graph and **raises** on a multi-relation one | Keep ignoring `edge_type` (what the code did); relational GCN, one weight matrix per relation; a per-convolution mechanism | `edge_type` was computed at L1, carried through every batch and consumed by nothing — §7 #22 exactly. Measured on 60 `val` CPGs: 46,062 edges, `ast` 34,159 / `cfg` 3,258 / `dfg` 8,645 / `call` 0, so averaging them is a modelling choice that was being made by omission. One mechanism across all three convolutions keeps Phase 4's A2 comparison and its depth sweep from partly measuring edge handling. **Which handling reports the headline numbers is not decided** — ADR-007 D7.4 asks for `ignore` vs `weighted` on the same seeds first | **ADR-007 — proposed 2026-09-12** |
 | 2026-09-08 | **Every source line is stripped of leading and trailing whitespace at the L0→L1 boundary, default-on.** The corpus encodes the flaw label in indentation; a one-line rule recovers it at precision 1.0000 with zero false positives on all six partitions | Re-indent with a formatter (changes line counts — destroys the labels); drop Big-Vul's line labels (ends the line-level project); normalize at L0 instead (new split fingerprint, full rebuild — deferred as Q9) | Stripping *restores the corpus's own intent* rather than imposing a convention: the non-flagged lines are already flush left. It preserves the line count exactly, so labels stay attached, and it costs only indentation — which this corpus never carried consistently, so nothing legitimate was learnable from it | **ADR-006 — proposed 2026-09-08** |
 | 2026-08-16 | **A unit is parsed with whichever of the two grammars parses it best.** Parse as C++; if damage remains, parse as C too and keep the less damaged tree. C++ is tried first and wins ties, so the grammar is a pure function of the source | Trust the `lang` column (37.01% clean); always C (35.74%); always C++ (88.24%) | **89.14% clean** — the corpus's own label is the worst option by more than 2×, because 98.6% of Big-Vul is labelled `C` and much of it (Chrome, 40.9%) is C++. The 1,712 units that separate this from always-C++ are *C that the C++ grammar actively misreads* — `class`, `new` and `this` are identifiers in C — so the choice is between a clean tree and a confidently wrong one, not between two parse rates | **ADR-005 — accepted 2026-08-16, closing Q8** |
@@ -977,6 +1194,143 @@ Learned:
 Next:
   - <handoff to the next session>
 ```
+
+---
+
+### 2026-09-15 (session 13) — gates signed, the cache that makes A1 affordable, and a Findings tab
+
+Phase: 5 (A1 queued; no fused result yet).
+
+**Owner decisions, all 2026-09-15:** Phase 3 and Phase 4 gates signed; ADR-008 and ADR-009
+accepted; A1 fuses AST with subtokens on; the inspector ranks lines with the Phase 3 model
+and gives template fix advice.
+
+Did:
+  - ADR-009 end to end: `training/semantic_cache.py`, `scripts/build_semantic_cache.py`,
+    the cached branch in `FusedLineModel`, `FusedLineDataset(semantic_cache=)`,
+    `train.semantic_cache` in `configs/train/fused.yaml`, the frozen-encoder refusal in
+    `train_fused.py`. Built the cache (`c99764bc…`) and measured equivalence on the GPU.
+  - Two ADR-009 assumptions broken by measurement and amended in place (§1.20, §7 #50, #51).
+  - Overfit on the cached path passed for three arms; all six re-queued on the A1 config.
+    `d4ac0260…` tagged void.
+  - `run_queue.py`: `p5check` (overfit, all arms) and `phase5` (A1, core arms first).
+  - Inspector: Findings tab (`frontend/scoring.py`, `frontend/fix_templates.py`,
+    `findings()` in `pipeline.py`, `/api/findings`); the old view is the Detailed report tab.
+    Fixed two stale panels (Semantic said "no valid weights"; Structural said "nothing is
+    built") and a pre-existing sample-button overflow.
+Files touched:
+  - src/vulnloc/training/{semantic_cache,fused_datasets}.py, src/vulnloc/models/fused.py
+  - scripts/{build_semantic_cache,train_fused,run_queue}.py, configs/train/fused.yaml
+  - frontend/{scoring,fix_templates,pipeline,server}.py, frontend/static/*, frontend/phases.json
+  - tests/unit/{test_semantic_cache,test_fix_templates,test_frontend_findings}.py,
+    tests/unit/test_fused_datasets.py (fixture factored into `make_tokenizer`)
+  - docs/adr/008, docs/adr/009, docs/Memory.md, CLAUDE.md, frontend/README.md
+Runs logged:
+  - c99764bc : semantic cache, train 932 MB / val 133 MB, fp32
+  - 117df3a4 / aebd4407 / 3b32a40d : overfit on the cached path, Top-1 1.000 (sanity only)
+Learned:
+  - A "bitwise" determinism check on GPU cannot distinguish scatter noise from dropout; test
+    the encoder output and the pooled output separately.
+  - CodeBERT under AMP returns fp32. Check a dtype before designing storage around it.
+  - The Phase 3 model scores even normal lines 0.7–0.97 — it has never seen a safe function.
+    A developer-facing view has to lead with rank, not with the number.
+Next:
+  - Read the `p5check` Top-1 per arm, then `run_queue.py --only phase5`.
+  - Tests 873 passed / 2 skipped; lint clean.
+
+### 2026-09-14 (session 12) — Phase 5 built end to end, and deliberately not run
+
+Phase: 5 (3 of 5 criteria met **by code and tests**; 0 by measurement).
+
+**The instruction was "start working ahead", and the gate is still unsigned.** `Rules.md`
+§1 bans building ahead and §6 item 1 says Phase 5 must not start until the owner signs the
+Phase 3 and Phase 4 gates. Closing a phase is not an assistant's decision, so the gate was
+left unsigned, **no run was logged, and no metric was produced.** What was built is the
+implementation, which needs no number to be correct.
+
+Did:
+  - `models/fusion/` — `FusionModule` base (projections, re-masking, validation, output
+    width, line-mask policy), `CrossAttentionFusion` (bidirectional MHA, maps retained),
+    and five comparators: `concat`, `sum`, `gated`, `llm_only`, `gnn_only`.
+  - `models/fused.py` — `FusedLineModel`: both encoders → the shared line axis → fusion →
+    the same `LineHead` both baselines use. `explain()` is Phase 7's attention-map export.
+  - `training/fused_datasets.py` — `join_branches` (on `unit_id`), `collate_fused` (flat,
+    `sem_`/`str_`-prefixed), `FusedBudgetBatchSampler` (windows **and** nodes),
+    `fused_line_coverage`.
+  - `configs/fusion/{default,cross_attention,concat,sum,gated,llm_only,gnn_only}.yaml`,
+    `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`.
+  - `training/job.py` gained an **optional** `param_groups` argument. `None` reproduces the
+    previous behaviour exactly, so no Phase 3 or Phase 4 run changes meaning.
+  - **ADR-008** records what is held fixed across A1's arms, and why. Status: Proposed.
+  - 93 new tests. Suite: **791 passed / 2 skipped**; ruff, black, mypy, import-linter clean.
+
+Files touched:
+  - `src/vulnloc/models/fusion/*`, `src/vulnloc/models/fused.py`,
+    `src/vulnloc/training/{fused_datasets,job}.py`, `scripts/train_fused.py`,
+    `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`,
+    `tests/unit/{test_fusion,test_fused_datasets,test_registry,test_configs}.py`,
+    `docs/adr/008-fusion-contract.md`, `docs/Phases.md`, `docs/Memory.md`, `CLAUDE.md`,
+    `frontend/phases.json`
+
+Runs logged:
+  - **None, deliberately.** The entrypoint was exercised on real `val` shards through its
+    own composition path — all six arms build, gradient reaches both branches, attention
+    comes back shaped, the join drops nothing — with no MLflow run and no metric.
+
+Learned:
+  - `torch.nn.MultiheadAttention` returns **NaN** for a unit whose key mask is fully
+    masked, and units with no graph nodes are real here. §7 #41.
+  - The fused line mask is the **union** of the two branches' coverage, so a fused model
+    can score lines the structural arm cannot (§7 #17). That belongs to the *scaffold* —
+    `concat` has it too — and reporting it as A1's result would be wrong. §7 #42.
+  - A positional join between the two branch datasets is **correct today** (every logged
+    Phase 4 run reports `graph_build_failures=0`) and silently wrong the first time it is
+    not. §7 #43.
+  - `Phases.md` and `Architecture.md` §4.4 disagree about the comparator set: `none` vs
+    `llm_only`/`gnn_only`. Built as the latter; `Phases.md` now says so. ADR-008 §D8.6.
+  - **Doc drift found, not fixed:** §7's prose cites issues #35–#40, which exist only in
+    `CLAUDE.md` §8 — session 11 added them there and not here. See §6.3.
+
+Then, same day (session 12b):
+  - **`scripts/probe_vram_fused.py`** — the fused memory question, measured (§1.17).
+    **The batch budgets do not control peak memory**: every budget in the grid is
+    dominated by one oversized unit at **92.4% of the card**, and 46.9% is static
+    optimizer state before a single activation. §7 #44 is closed.
+  - **Found and fixed a bug in the shared loop**: `evaluate()` had no `no_grad`, and
+    eval mode bypasses gradient checkpointing. §7 #46. **No logged metric changes.**
+  - **`scripts/make_review3_figures.py`** — Review III figures and tables, generated from
+    logged runs only, no value typed by hand. Every figure and table now says the metric
+    is **validation-selected** (§1.18), and the deck carries a comparison against
+    published work on the same corpus, quoted out of **`docs/prior_work.yaml`**.
+  - Both run-discovering reports now refuse a run carrying a `probe` parameter (§7 #40's
+    family: a naming convention was the only thing keeping probes out of a seed mean).
+
+Then, in the same session (12c):
+  - **Relabelled the Review III deck as validation-selected.** Every figure subtitle, every
+    axis label and §1 of `results.md` now say the number is the epoch early stopping chose
+    on `val` by `line/top_5_accuracy` — so Top-5 is **selected on itself**. §1.18.
+  - **`docs/prior_work.yaml`** — the published line-level numbers on Big-Vul, quoted with
+    sources, retrieval date and a per-row reason they are not comparable (§1.19). They
+    render as a table and **never as a chart**; `tests/unit/test_prior_work.py` fails if a
+    quoted value reaches an SVG.
+  - Fixed a layout bug the longer captions exposed: `_wrap` assumed 6.0px per character,
+    which is the *average* advance, and a caption full of run IDs and capitals ran 10px off
+    the canvas. Now 6.4px, with all four figures verified at zero overflow.
+  - Swept 12.83 GB of checkpoints (6 void/killed run dirs, 29 `last.pt`); every `best.pt`
+    and `summary.json` verified intact. `artifacts/checkpoints` 20.9 GB → 8.2 GB.
+  - **Costed A1 honestly and then found the lever.** Core two arms 20-30 GPU-h, full grid
+    60-80, from measured parts. **ADR-009 (Proposed, Q10)**: freeze the encoder and cache
+    its line features → **~5 h for all six arms × 3 seeds**. Nothing built; it changes what
+    A1 asks, so it is the owner's call and must be settled before any fused seed is logged.
+  - **Found a device-provenance hole while costing a second GPU.** `job.py:149` logs
+    `resolved_device` as `str(device)` — which is `"cuda:0"` on *every* card. §7 #49.
+
+Next:
+  - **The gate.** Nothing in Phase 5 should run until §6 item 1 is done.
+  - Re-run one arm of `probe_vram_fused.py` to make §1.17's `no_grad` saving citable.
+  - **Compute Top-10 accuracy from the logged predictions.** It is the one cheap change
+    that would make a single row of §1.19's table mean something — we report Top-5 and
+    LineVul reports Top-10, so today the two cannot be placed against each other at all.
 
 ---
 
@@ -1168,6 +1522,9 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `117df3a4…` / `aebd4407…` / `3b32a40d…` | 2026-09-15 | `train_fused.py train=overfit_fused llm.frozen=true` (cached semantic path, **subtokens off**) | 42 | cross_attention / concat / sum | fused | — | **1.000** | — | **Overfit sanity on the ADR-009 cached path: PASSED** for all three (Top-1 1.000). Cache digest `77f7b07e…`. Not the A1 config — re-queued with subtokens on. **Never cite as a result.** `d4ac0260…` (gated) stopped at epoch 1, **tagged void**. |
+| `c99764bc…` | 2026-09-15 | `build_semantic_cache.py train=fused llm.frozen=true` | — | — | — | — | — | — | **ADR-009's cache.** `train` 5,457 units / 932 MB / 132 s, `val` 488 / 133 MB / 19 s, fp32. Determinism: token diff 0.0, line diff 1.9e-6. Data artefact, not a result. §1.20 |
+| **config change** | 2026-09-15 | `gnn.use_subtokens=true`, `gnn.builder=ast` for **every A1 arm** (per run, `run_queue.py`) | — | all | fused | — | — | — | **Ledger row for the owner's D8.7 decision.** The defaults in `configs/gnn/default.yaml` are unchanged, so no earlier run's config moves. |
 | `cbdc2a1f…`/`8985c411…` (d2), `032e4700…`/`f1203001…` (d6), `e9378a9e…`/`f1b26024…` (A4 d2) | 2026-09-14 | `train_structural.py` — third seeds for every sweep arm | 1, 2 | — | gnn_only | — | see §1.16 | — | **These runs RETRACT two findings.** With three seeds per arm the depth sweep has **no resolvable effect** (2 vs 4 = 0.03 sd, 4 vs 6 = 0.59 sd) — the one-seed over-smoothing reading in §1.13 is withdrawn. And A4's gain is **flat across depth** (+0.0567 at d2, +0.0657 at d4, 0.27 sd apart), so §1.15's "1.5× larger at depth 4" was itself a one-seed artefact. **What stands: subtokens help by ≈+0.06 Top-5 regardless of depth.** |
 | `77370d56…` / `0d324da8…` / `3c570cc1…` + `b92e6985…` | 2026-09-14 | `train_structural.py +gnn=gcn gnn.use_subtokens=true` | 42, 1, 2 (d4); 42 (d2) | — | gnn_only | 1.000 *(degenerate)* | **0.4302 ± 0.0372** (d4) | 20.78 | **A4 — ADR-002 §D2.5's second half, §1.15.** Subtokens lift the structural branch from Top-5 0.3645 to **0.4302** (Top-1 0.1155 → 0.1750). **The gain is LARGER at depth 4 (+0.0657) than at depth 2 (+0.0436), which falsifies §1.12's prediction** — disambiguation is not the main thing subtokens do. Depth 2 is one seed. |
 | `5b177450…` / `e82ff268…` | 2026-09-14 | `train_semantic.py train=semantic seed={1,2}` | 1, 2 | — | llm_only | 1.000 *(degenerate)* | 0.6120 / 0.6203 | 12.52 / 11.33 | **The two seeds that close Phase 3** (§1.14). With seed 42: **Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60.** Best checkpoints epoch 5/5/6; all three cross-check clean against their on-disk summaries. 2.24 h and 4.08 h. **Phase 3's ≥3-seed criterion is MET.** |
@@ -1217,6 +1574,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q6 | CPG tooling: build ourselves vs. external generator? | In-house passes · external exporter | In-house — an external generator would take the line mapping out of our control. DeepDFA/MegaVul graphs used as offline validation oracles only | Phase 2 | ✅ **Closed — ADR-002** |
 | Q8 | **Which grammar parses a Big-Vul function?** Measured corpus-wide (§1.7): the dataset's own `lang` column yields **37.01%** clean parses, C **35.74%**, C++ **88.24%**, best-of-two per unit **89.14%** | Trust `lang` · always C · always C++ · **best of two per unit** | **Best of two per unit**, C++ first and C++ wins ties. The 1,712 units it gains over always-C++ are C that the C++ grammar *misreads* (`class`, `new`, `this` are identifiers in C), so the trade is a clean tree against a confidently wrong one. Cost: the grammar becomes data-dependent, and the node-type vocabulary is now a union over two grammars — a Phase 4 input | Phase 2 corpus build | ✅ **Closed 2026-08-16 — ADR-005 accepted by the project owner.** Reversible via `graph.language={cpp,c,declared}`; `declared` reproduces every pre-ADR-005 number |
 | Q9 | **Should the ADR-006 whitespace normalization also be applied at L0**, so `source` never carries the defect into the hashes, the split or the shards? | L1 only · **L0 as well** | **L0.** Chosen by the project owner 2026-09-08. It was accepted expecting a new split fingerprint and **turned out to cost nothing**: every field the split reads is invariant under the transform — `func_hash` already strips all whitespace (landmine #3), and the line count is preserved — so the assignment is bit-identical and `0ade7483…` stands. Only the shards' source text changes. L1 stays as idempotent defence in depth | Phase 3 retraining | ✅ **Closed 2026-09-08 — ADR-006 D6.6** |
+| Q10 | **Should A1 run with the semantic encoder frozen?** A1 as specified costs **60-80 GPU-h** (core two arms: 20-30 h). §1.9 measured `frozen` at **37.8 win/s vs 22.9** and **1,234 MiB vs 2,456** - and, far more important, a frozen encoder is a *pure function of its input*, so its output can be computed once and read from disk, putting a fused run at Phase 4's 2-5 minutes | Fine-tuned as specified · **frozen + cached, staged** · fewer seeds · fewer arms | **Frozen + cached, staged (ADR-009).** All six arms × 3 seeds becomes **~5 h**. It stays controlled by exactly ADR-008 §D8.4's argument - it changes how good *all* arms are, not which wins - and it is the **harder** test of the novelty, since a fine-tuned encoder can reshape its own line features until a trivial combiner suffices. Cost: A1 answers a narrower question and must be phrased that way, and D9.7's fine-tuned confirmation is triggered by the margin, not skipped by default. **Fewer seeds and fewer arms are not options** - §7 #37 is what that costs | Phase 5 / A1 | ✅ **Closed 2026-09-15 — ADR-009 accepted by the project owner.** Built and verified the same day (§1.20) |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -1225,10 +1583,11 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 
 Ordered. Top item is what the next session starts with.
 
-### 0. Where things stand (2026-09-14, end of session 11)
+### 0. Where things stand (2026-09-15, session 13)
 
-**Phases 3 and 4 both meet 4 / 4 exit criteria.** Nothing is running; the queue is
-finished (23 / 23) and the GPU is idle.
+**Phases 3 and 4 are signed. ADR-008 and ADR-009 are accepted. A1 is queued on a frozen,
+cached semantic encoder (§1.20).** The inspector has a Findings tab that ranks lines with the
+Phase 3 model. No fused result exists yet — see item 2 for exactly where the queue is.
 
 ```bash
 python scripts/run_queue.py --status     # every run, its wall clock and its run id
@@ -1244,29 +1603,50 @@ cat artifacts/phase3/seed_report_semantic.json
 Read §1.16 before using any depth or A4 number: **two findings were retracted there** and
 the depth sweep has no resolvable effect.
 
-### 1. FIVE THINGS NEED A HUMAN — everything below is blocked on the first
+### 1. THINGS THAT STILL NEED A HUMAN — none of them blocks A1
 
-1. **Sign or refuse the Phase 3 and Phase 4 gates.** Both meet every criterion by logged
-   runs. Closing a phase is not an assistant's decision, and **Phase 5 must not start
-   until this is done** (`Phases.md`: do not build ahead).
-2. **ADR-006 and ADR-007 are both `Proposed`.** ADR-006 is implemented, measured and
-   load-bearing in the paper; ADR-007's refusal is default-on. Accept, or hold explicitly.
-3. **ADR-007 D7.4:** which edge handling reports the headline numbers. Needs `ignore` vs
-   `weighted` **on a CPG** — on an AST there is one relation and the question is moot. Not
-   runnable until you say whether Phase 5 fuses CPG or AST.
-4. **The branching model.** Work is still on `phase-2/representation`, ~25 commits ahead
+1. ~~Sign the Phase 3 and Phase 4 gates~~ — **signed 2026-09-15.**
+2. **ADR-006 and ADR-007 are still `Proposed`** (ADR-008 and ADR-009 were accepted
+   2026-09-15). ADR-006 is implemented, measured and load-bearing in the paper.
+3. ~~ADR-007 D7.4~~ — **moot for A1**: the owner chose AST, which has one relation.
+   It returns only if a later experiment fuses a CPG.
+4. **Review the Findings tab's fix templates** (`frontend/fix_templates.py`). They are
+   pattern text written in session 13, pinned by tests for matching, but no human has
+   checked the advice itself. Cheap, and it is what a developer reads.
+5. **The branching model.** Work is still on `phase-2/representation`, ~25 commits ahead
    of `main`, two phases past what the branch name says. `Rules.md` §8 assumes a PR flow.
-5. **Two human-only data tasks**, both cheap and both gating paper claims: categorise the
+6. **Two human-only data tasks**, both cheap and both gating paper claims: categorise the
    40 parse-failure samples (`artifacts/representation/parse_failure_sample.md`, blank
    `cause:` fields), and add a second reviewer to the label audit so the ~30% noise figure
    gets an inter-rater number instead of resting on n=20.
 
 ### 2. Phase 5 — the experiment this project exists to run
 
-**A1: cross-attention vs concatenation.** Both arms now exist as honest, three-seed
-baselines on one shared line axis, which is exactly what A1 needs and what did not exist
-before this session. `training/job.py` is the shared loop, so a difference between the
-arms cannot be the training schedule. Gated on item 1.
+**A1: cross-attention vs concatenation, with a fixed semantic representation.** Queued in
+`scripts/run_queue.py` as two groups, because an overfit run that fails still exits 0
+(§7 #52):
+
+```bash
+python scripts/build_semantic_cache.py train=fused llm.frozen=true   # DONE, run c99764bc… (§1.20)
+python scripts/run_queue.py --only p5check     # overfit, all six arms, A1 config — ~45 min
+#   → read each arm's Top-1 in MLflow; every arm must reach ~1.0 before the next line
+python scripts/run_queue.py --only phase5      # A1: core 2 arms × 3 seeds first, then 4 ablations × 3
+python scripts/run_queue.py --status
+```
+
+Every A1 step carries the same constants: `+gnn=gcn gnn.use_subtokens=true llm.frozen=true`,
+with `train=fused` enabling the cache. **Changing any of them mid-screen makes the logged
+seeds incomparable** (§7 #38). The live path is still there for ADR-009 D9.7's fine-tuned
+confirmation: `train.semantic_cache.enabled=false` with `llm.frozen=false`.
+
+**The claim A1 can support is the qualified one** — "with a fixed semantic representation,
+X beats Y by Z" (ADR-009 D9.1) — and D9.7's fine-tuned confirmation is triggered by the
+margin relative to the seed spread, not skipped because it is slow. After the screen, add a
+`report_seeds.py` step per arm (group on `fusion_kind`) — not yet written.
+
+Two things that must travel with any A1 number, both of which are the *scaffold* and not
+the mechanism: the fused line mask is the union of both branches' coverage (§7 #42), and
+the fused arm trains on the join of the two branch populations (§7 #43, logged per run).
 
 ### 3. Worth doing, not blocking
 
@@ -1275,10 +1655,19 @@ arms cannot be the training schedule. Gated on item 1.
   reproducible. Flip it deliberately, with a ledger row.
 - **`gat` and `ggnn` are one seed each** and must not be ranked against `gcn` from that.
   Three seeds each if the paper compares convolutions (~10 min).
+- ~~Decide Q10 / ADR-009~~ — **accepted and built 2026-09-15** (§1.20).
+- **Compute Top-10 line accuracy from the logged predictions.** We report Top-5 and every
+  published line-level baseline on this corpus reports Top-10, so today §1.19's table has
+  no row that can be placed against ours at all. This is the cheapest change with a real
+  payoff in the write-up — and it must be computed from the stored predictions of the
+  existing runs, not by re-running anything, or it stops being comparable to §1.14.
 - **Move `gnn` into `config.yaml`'s `defaults`** now that no sweep is in flight, and drop
   the `+` (see `configs/gnn/README.md` and §7 #38).
 - **The paper has no Results section.** Deliberate: A1 is the result that matters.
   Methodology §3.8 and §3.16 are current as of this session.
+- **ADR-007 D7.4 becomes live if Phase 5 fuses a CPG.** `gnn.builder` defaults to `ast`,
+  which is what every Phase 4 number was measured under; `edge_handling=auto` will refuse a
+  multi-relation graph outright rather than average three relations. ADR-008 §D8.7.
 - Phase 0's Docker criterion (3 / 4) still needs a machine with Docker.
 
 ---
@@ -1325,6 +1714,24 @@ Things that cost time once and should not cost time twice.
 | 28 | **One unit is not one forward pass.** Windowing makes `clean_eval` average **4.17 windows per unit, reaching 88**; the longest function in the corpus is 146,721 tokens — **287 windows** | A batch sized in units has wildly variable cost, and on 4 GiB (#7) the worst unit in a batch bounds it. Exactly the trap #22 describes for graphs, on the other branch | Batch in **windows**, not units, and pool to units afterwards — `align_tokens_to_lines(window_to_unit=…)` already does the second half. Length-bucket by window count | 🟨 Known — Phase 3 design input |
 | 22 | **Graphs reach 55,486 nodes** on the largest function; mean is 251.66 (§1.7), and `clean_eval` averages 1,138 nodes / **1,577 CPG edges** — 4.5× the corpus mean, matching its 4.5× function length | With 4 GiB of VRAM (#7) a batch is bounded by the worst graph in it, not the mean. Length-bucketed batching or a node cap is required, and a node cap silently drops lines | Measure before Phase 4 batching is written. Do not size batches from the mean | 🟨 Known — Phase 4 design input |
 | 25 | **A fixed iteration cap on the reaching-definitions fixpoint silently halved the data-flow edges** — 25 of 400 real functions truncated, one returning 1,093 of 13,534, with no error raised | Wrong graphs that look right. Only caught because a timing comparison was off; it would have propagated into every downstream result | Budget scales per node and **raises** when exhausted (`graphs/dfg.py`). Never return a partially converged analysis. Fix measured at **+60% DFG edges** on `clean_eval` | ✅ Fixed 2026-08-16 |
+| 35 | **A GNN trained from scratch needs far more epochs to overfit than a fine-tuned transformer does.** At 60 epochs with dropout on, all three convolutions plateau at Top-1 ~0.80 and Phase 4's overfit test reads as **FAILED** | A healthy model is diagnosed as broken, and the wrong fixes get tried | At ~100–150 epochs with dropout zeroed all three reach Top-1 = 1.000 (run `8b0a3c1d…`). Note what the wrong diagnoses were: **not** capacity (512-wide / 6-deep is *worse*), **not** regularisation alone, **not** feature aliasing (§1.12 puts 4-hop ambiguity at 7.35%). Before concluding a model cannot learn, check the schedule | ✅ Fixed in `overfit_structural.yaml` |
+| 36 | **`train.zero_dropout` lives in the `train` group, not as `gnn.dropout=0` on the command line** | Hydra group selection is order-dependent: `+gnn=gcn` placed *after* an experiment config silently restores the dropout, and the overfit test then fails for a reason nothing reports | A config value that governs a decision belongs where selection order cannot undo it. Pinned by a test that composes the overrides in both orders | ✅ Fixed |
+| 37 | **The depth sweep has no resolvable signal, and a single seed said otherwise.** At n=1, depth 6 sat 0.047 Top-5 below depth 4 and was written up as over-smoothing evidence; at **n=3 every pairwise gap in 2–6 is under 0.6 sd** (§1.16) | Two traps at once: reading a depth difference as architectural when §1.12 shows the *representation* differs by depth, and reading ~2 sd of seed noise as a finding | **Do not write down a comparison until every arm has ≥3 seeds** — the rule the headline numbers already follow. The original reading is retracted in §1.13 and superseded by §1.16 | ✅ Retracted |
+| 38 | **Adding a config group to `config.yaml`'s `defaults` changes every run's `config_hash`** — including runs of other branches | `scripts/report_seeds.py` uses that hash to decide whether two runs are replicates, so doing it mid-sweep makes a logged seed incomparable with the seeds still to run | `gnn` is selected as `+gnn=…`, and `fusion` as `+fusion=…`. Move a group into `defaults` only when no sweep is in flight. See `configs/gnn/README.md` and `configs/fusion/README.md` | 🟨 Live constraint |
+| 39 | **A new config flag makes every earlier run look like a third group.** When `gnn.use_subtokens` landed, runs logged before it had no such parameter | Both directions were live bugs on the same day: a report *grouping* on it would have split the earlier runs off, and one *not* grouping on it would have averaged the A4 arm into its own comparison partners | The rule that resolves it: **a parameter that did not exist when a run was made was, by definition, not enabled in that run**, so an absent parameter matches a requested falsy value. Applied in `report_phase4.py`'s group key and `report_seeds.py`'s `where` filter | ✅ Fixed |
+| 40 | **A probe is not a result, and tagging it afterwards only works if you remember.** Two CPU trials at `train.limit=600` were grouped with full-corpus runs and shifted an A4 depth-2 mean before anyone noticed | Same family as #39: adding a logged parameter mid-sweep splits a comparison group — `resolved_device`, added between the first and second A4 seed, did it again hours after #39 was written | Both reports now refuse a run with a non-zero `train.limit` outright, alongside `train.overfit` and the `void` tag. `report_seeds.py` compares only parameters **every** run logged and reports the asymmetric ones instead of refusing on them | ✅ Fixed |
+| 46 | **`model.eval()` does not stop autograd, and eval mode silently disables gradient checkpointing.** `training/loop.py::evaluate` had no `no_grad`, so every activation of the evaluation forward was retained for a backward that never came | Worse than it sounds: `transformers/modeling_layers.py` gates checkpointing on `self.training`, so `llm.gradient_checkpointing` does **nothing** during evaluation — making eval the most expensive pass in the loop, not the cheapest. It affected Phase 3, Phase 4 and anything else on the shared loop | Fixed 2026-09-14 with `@torch.no_grad()` and three tests. **No logged metric changes** — nothing in the evaluation path reads a gradient — so every Phase 3 / Phase 4 number stands. The size of the saving is not yet from a logged run; `scripts/probe_vram_fused.py` carries an `eval_grad` row to make it citable | ✅ Fixed; magnitude pending a logged run |
+| 41 | **`torch.nn.MultiheadAttention` returns NaN for a unit whose key mask is fully masked**, and does not raise. `softmax` over an all-masked row is `0/0`; the NaN reaches every parameter on the first backward pass and the run dies minutes later somewhere unrelated | Units with no keys on one side are **real here**, not hypothetical: a function whose graph will not build, and the 7.84% of flagged lines with no node (#21) | `fusion/cross_attention.py::cross_attend` gives such units a permissive key mask so the softmax has something to normalise, then zeroes their attended output and their attention map. Pinned by a test whose fixture always contains one | ✅ Handled |
+| 42 | **The fused model can score lines the structural arm cannot — and that is the scaffold, not cross-attention.** The fused line mask is the union of the two branches' coverage (ADR-008 §D8.1) | `concat`, `sum` and `gated` have the identical advantage. Reporting it as A1's result would credit the union to the mechanism | `fused_line_coverage()` reports `flagged_semantic_only` / `flagged_structural_only` / `recovered_by_union` per batch, and `gnn_only` is the arm that isolates it. The single-branch arms are scored on **their own** branch's coverage, never the union | 🟨 Stated; must travel with every A1 number |
+| 43 | **A positional join between the two branch datasets is correct today and silently wrong the first time it is not.** `LineLabelledDataset` keeps every line-labelled unit; `GraphLineDataset` drops any whose graph will not build | Every logged Phase 4 run reports `graph_build_failures=0` at 5,457 / 488 units — so the bug would pass every test written against real data, then pair one function's tokens with another's control flow, train, and converge | `join_branches` intersects on `unit_id`, refuses duplicates, and refuses a pair whose halves disagree on `line_labels`/`n_lines`/`target`; `collate_fused` re-checks at batch level; the population difference is logged as a run parameter | ✅ Handled |
+| 44 | **The fused model's batch budgets do not control its peak memory.** MEASURED (§1.17, runs `f96a0744…` / `c1a2fbab…`): every budget from (2,1024) to (16,8192) is dominated by the **same** oversized unit — 54 windows / 9,233 nodes, **3,786 MiB = 92.4% of the card** — because a unit over budget gets its own batch by design | #29 is why this had to be measured rather than assumed: exceeding VRAM on Windows does not raise, it pages to host RAM at 10–25× slower. It fits, with AMP finite throughout, and `concat` sits within 8 MiB of `cross_attention` — the fairness property ADR-008 §D8.2 exists for | **1,922 MiB (46.9%) is static optimizer state before a single activation**, so the lever for headroom is `llm.frozen` or a smaller optimizer, **not** `max_windows_per_batch`. Re-probe with `scripts/probe_vram_fused.py` after any change to either encoder | ✅ Measured |
+| 49 | **`resolved_device` cannot tell two GPUs apart.** `job.py:149` logs `str(device)`, and `str(torch.device('cuda', 0))` is `"cuda:0"` on **every** CUDA card. The card model is logged nowhere | This is §7 #40's guard — added specifically so a device difference could not split or silently merge a comparison group — blind to the device difference that matters. Run three seeds on one laptop and a fourth on a different GPU and `report_seeds.py` finds every comparable parameter identical and **aggregates them without a word**. Live the moment any run happens on a second machine | Log `torch.cuda.get_device_name(index)` beside the device string. Until then: **never split a comparison group across machines** — ADR-008's whole premise is that A1's arms differ in the fusion mechanism and nothing else. Run whole groups on one card | 🟥 **Open — must land before any run on a second GPU**; the provenance is unrecoverable after the fact |
+| 47 | **A metric chosen by early stopping on itself is not a held-out number**, and nothing in the pipeline says so. Both train configs watch `line/top_5_accuracy` on `val` with `watch_mode: max`, and §1.14 / §1.15 read their headline from that epoch | Top-5 is selected on itself; the metrics beneath it are reported at an epoch Top-5 chose, on the same split. The bias is real and its **size is unknown**. Every chart, table and slide inherits it silently, because no *value* is wrong — only the label | §1.18. `scripts/make_review3_figures.py` writes "validation-selected" into every figure subtitle, both axis labels and §1 of `results.md`, so a cropped chart carries the caveat. `test` and `clean_eval` stay untouched until the fusion family closes (`Rules.md` §5.3) | ✅ Labelled; bias unquantified by design |
+| 48 | **YAML silently drops a published significant figure.** A bare `value: 0.360` parses as a float and renders back as `0.36` — LineVD published three decimals and the table showed two | Small, and exactly the kind of thing that is indefensible when a reviewer checks a quotation against its source. Same shape as #4 (pandas turning `"2"` into `"2.0"`): the type system silently renormalising someone else's text | Quoted numbers are stored as **strings** in `docs/prior_work.yaml` — they are quotations, never arithmetic. `tests/unit/test_prior_work.py::test_quoted_values_are_strings_so_published_precision_survives` fails if one is unquoted | ✅ Fixed |
+| 45 | **A fused batch must be flat.** `training/loop.py::_move` walks a batch's **top level** only, so a nested `{"semantic": …, "structural": …}` batch would arrive half on the GPU with nothing raising | The failure is a device mismatch several frames away from its cause, or worse, a silent CPU fallback | Keys are prefixed `sem_`/`str_` — the `CLAUDE.md` §9 convention — and the shared line-axis keys stay unprefixed because there is exactly one of each. Pinned by a test | ✅ Handled |
+| 50 | **CUDA line alignment is not bitwise reproducible, and a "bitwise" determinism check cannot tell that from dropout.** `index_add_` on CUDA accumulates in no fixed order: two passes over one batch give identical token states and line states up to **1.9e-6** apart. ADR-009's first cache build refused itself on it | A correct encoder read as a broken one, and the obvious "fix" — loosen the tolerance until it passes — would also hide live dropout if applied at the wrong stage | Check the two stages separately: token states **bitwise** (dropout lives there), pooled states within `ALIGNMENT_TOLERANCE = 1e-5` — seven orders of magnitude under dropout's 13.8. `semantic_cache.assert_deterministic` | ✅ Handled |
+| 51 | **Under AMP, CodeBERT's output is fp32, not fp16.** RoBERTa's final LayerNorm autocasts to fp32, so "the encoder computes in fp16" is false at its output | ADR-009 §D9.6 chose fp16 storage on that premise; it would have added ~3e-5 of rounding the live path never has | Measure the dtype, don't assume it. Cache stored fp32 (1.07 GB) | ✅ Handled |
+| 52 | **An overfit run that fails to memorise still exits 0**, so a queue that chains the overfit check straight into the real runs would start A1 on a broken arm with nothing stopping it | Hours of A1 on an arm whose branch never learned | Overfit steps are their own queue group, `p5check`; read their Top-1 in MLflow before `--only phase5` | ✅ Handled |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**
