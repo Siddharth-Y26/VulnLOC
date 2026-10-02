@@ -1321,13 +1321,28 @@ Runs logged:
   - `1ab2fd03…` : **probe, never a result** (`train.limit=300`, CPU, structural). Paused at
     epoch 1 batch 3 (exit 75), resumed by a second process into the same run: status
     FINISHED, eval steps 0/1/2 each exactly once, `resumed_at=epoch=1,batch=3,step=27`.
-  - `d97-overfit-*` : live-encoder overfit, see the queue (`--only d97check --status`).
+  - `d97-overfit-*` : live-encoder overfit, **all three arms PASS** — Top-1 = 1.000 with
+    `frozen=False`, cache off: cross_attention `d3dbd7e9…`, concat `b4998f5c…`, llm_only
+    `ad9f36e8…`. Never results.
+  - `cb2b1e99…` : **VOID** (tagged). The first `d97-cross_attention-seed42` attempt, used as
+    the vehicle for the live pause/resume test: paused twice in epoch 0, ran 190 steps
+    paging VRAM (§7 #55), started on `929970a` before the fix. Checkpoints deleted, log kept
+    as `artifacts/queue/logs/d97-cross_attention-seed42.void-cb2b1e99.log`. The step was
+    then restarted from scratch on the fixed commit so the headline run carries no footnote.
 Learned:
   - A feature nobody has used is a feature nobody has tested. `resume_from` sat in the config
     for three weeks with a docstring describing behaviour that would have corrupted the first
     run to rely on it (§7 #22's family).
   - First-step peak with the encoder training on the overfit subset: 2,532.6 MiB (61.8%).
     That is **not** the full-corpus peak — §1.17's worst unit is 3,786 MiB (92.4%).
+  - **Measured cost of a fine-tuned fused run** (from `cb2b1e99…` after the fix): 5,457 train
+    units / 11,514 windows = **721 optimizer steps per epoch at ~1.43 s/step ≈ 17.5 min**,
+    plus ~1 min to evaluate 488 `val` units — **~19 min per epoch, so ≤ ~3.2 h for the full
+    10 epochs** and ~2.7 h if early stopping lands where Phase 3's did. Nine runs ≈ 24–29 h.
+    The earlier 18–24 h estimate for six runs was about right; ~2.0 s/step, seen before the
+    fix, was already a mild spill.
+  - The cache-release guard fired once in that epoch (step 429, 4,250 MiB reserved) — the
+    oversized unit of §1.17, as predicted. One release per epoch is the healthy pattern.
 Next:
   - §6 item 0a.
   - Tests 917 passed / 2 skipped; ruff / black / mypy clean.
