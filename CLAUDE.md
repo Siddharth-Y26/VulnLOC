@@ -59,9 +59,9 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
 | Phase 3 | ✅ **DONE — gate signed by the owner 2026-09-15.** **LLM-only over three seeds on normalized text: Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60** (§1.14). Top-5 varies by under a point across seeds while P/R swing ±0.04 in opposite directions — the threshold moving, not the model. Run `1843412a…` remains VOID (ADR-006); `function/f1` = 1.000 is degenerate and must never be quoted. |
 | Phase 4 | ✅ **DONE — gate signed by the owner 2026-09-15.** Overfit test PASSED (`8b0a3c1d…`). **Best structural config: gcn depth 4 + subtokens, Top-5 0.4302 ± 0.0372 over 3 seeds** (ADR-002 §D2.5's second half, +0.066 over node-type-only — §1.15). Far below the semantic arm's 0.6141. **The depth sweep 2/4/6 shows NO resolvable effect at 3 seeds each** (every pairwise gap <0.6 sd, §1.16) — an earlier one-seed over-smoothing reading was retracted. |
-| Phase 5 | 🟨 **A1 running. 3 / 5 criteria met by code and tests; 0 by measurement.** ADR-008 and **ADR-009 accepted** 2026-09-15. The semantic feature cache is built (`c99764bc…`, fp32, 1.07 GB) and matches the live frozen path to within the GPU's own noise (`Memory.md` §1.20). A1 = all six arms × seeds 42/1/2 on **AST + subtokens + frozen encoder**, queued as `run_queue.py --only p5check` (overfit, every arm) then `--only phase5`. **No fused result exists yet**; only overfit sanity runs. |
+| Phase 5 | 🟨 **A1 frozen screen DONE; 4 / 5 criteria, the fifth half met.** ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6") is open: **ADR-009 D9.7's fine-tuned confirmation (~18–24 h) needs the owner.** |
 | Phases 6–10 | ⬜ Not started. |
-| Tests | **873 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **879 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -93,7 +93,10 @@ CPU), and attaches **template** fix advice from `frontend/fix_templates.py` — 
 never the model's reasoning, and not Phase 7. The model **ranks lines; it cannot say a
 function is safe** (it never saw one), and its scores are not calibrated, so the UI leads
 with rank. **Detailed report** is the original pipeline inspector — normalize → parse →
-graphs → tokenize → line axis, live, plus a panel per unbuilt phase. It is a development
+graphs → tokenize → line axis, live — plus the **Phase 4 structural model's ranking of the
+paste** (`frontend/structural.py`, run `77370d56…`, vocabularies pinned) beside the semantic
+rank, and held-out numbers read from the seed reports. One sentence per stage; keep it that
+way (owner, 2026-09-15). Restart the server after any `.py` change — a stale one answers 405. It is a development
 instrument, **not** the Phase 9 serving API, which is why it lives outside `src/vulnloc` and
 the `import-linter` layer graph. **No fused score is shown anywhere.** See
 `frontend/README.md`; `frontend/phases.json` mirrors §3 of this file and must be updated
@@ -371,6 +374,9 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 5. ~~Q10 — should A1 run with the semantic encoder frozen?~~ **Yes — ADR-009 accepted
    2026-09-15, built and verified.** A1 reports in the qualified "fixed semantic
    representation" form; the fine-tuned confirmation (D9.7) is triggered by the margin.
+5a. **Q11 — run ADR-009 D9.7's fine-tuned confirmation of A1?** (~18–24 h; closes Phase 5's
+   fifth criterion) and **Q12 — commit the A1 write-up** (must precede any D9.7 run, or
+   every run logs `-dirty`). Both deferred by the owner 2026-09-15; `Memory.md` §5.
 5b. **Review the Findings tab's fix templates.** Written in session 13, tested for what
    they match, not reviewed by a human for what they advise.
 6. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.

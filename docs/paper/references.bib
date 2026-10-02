@@ -1,0 +1,358 @@
+VulnLoc - reference list for the Literature Review and Methodology sections.
+
+Keys are unchanged from the authors' original file. Every entry was checked against
+arXiv or Crossref metadata on 2026-10-01. Fields corrected against that metadata:
+
+  yamaguchi2014           author Nico Golde
+  linevd2022              authors Andrey Kan, Huaming Chen, M. Ali Babar
+  ivdetect2021            author Shaohua Wang
+  bigvul2020              authors Jiahao Fan, Shaohua Wang
+  gnnexplainer2019        author Dylan Bourgeois (venue kept as supplied)
+  eraser2020              authors Eric Lehman, Caiming Xiong, Richard Socher
+  attention2019           pages 3543-3556
+  datasetquality2023      authors Roland Croft, M. Mehdi Kholoosi
+  primevul2025            full author list, first author Yangruibo Ding
+  cvefixes2021            authors Guru Prasad Bhandari, Amara Naseer
+  linelevelevaluation2025 Machine Learning 115(4), article 94, 2026
+  vullmgnns2024           Information Fusion 115, article 102748, 2025
+  llmexplfusion2025       Information Fusion 125, article 103450, 2026
+  semanticvulngraph2023   IEEE EuroS&P 2023, pp. 144-159
+  causalvuln2023          ICSE 2024
+  explainablevulnllm2024  IEEE TSE 51(10), 2025
+  llmsecuritysurvey2025   title "LLMs in Software Security ..."; ACM Computing Surveys 58(5), 2025
+  revisitingplm2025       ACM AsiaCCS 2026, pp. 1540-1554
+  cleanvul2024            current arXiv title "... Using LLM Heuristics"
+  vulberta2022            IJCNN 2022
+  sclcvd2024              journal article; title prefix "SCL-CVD:"; vol. 145, article 103994
+
+Text outside an entry is ignored by BibTeX, so this header needs no comment marker.
+
+@inproceedings{yamaguchi2014,
+  author    = {Yamaguchi, Fabian and Golde, Nico and Arp, Daniel and Rieck, Konrad},
+  title     = {Modeling and Discovering Vulnerabilities with Code Property Graphs},
+  booktitle = {2014 IEEE Symposium on Security and Privacy},
+  pages     = {590--604},
+  year      = {2014},
+  publisher = {IEEE},
+  doi       = {10.1109/SP.2014.44}
+}
+
+@inproceedings{devign2019,
+  author    = {Zhou, Yaqin and Liu, Shangqing and Siow, Jingkai and Du, Xiaoning and Liu, Yang},
+  title     = {Devign: Effective Vulnerability Identification by Learning Comprehensive Program Semantics via Graph Neural Networks},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2019},
+  note      = {arXiv:1909.03496}
+}
+
+@inproceedings{codebert2020,
+  author    = {Feng, Zhangyin and Guo, Daya and Tang, Duyu and Duan, Nan and Feng, Xiaocheng and Gong, Ming and Shou, Linjun and Qin, Bing and Liu, Ting and Jiang, Daxin and Zhou, Ming},
+  title     = {{CodeBERT}: A Pre-Trained Model for Programming and Natural Languages},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2020},
+  pages     = {1536--1547},
+  year      = {2020},
+  doi       = {10.18653/v1/2020.findings-emnlp.139}
+}
+
+@inproceedings{graphcodebert2021,
+  author    = {Guo, Daya and Ren, Shuo and Lu, Shuai and Feng, Zhangyin and Tang, Duyu and Liu, Shujie and Zhou, Long and Duan, Nan and Svyatkovskiy, Alexey and Fu, Shengyu and Tufano, Michele and Deng, Shao Kun and Clement, Colin and Drain, Dawn and Sundaresan, Neel and Yin, Jian and Jiang, Daxin and Zhou, Ming},
+  title     = {{GraphCodeBERT}: Pre-training Code Representations with Data Flow},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2021},
+  note      = {arXiv:2009.08366}
+}
+
+@inproceedings{linevul2022,
+  author    = {Fu, Michael and Tantithamthavorn, Chakkrit},
+  title     = {{LineVul}: A Transformer-Based Line-Level Vulnerability Prediction},
+  booktitle = {Proceedings of the 19th International Conference on Mining Software Repositories},
+  pages     = {608--620},
+  year      = {2022},
+  publisher = {ACM},
+  doi       = {10.1145/3524842.3528452}
+}
+
+@inproceedings{linevd2022,
+  author    = {Hin, David and Kan, Andrey and Chen, Huaming and Babar, M. Ali},
+  title     = {{LineVD}: Statement-Level Vulnerability Detection Using Graph Neural Networks},
+  booktitle = {Proceedings of the 19th International Conference on Mining Software Repositories},
+  pages     = {596--607},
+  year      = {2022},
+  publisher = {ACM},
+  doi       = {10.1145/3524842.3527949}
+}
+
+@inproceedings{ivdetect2021,
+  author    = {Li, Yi and Wang, Shaohua and Nguyen, Tien N.},
+  title     = {Vulnerability Detection with Fine-Grained Interpretations},
+  booktitle = {Proceedings of the 29th ACM Joint Meeting on European Software Engineering Conference and Symposium on the Foundations of Software Engineering},
+  pages     = {292--303},
+  year      = {2021},
+  publisher = {ACM},
+  doi       = {10.1145/3468264.3468597}
+}
+
+@inproceedings{gnnexplainer2019,
+  author    = {Ying, Rex and Bourgeois, Dylan and You, Jiaxuan and Zitnik, Marinka and Leskovec, Jure},
+  title     = {{GNNExplainer}: Generating Explanations for Graph Neural Networks},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2019},
+  note      = {arXiv:1903.03894}
+}
+
+@inproceedings{attention2019,
+  author    = {Jain, Sarthak and Wallace, Byron C.},
+  title     = {Attention is not Explanation},
+  booktitle = {Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics},
+  pages     = {3543--3556},
+  year      = {2019},
+  doi       = {10.18653/v1/N19-1357}
+}
+
+@inproceedings{eraser2020,
+  author    = {DeYoung, Jay and Jain, Sarthak and Rajani, Nazneen Fatema and Lehman, Eric and Xiong, Caiming and Socher, Richard and Wallace, Byron C.},
+  title     = {{ERASER}: A Benchmark to Evaluate Rationalized {NLP} Models},
+  booktitle = {Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics},
+  pages     = {4443--4458},
+  year      = {2020},
+  doi       = {10.18653/v1/2020.acl-main.408}
+}
+
+@article{quantizevuln2023,
+  author    = {Fu, Michael and Le, Trung and Nguyen, Van and Tantithamthavorn, Chakkrit and Phung, Dinh},
+  title     = {Learning to Quantize Vulnerability Patterns and Match to Locate Statement-Level Vulnerabilities},
+  journal   = {arXiv preprint arXiv:2306.06109},
+  year      = {2023}
+}
+
+@article{ifllms2024,
+  author    = {Li, Yue and Li, Xiao and Wu, Hao and Zhang, Yue and Cheng, Xiuzhen and Liu, Yating and Xu, Fengyuan and Zhong, Sheng},
+  title     = {If {LLMs} Would Just Look: Simple Line-by-line Checking Improves Vulnerability Localization},
+  journal   = {arXiv preprint arXiv:2410.15288},
+  year      = {2024}
+}
+
+@article{linelevelevaluation2025,
+  author    = {Pintore, Marco and Piras, Giorgio and Sotgiu, Angelo and Pintor, Maura and Biggio, Battista},
+  title     = {Evaluating Line-Level Localization Ability of Learning-Based Code Vulnerability Detection Models},
+  journal   = {Machine Learning},
+  volume    = {115},
+  number    = {4},
+  pages     = {94},
+  year      = {2026},
+  doi       = {10.1007/s10994-025-06902-1}
+}
+
+@article{vullmgnns2024,
+  author    = {Liu, Ruitong and Wang, Yanbin and Xu, Haitao and Sun, Jianguo and Zhang, Fan and Li, Peiyue and Guo, Zhenhao},
+  title     = {{Vul-LMGNNs}: Fusing Language Models and Online-Distilled Graph Neural Networks for Code Vulnerability Detection},
+  journal   = {Information Fusion},
+  volume    = {115},
+  pages     = {102748},
+  year      = {2025},
+  doi       = {10.1016/j.inffus.2024.102748}
+}
+
+@article{crossmodalvuln2025,
+  author    = {Tao, Wenxin and Su, Xiaohong and Ke, Yekun and Han, Yi and Zheng, Yu and Wei, Hongwei},
+  title     = {Transformer-Based Statement Level Vulnerability Detection by Cross-Modal Fine-Grained Features Capture},
+  journal   = {Knowledge-Based Systems},
+  volume    = {316},
+  pages     = {113341},
+  year      = {2025},
+  doi       = {10.1016/j.knosys.2025.113341}
+}
+
+@article{dcvd2026,
+  author    = {Tang, Wenxin and Li, Wenbin and Liu, Junliang and Xiao, Jingyu and Xiao, Xi and Liu, Mingzhe and Yang, Jinlong and Liu, Xuan and Ma, Yuehe and Luo, Wang and Li, Qing and Wang, Lei and Xiangli, Peng},
+  title     = {{DCVD}: Dual-Channel Cross-Modal Fusion for Joint Vulnerability Detection and Localization},
+  journal   = {arXiv preprint arXiv:2605.11015},
+  year      = {2026}
+}
+
+@article{llmexplfusion2025,
+  author    = {Tian, Zhenzhou and Li, Minghao and Sun, Jiaze and Chen, Yanping and Chen, Lingwei},
+  title     = {Enhancing Vulnerability Detection by Fusing Code Semantic Features with {LLM}-Generated Explanations},
+  journal   = {Information Fusion},
+  volume    = {125},
+  pages     = {103450},
+  year      = {2026},
+  doi       = {10.1016/j.inffus.2025.103450}
+}
+
+@article{vulread2026,
+  author    = {Mukhtar, Samal and Yao, Yinghua and Sun, Zhu and Mustafa, Mustafa and Ong, Yew Soon and Sun, Youcheng},
+  title     = {{VulReaD}: Knowledge-Graph-Guided Software Vulnerability Reasoning and Detection},
+  journal   = {arXiv preprint arXiv:2602.10787},
+  year      = {2026}
+}
+
+@inproceedings{semanticvulngraph2023,
+  author    = {Islam, Nafis Tanveer and De La Torre Parra, Gonzalo and Manuel, Dylan and Bou-Harb, Elias and Najafirad, Peyman},
+  title     = {An Unbiased Transformer Source Code Learning with Semantic Vulnerability Graph},
+  booktitle = {2023 IEEE 8th European Symposium on Security and Privacy (EuroS\&P)},
+  pages     = {144--159},
+  year      = {2023},
+  doi       = {10.1109/EuroSP57164.2023.00018}
+}
+
+@inproceedings{causalvuln2023,
+  author    = {Rahman, Md Mahbubur and Ceka, Ira and Mao, Chengzhi and Chakraborty, Saikat and Ray, Baishakhi and Le, Wei},
+  title     = {Towards Causal Deep Learning for Vulnerability Detection},
+  booktitle = {Proceedings of the IEEE/ACM 46th International Conference on Software Engineering},
+  year      = {2024},
+  doi       = {10.1145/3597503.3639170}
+}
+
+@article{explainablevulnllm2024,
+  author    = {Mao, Qiheng and Li, Zhenhao and Hu, Xing and Liu, Kui and Xia, Xin and Sun, Jianling},
+  title     = {Towards Explainable Vulnerability Detection with Large Language Models},
+  journal   = {IEEE Transactions on Software Engineering},
+  volume    = {51},
+  number    = {10},
+  pages     = {2957--2971},
+  year      = {2025},
+  doi       = {10.1109/TSE.2025.3605442}
+}
+
+@article{llmsecuritysurvey2025,
+  author    = {Sheng, Ze and Chen, Zhicheng and Gu, Shuning and Huang, Heqing and Gu, Guofei and Huang, Jeff},
+  title     = {{LLMs} in Software Security: A Survey of Vulnerability Detection Techniques and Insights},
+  journal   = {ACM Computing Surveys},
+  volume    = {58},
+  number    = {5},
+  pages     = {1--35},
+  year      = {2025},
+  doi       = {10.1145/3769082}
+}
+
+@article{llmvulnaudit2025,
+  author    = {Li, Yue and Li, Xiao and Wu, Hao and Xu, Minghui and Zhang, Yue and Cheng, Xiuzhen and Xu, Fengyuan and Zhong, Sheng},
+  title     = {Everything You Wanted to Know About {LLM}-Based Vulnerability Detection But Were Afraid to Ask},
+  journal   = {arXiv preprint arXiv:2504.13474},
+  year      = {2025}
+}
+
+@inproceedings{revisitingplm2025,
+  author    = {Li, Youpeng and Qi, Weiliang and Wang, Xuyu and Yu, Fuxun and Wang, Xinda},
+  title     = {Revisiting Pre-Trained Language Models for Vulnerability Detection},
+  booktitle = {Proceedings of the ACM Asia Conference on Computer and Communications Security},
+  pages     = {1540--1554},
+  year      = {2026},
+  doi       = {10.1145/3779208.3785291}
+}
+
+@article{vulpo2025,
+  author    = {Li, Youpeng and Yu, Fuxun and Qi, Weiliang and Wang, Xinda},
+  title     = {{VULPO}: Context-Aware Vulnerability Detection via On-Policy {LLM} Optimization},
+  journal   = {arXiv preprint arXiv:2511.11896},
+  year      = {2025}
+}
+
+@article{gnnreview2026,
+  author    = {He, Yuan and Lv, Haikun and Li, Xing and Zeng, Lulu and Zhang, Lina and Yang, Dengqi and Li, Xiaowei},
+  title     = {Graph Neural Networks for Software Vulnerability Mining: A Review},
+  journal   = {Information},
+  volume    = {17},
+  number    = {8},
+  pages     = {730},
+  year      = {2026},
+  doi       = {10.3390/info17080730}
+}
+
+@inproceedings{bigvul2020,
+  author    = {Fan, Jiahao and Li, Yi and Wang, Shaohua and Nguyen, Tien N.},
+  title     = {A {C/C++} Code Vulnerability Dataset with Code Changes and {CVE} Summaries},
+  booktitle = {Proceedings of the 17th International Conference on Mining Software Repositories},
+  pages     = {508--512},
+  year      = {2020},
+  publisher = {ACM},
+  doi       = {10.1145/3379597.3387501}
+}
+
+@inproceedings{datasetquality2023,
+  author    = {Croft, Roland and Babar, M. Ali and Kholoosi, M. Mehdi},
+  title     = {Data Quality for Software Vulnerability Datasets},
+  booktitle = {2023 IEEE/ACM 45th International Conference on Software Engineering (ICSE)},
+  pages     = {121--133},
+  year      = {2023},
+  doi       = {10.1109/ICSE48619.2023.00022}
+}
+
+@inproceedings{primevul2025,
+  author    = {Ding, Yangruibo and Fu, Yanjun and Ibrahim, Omniyyah and Sitawarin, Chawin and Chen, Xinyun and Alomair, Basel and Wagner, David and Ray, Baishakhi and Chen, Yizheng},
+  title     = {Vulnerability Detection with Code Language Models: How Far Are We?},
+  booktitle = {2025 IEEE/ACM 47th International Conference on Software Engineering (ICSE)},
+  pages     = {1729--1741},
+  year      = {2025},
+  doi       = {10.1109/ICSE55347.2025.00038}
+}
+
+@article{cleanvul2024,
+  author    = {Li, Yikun and Zhang, Ting and Widyasari, Ratnadira and Tun, Yan Naing and Nguyen, Huu Hung and Bui, Tan and Irsan, Ivana Clairine and Cheng, Yiran and Lan, Xiang and Ang, Han Wei and Liauw, Frank and Weyssow, Martin and Kang, Hong Jin and Ouh, Eng Lieh and Shar, Lwin Khin and Lo, David},
+  title     = {{CleanVul}: Automatic Function-Level Vulnerability Detection in Code Commits Using {LLM} Heuristics},
+  journal   = {arXiv preprint arXiv:2411.17274},
+  year      = {2024}
+}
+
+@inproceedings{diversevul2023,
+  author    = {Chen, Yizheng and Ding, Zhoujie and Alowain, Lamya and Chen, Xinyun and Wagner, David},
+  title     = {{DiverseVul}: A New Vulnerable Source Code Dataset for Deep Learning Based Vulnerability Detection},
+  booktitle = {Proceedings of the 26th International Symposium on Research in Attacks, Intrusions and Defenses},
+  pages     = {654--668},
+  year      = {2023},
+  doi       = {10.1145/3607199.3607242}
+}
+
+@article{activeclean2023,
+  author    = {Joshy, Ashwin Kallingal and Alam, Mirza Sanjida and Sharmin, Shaila and Li, Qi and Le, Wei},
+  title     = {{ActiveClean}: Generating Line-Level Vulnerability Data via Active Learning},
+  journal   = {arXiv preprint arXiv:2312.01588},
+  year      = {2023}
+}
+
+@inproceedings{cvefixes2021,
+  author    = {Bhandari, Guru Prasad and Naseer, Amara and Moonen, Leon},
+  title     = {{CVEfixes}: Automated Collection of Vulnerabilities and Their Fixes from Open-Source Software},
+  booktitle = {Proceedings of the 17th International Conference on Predictive Models and Data Analytics in Software Engineering},
+  pages     = {30--39},
+  year      = {2021},
+  doi       = {10.1145/3475960.3475985}
+}
+
+@inproceedings{megavul2024,
+  author    = {Ni, Chao and Shen, Liyu and Yang, Xiaohu and Zhu, Yan and Wang, Shaohua},
+  title     = {{MegaVul}: A {C/C++} Vulnerability Dataset with Comprehensive Code Representations},
+  booktitle = {Proceedings of the 21st International Conference on Mining Software Repositories},
+  pages     = {738--742},
+  year      = {2024},
+  doi       = {10.1145/3643991.3644886}
+}
+
+@article{sclcvd2024,
+  author    = {Wang, Rongcun and Xu, Senlei and Tian, Yuan and Ji, Xingyu and Sun, Xiaobing and Jiang, Shujuang},
+  title     = {{SCL-CVD}: Supervised Contrastive Learning for Code Vulnerability Detection via {GraphCodeBERT}},
+  journal   = {Computers \& Security},
+  volume    = {145},
+  pages     = {103994},
+  year      = {2024},
+  doi       = {10.1016/j.cose.2024.103994}
+}
+
+@inproceedings{vulberta2022,
+  author    = {Hanif, Hazim and Maffeis, Sergio},
+  title     = {{VulBERTa}: Simplified Source Code Pre-Training for Vulnerability Detection},
+  booktitle = {2022 International Joint Conference on Neural Networks (IJCNN)},
+  pages     = {1--8},
+  year      = {2022},
+  doi       = {10.1109/IJCNN55064.2022.9892280}
+}
+
+@inproceedings{unixcoder2022,
+  author    = {Guo, Daya and Lu, Shuai and Duan, Nan and Wang, Yanlin and Zhou, Ming and Yin, Jian},
+  title     = {{UniXcoder}: Unified Cross-Modal Pre-training for Code Representation},
+  booktitle = {Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics},
+  pages     = {7212--7225},
+  year      = {2022},
+  doi       = {10.18653/v1/2022.acl-long.499}
+}

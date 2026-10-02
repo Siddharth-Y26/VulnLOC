@@ -158,6 +158,8 @@ most likely to be underestimated.** CFG/DFG construction is real compiler work.
 - [ ] `fusion=cross_attention` vs `fusion=concat` runnable by flag alone
 - [ ] First head-to-head comparison logged (≥ 3 seeds each)
 - [ ] If cross-attention does **not** beat concat, this is recorded honestly in `Memory.md` and investigated before Phase 6 — not papered over
+  - *2026-09-15:* it did not (frozen encoder, `Memory.md` §1.21) — **recorded; not yet
+    investigated.** ADR-009 D9.7's fine-tuned confirmation is the pending investigation.
 
 ---
 

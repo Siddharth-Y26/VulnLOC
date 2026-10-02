@@ -504,7 +504,15 @@ on this corpus can approach 1.0, and a score that did would be a bug report. It 
 result.
 
 **"Why haven't you run the fusion experiment — that's the whole project?"**
-*Updated 2026-09-15.* It is running now. The Phase 3 and 4 gates were signed on
+*Updated 2026-09-15, after the screen finished.* **It ran, and cross-attention did not beat
+concatenation** with a frozen semantic encoder: Top-5 0.5408 ± 0.0181 against 0.5394 ± 0.0198
+over three seeds — a 0.07 sd gap whose sign flips between seeds. What did hold on every seed:
+every fusion method beats the frozen semantic branch alone by 3–5 points, so the structure
+carries information CodeBERT's fixed features lack. None beats our fine-tuned semantic model
+(0.6141), and a fine-tuned re-run of the two core arms is the pending check. The phase rule
+is that a negative A1 is recorded and investigated, not hidden — that is what is happening.
+
+How it was run: The Phase 3 and 4 gates were signed on
 2026-09-15, and the same day we accepted ADR-009: the semantic encoder is frozen and its line
 features are computed once and cached, which takes the core two-arm comparison from 20–30
 GPU-hours to roughly 90 minutes on the 4 GiB laptop. We checked on the GPU that the cached

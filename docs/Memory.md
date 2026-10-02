@@ -26,7 +26,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Active phase** | **Phase 5 — Fusion. A1 is being run** on a frozen semantic encoder with cached line features (ADR-009), AST graphs with identifier subtokens. Overfit sanity for every arm first (`run_queue.py --only p5check`), then the screen (`--only phase5`). **No fused result exists yet** |
+| **Active phase** | **Phase 5 — Fusion. A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **Waiting on the owner: ADR-009 D9.7's fine-tuned confirmation** |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15.** ADR-008 and ADR-009 accepted the same day |
 | **Last updated** | 2026-09-15 (session 13) |
 | **Open decision** | **None blocking A1.** Q10 closed 2026-09-15 (ADR-009). ADR-006 and ADR-007 are still `Proposed`. Q4/Q5 deferred to Phases 6–7 — the inspector's fix templates are explicitly not an answer to Q4 (§1.20) |
@@ -45,7 +45,7 @@
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
 | 3 LLM Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. **All three seeds are in (§1.14): Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204.** The ≥3-seed criterion is MET; **gate signed by the owner 2026-09-15** |
 | 4 GNN Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | All four met by logged runs — `python scripts/report_phase4.py`, §1.13. Overfit test (`8b0a3c1d…`, Top-1 = Top-5 = 1.000); all three variants on real data; depth sweep 2/4/6; ≥3 seeds (gcn depth 4, Top-5 **0.3645 ± 0.0231**). **Gate signed by the owner 2026-09-15.** A4 (§1.15): subtokens lift Top-5 to **0.4302 ± 0.0372**, and A1 uses them |
-| 5 Fusion | 🟨 **Running** | **3 / 5 by code; 0 by measurement** | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **NOT met: the head-to-head over ≥3 seeds** — queued, not yet run. **No fused result has been logged**; only overfit sanity runs exist |
+| 5 Fusion | 🟨 **Frozen screen done — D9.7 pending** | **4 / 5** (head-to-head at ≥3 seeds measured, §1.21) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
 | 7 Explanation | ⬜ Not started | 0 / 4 | |
 | 8 Evaluation | ⬜ Not started | 0 / 4 | |
@@ -1120,6 +1120,30 @@ With `gnn.use_subtokens` **off**: `cross_attention` `117df3a4…` (Top-1 1.000, 
 ~7.7 min each. `d4ac0260…` (gated) was stopped at epoch 1 and **tagged void**. All six arms
 were then re-queued with subtokens **on**, because that is the configuration A1 compares.
 
+**The A1-config overfit gate (`p5check`, all with subtokens on, frozen, cache `77f7b07e…`):**
+
+| arm | run | best / last Top-1 | loss first → last |
+|---|---|---|---|
+| cross_attention | `2233c9a6…` | 1.000 / 1.000 | 2.79 → 0.011 |
+| concat | `01be9392…` | 1.000 / 1.000 | 2.92 → 0.008 |
+| sum | `7906edbf…` | 1.000 / 1.000 | 2.55 → 0.055 |
+| gated | `83876edc…` | 1.000 / 1.000 | 1.56 → 0.009 |
+| **llm_only** | `25d03e12…` | **0.968 / 0.903** | 2.09 → 0.85 |
+| gnn_only | `cf63c8ef…` | 1.000 / 1.000 | 2.09 → 0.16 |
+
+**`llm_only` did not finish memorising, and that is a finding about freezing, not a bug.**
+Its Top-1 was still climbing at epoch 150 (0.36 → 0.48 → 0.65 → 0.77 → 0.84 → 0.90; Top-5
+already 1.0), where `concat` hit 1.0 by epoch 100. Its semantic path is the same cached
+path every other arm passed on, and it matched the live encoder on the GPU. With the encoder
+frozen, `llm_only` can only fit through the fusion projection and the head over fixed
+CodeBERT line features; every other arm also carries a from-scratch GNN. **Expect A1's frozen
+`llm_only` to land below Phase 3's fine-tuned 0.6141** — that gap is ADR-009 D9.1's cost made
+visible, and it must be reported as such, never as the fused scaffold hurting the semantic
+branch.
+
+A1 was launched from commit `d1003f6` (clean tree), so its runs carry a real `git_sha`; the
+overfit runs above are `6140e3a-dirty`, which is acceptable for sanity checks only (§7 #4).
+
 ### The inspector now scores lines — an owner decision with its caveats attached
 
 `frontend/` gained a **Findings** tab (the pipeline inspector moved to **Detailed report**).
@@ -1138,6 +1162,79 @@ unchecked allocation) that match line text. What travels with every score on scr
   line is shown, so the quoted Top-5 stays a lower bound.
 - **Templates are not Phase 7 and not an answer to Q4.** They say what a known pattern looks
   like, never why the model ranked a line; a highly ranked line with no template says so.
+
+**Later in session 13 (owner decisions):** the Detailed report now **ranks the paste with the
+structural model too** — `77370d56…` (GCN depth 4 + subtokens, seed 42), shown only in the
+Detailed report beside the semantic model's rank for the same line; Findings is unchanged.
+Input is built as training built it, vocabularies pinned to the run's logged digests
+(`a0643c4e…` / `e1d018bd…`); **verified by scoring 40 `val` units through both the paste path
+and `GraphLineDataset` — 40/40 identical** (pinned as a slow test). The page was cut down to
+one sentence + numbers + picture per stage; every held-out number is read from the seed
+reports (`/api/results`), none typed into `phases.json`. Two inspector bugs found on the way:
+a server older than the page returned 405 and the UI showed a titled red box with no message
+(now shows status + `detail`); and concurrent first imports of `transformers` raised
+`ImportError: AutoTokenizer` once (now serialised by `frontend/scoring.py::IMPORT_LOCK`).
+**Still no fused score is computed on a paste.**
+
+## 1.21 A1 — with a frozen semantic encoder, cross-attention does not beat concatenation
+
+The full screen: six arms × seeds 42/1/2, all from commit `d1003f6` on a clean tree, frozen
+CodeBERT read from cache `77f7b07e…`, GCN depth 4 over AST with identifier subtokens,
+`train=fused`. Aggregated by `report_seeds.py train=fused '+seeds.where={fusion_kind: <arm>}'
++seeds.tag=<arm> +seeds.output_dir=./artifacts/phase5`; every run cross-checks `agrees`.
+**Held-out `val`, validation-selected (§1.18), n = 3 per arm.**
+
+| Arm | Top-5 (headline) | Top-1 | IFA ↓ | Coverage | Runs (42 / 1 / 2) |
+|---|---|---|---|---|---|
+| cross_attention | **0.5408 ± 0.0181** | 0.2310 ± 0.0084 | **12.19 ± 0.44** | 99.96% | `192e067c` `e7ae3108` `ce2380bf` |
+| concat | **0.5394 ± 0.0198** | 0.2524 ± 0.0188 | 15.12 ± 1.28 | 99.96% | `86343b54` `1428a86f` `5b09a7a4` |
+| sum | 0.5304 ± 0.0012 | **0.2711 ± 0.0048** | 15.43 ± 1.32 | 99.96% | `74021cc5` `b6d4bb5f` `9d88f284` |
+| gated | 0.5221 ± 0.0052 | 0.2593 ± 0.0184 | 14.89 ± 1.55 | 99.96% | `e6331b32` `df0de21a` `d2718402` |
+| llm_only | 0.4903 ± 0.0032 | 0.2331 ± 0.0043 | 14.24 ± 0.07 | 99.96% | `e0ca38de` `df964b78` `2d4de3bf` |
+| gnn_only | 0.4191 ± 0.0468 | 0.1521 ± 0.0662 | 19.75 ± 0.81 | 90.81% | `cca2b33b` `e75f7e34` `394ceb9b` |
+
+### What this supports
+
+1. **A1's question, answered: no resolvable difference.** cross_attention − concat on Top-5 =
+   **+0.0014 (0.07 pooled sd)**; paired by seed +0.035 / +0.008 / −0.039 — the sign flips.
+   The only admissible phrasing is *"with a fixed semantic representation, bidirectional
+   cross-attention did not outperform concatenation on Top-5 (0.5408 ± 0.0181 vs
+   0.5394 ± 0.0198, 3 seeds)"* (ADR-009 D9.1). cross_attention − sum (+0.0104, 0.81 sd) and
+   − gated (+0.0187, 1.40 sd) are **not resolvable either** — §7 #37 is what writing them
+   down as an ordering would cost.
+2. **Fusion adds something over frozen semantics alone — every mechanism, every seed.**
+   Top-5 over `llm_only`: cross_attention +0.0505 (paired +0.062 / +0.056 / +0.033), concat
+   +0.0491, sum +0.0401, gated +0.0318, all three seeds positive for each. **This is not the
+   union-coverage scaffold** (§7 #42): `llm_only`'s coverage is the same 99.96% as the fused
+   arms on these units, so the gain comes from structural *features*, not from reaching
+   more lines.
+3. **Cross-attention's one distinctive signal is IFA**: 12.19, the best of every arm and
+   **2.06 lower than `llm_only` on all three seeds** (−1.54 / −2.31 / −2.32), while concat's
+   IFA is worse than `llm_only`'s. Against that, its Top-1 (0.2310) is the lowest of the
+   fused arms, concat's is higher on all three seeds, and sum's is highest. **These two
+   secondary signals point opposite ways; neither is a headline and neither is a win.**
+
+### What it does not support
+
+- **Nothing here beats the project's best model.** Freezing costs the semantic branch
+  **0.124 Top-5**: frozen `llm_only` 0.4903 against Phase 3's fine-tuned 0.6141 (§1.14).
+  Every fused arm (≤ 0.5408) sits below fine-tuned LLM-only. The Findings tab therefore keeps
+  scoring with `fc902107…`.
+- **Nothing about fine-tuned fusion.** A fine-tuned encoder can reshape its own line features
+  (ADR-009 D9.1), so the mechanism ordering may change. D9.7's confirmation is triggered by
+  exactly this margin and is an owner decision (§6).
+- **Not line F1.** At the 0.5 threshold the fused arms' recall is 0.03–0.09; F1 there
+  measures calibration under focal loss, not localisation.
+
+### Run-level observations
+
+- `llm_only` peaks early (best epochs 1 / 3 / 1) — consistent with its `p5check` run
+  (§1.20): a small head over fixed features fits what it can within a couple of epochs.
+- `gnn_only` seed 2 (`394ceb9b`) never improved on epoch 0 (Top-5 0.3651, best step 0),
+  which drives that arm's ±0.0468. Its mean, 0.4191, sits within one sd of Phase 4's
+  structural baseline 0.4302 — the scaffold does not change the structural branch.
+- `sum` seed 42 (`74021cc5`) spans the laptop's sleep at 11:41; the process paused and
+  resumed, and only its wall clock is affected.
 
 ---
 
@@ -1234,9 +1331,21 @@ Learned:
   - CodeBERT under AMP returns fp32. Check a dtype before designing storage around it.
   - The Phase 3 model scores even normal lines 0.7–0.97 — it has never seen a safe function.
     A developer-facing view has to lead with rank, not with the number.
+  - `p5check` gate: five arms Top-1 1.000; `llm_only` 0.968 and still climbing — the frozen
+    encoder's cost, recorded in §1.20. Committed as `d1003f6` (owner-approved) and launched
+    `run_queue.py --only phase5` from the clean tree.
+  - `report_seeds.py` gained `+seeds.tag`, because all six arms share `train.name=fused` and
+    would otherwise overwrite one another's report.
+  - **A1's frozen screen ran to completion (18 / 18, 09:49–14:16) and is written up in
+    §1.21**: cross_attention ≈ concat on Top-5; every fusion arm beats frozen `llm_only`;
+    nothing beats fine-tuned LLM-only.
+  - Laptop slept at 11:41 mid-run (`sum` seed 42); resumed cleanly, results unaffected.
+  - False alarm, recorded so it is not repeated: epoch 0 of the first A1 run read 281 s and
+    looked 2.5× over budget. My own CPU profiling script was competing with it; the real
+    epoch is ~111 s. **Do not profile on the machine a timed run is using.**
 Next:
-  - Read the `p5check` Top-1 per arm, then `run_queue.py --only phase5`.
-  - Tests 873 passed / 2 skipped; lint clean.
+  - **Owner decision: D9.7's fine-tuned confirmation** (§6 item 2) — ~18–24 h.
+  - Tests 874 passed / 2 skipped; lint clean.
 
 ### 2026-09-14 (session 12) — Phase 5 built end to end, and deliberately not run
 
@@ -1522,6 +1631,9 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `192e067c…` `e7ae3108…` `ce2380bf…` / `86343b54…` `1428a86f…` `5b09a7a4…` | 2026-09-15 | `train_fused.py train=fused llm.frozen=true +gnn=gcn gnn.use_subtokens=true` — **A1 core**, commit `d1003f6` | 42, 1, 2 | cross_attention / concat | fused | 1.000 *(degenerate)* | **0.5408 ± 0.0181 / 0.5394 ± 0.0198** | 12.19 / 15.12 | **A1: NO RESOLVABLE DIFFERENCE on Top-5 (+0.0014, 0.07 sd; paired signs flip).** Frozen semantic encoder — the claim is the qualified one (ADR-009 D9.1). IFA favours cross_attention on all three seeds; Top-1 favours concat on all three. Validation-selected. §1.21 |
+| `74021cc5…` `b6d4bb5f…` `9d88f284…` / `e6331b32…` `df0de21a…` `d2718402…` / `e0ca38de…` `df964b78…` `2d4de3bf…` / `cca2b33b…` `e75f7e34…` `394ceb9b…` | 2026-09-15 | as above — **A1 ablations** | 42, 1, 2 | sum / gated / llm_only / gnn_only | fused | 1.000 *(degenerate)* | 0.5304 / 0.5221 / **0.4903** / 0.4191 | 15.43 / 14.89 / 14.24 / 19.75 | **Every fusion arm beats frozen `llm_only` on every seed** (+0.032 to +0.051); not the coverage union — `llm_only` covers the same 99.96%. **Freezing costs 0.124 Top-5** against Phase 3's fine-tuned 0.6141, so no fused arm beats the project's best model. `gnn_only` seed 2 never improved on epoch 0. §1.21 |
+| `2233c9a6…` `01be9392…` `7906edbf…` `83876edc…` `25d03e12…` `cf63c8ef…` | 2026-09-15 | `run_queue.py --only p5check` — overfit, **A1 config** | 42 | all six | fused | — | Top-1 1.000 ×5; llm_only 0.968 | — | **The A1 overfit gate. Never cite as a result.** `llm_only` still climbing at epoch 150 — the frozen encoder's cost (§1.20). |
 | `117df3a4…` / `aebd4407…` / `3b32a40d…` | 2026-09-15 | `train_fused.py train=overfit_fused llm.frozen=true` (cached semantic path, **subtokens off**) | 42 | cross_attention / concat / sum | fused | — | **1.000** | — | **Overfit sanity on the ADR-009 cached path: PASSED** for all three (Top-1 1.000). Cache digest `77f7b07e…`. Not the A1 config — re-queued with subtokens on. **Never cite as a result.** `d4ac0260…` (gated) stopped at epoch 1, **tagged void**. |
 | `c99764bc…` | 2026-09-15 | `build_semantic_cache.py train=fused llm.frozen=true` | — | — | — | — | — | — | **ADR-009's cache.** `train` 5,457 units / 932 MB / 132 s, `val` 488 / 133 MB / 19 s, fp32. Determinism: token diff 0.0, line diff 1.9e-6. Data artefact, not a result. §1.20 |
 | **config change** | 2026-09-15 | `gnn.use_subtokens=true`, `gnn.builder=ast` for **every A1 arm** (per run, `run_queue.py`) | — | all | fused | — | — | — | **Ledger row for the owner's D8.7 decision.** The defaults in `configs/gnn/default.yaml` are unchanged, so no earlier run's config moves. |
@@ -1575,6 +1687,8 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q8 | **Which grammar parses a Big-Vul function?** Measured corpus-wide (§1.7): the dataset's own `lang` column yields **37.01%** clean parses, C **35.74%**, C++ **88.24%**, best-of-two per unit **89.14%** | Trust `lang` · always C · always C++ · **best of two per unit** | **Best of two per unit**, C++ first and C++ wins ties. The 1,712 units it gains over always-C++ are C that the C++ grammar *misreads* (`class`, `new`, `this` are identifiers in C), so the trade is a clean tree against a confidently wrong one. Cost: the grammar becomes data-dependent, and the node-type vocabulary is now a union over two grammars — a Phase 4 input | Phase 2 corpus build | ✅ **Closed 2026-08-16 — ADR-005 accepted by the project owner.** Reversible via `graph.language={cpp,c,declared}`; `declared` reproduces every pre-ADR-005 number |
 | Q9 | **Should the ADR-006 whitespace normalization also be applied at L0**, so `source` never carries the defect into the hashes, the split or the shards? | L1 only · **L0 as well** | **L0.** Chosen by the project owner 2026-09-08. It was accepted expecting a new split fingerprint and **turned out to cost nothing**: every field the split reads is invariant under the transform — `func_hash` already strips all whitespace (landmine #3), and the line count is preserved — so the assignment is bit-identical and `0ade7483…` stands. Only the shards' source text changes. L1 stays as idempotent defence in depth | Phase 3 retraining | ✅ **Closed 2026-09-08 — ADR-006 D6.6** |
 | Q10 | **Should A1 run with the semantic encoder frozen?** A1 as specified costs **60-80 GPU-h** (core two arms: 20-30 h). §1.9 measured `frozen` at **37.8 win/s vs 22.9** and **1,234 MiB vs 2,456** - and, far more important, a frozen encoder is a *pure function of its input*, so its output can be computed once and read from disk, putting a fused run at Phase 4's 2-5 minutes | Fine-tuned as specified · **frozen + cached, staged** · fewer seeds · fewer arms | **Frozen + cached, staged (ADR-009).** All six arms × 3 seeds becomes **~5 h**. It stays controlled by exactly ADR-008 §D8.4's argument - it changes how good *all* arms are, not which wins - and it is the **harder** test of the novelty, since a fine-tuned encoder can reshape its own line features until a trivial combiner suffices. Cost: A1 answers a narrower question and must be phrased that way, and D9.7's fine-tuned confirmation is triggered by the margin, not skipped by default. **Fewer seeds and fewer arms are not options** - §7 #37 is what that costs | Phase 5 / A1 | ✅ **Closed 2026-09-15 — ADR-009 accepted by the project owner.** Built and verified the same day (§1.20) |
+| Q11 | **Run ADR-009 D9.7's fine-tuned confirmation?** The frozen screen found cross_attention ≈ concat on Top-5 (+0.0014, 0.07 sd, §1.21) — the no-margin case D9.7 exists for. Phases.md's fifth Phase 5 criterion requires a negative A1 to be *investigated before Phase 6* | **Run it**: cross_attention and concat fine-tuned (`train.semantic_cache.enabled=false llm.frozen=false`, otherwise A1's constants), seeds 42/1/2, ~18–24 h, overnight, laptop kept awake · **Skip it**: report the frozen result, qualified, and record the skip as the owner's explicit decision · **Partial**: one fine-tuned seed per arm first as a probe (not citable — §7 #37) | **Run it.** It is the only way to learn whether fusion beats fine-tuned LLM-only (0.6141), which every fused arm currently loses to, and it is what closes criterion 5. A probe-only run would tempt a one-seed conclusion this project has retracted twice | **Phase 5 exit / Phase 6 start** | 🟨 **DECIDED IN PRINCIPLE 2026-09-15: run it, across two nights, starting in a few days** (owner). Night 1: cross_attention + concat, seeds 42 and 1 (~10–16 h); night 2: seed 2 for both (~5–8 h). Estimate from Phase 3's measured 2.24–4.08 h fine-tuned runs + ~2 min/epoch fused overhead: ~18–24 h total, range 16–30 h (VRAM spill at 92% is the main risk). Overfit check with the live encoder first. Not yet queued |
+| Q12 | **Commit the A1 write-up?** Memory.md §1.21 + ledger, Phases.md criterion-5 note, CLAUDE.md §3, `frontend/phases.json`, `docs/review3_panel_brief.md` — uncommitted since `d1003f6` | Commit now · commit with the D9.7 runs | Commit before any D9.7 run starts: a dirty tree tags every run `-dirty` (§7 #4), so the write-up must be committed first either way | Clean `git_sha` on D9.7 runs | 🟥 **OPEN — deferred by the owner 2026-09-15** |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -1585,9 +1699,11 @@ Ordered. Top item is what the next session starts with.
 
 ### 0. Where things stand (2026-09-15, session 13)
 
-**Phases 3 and 4 are signed. ADR-008 and ADR-009 are accepted. A1 is queued on a frozen,
-cached semantic encoder (§1.20).** The inspector has a Findings tab that ranks lines with the
-Phase 3 model. No fused result exists yet — see item 2 for exactly where the queue is.
+**Phases 3 and 4 are signed. ADR-008 and ADR-009 are accepted. A1's frozen screen is done
+(§1.21): cross-attention does not beat concatenation on Top-5; every fusion arm beats frozen
+LLM-only; nothing beats fine-tuned LLM-only (0.6141).** Next is an owner decision — D9.7's
+fine-tuned confirmation (item 2). The inspector's Findings tab still ranks with the Phase 3
+model, which remains the best model.
 
 ```bash
 python scripts/run_queue.py --status     # every run, its wall clock and its run id
@@ -1605,6 +1721,9 @@ the depth sweep has no resolvable effect.
 
 ### 1. THINGS THAT STILL NEED A HUMAN — none of them blocks A1
 
+0. **Q11 — run ADR-009 D9.7's fine-tuned confirmation?** and **Q12 — commit the A1
+   write-up** (§5). Both deferred by the owner on 2026-09-15. **Phase 5 is not complete
+   until Q11 is resolved** (run, or explicitly skipped) **and the gate is signed.**
 1. ~~Sign the Phase 3 and Phase 4 gates~~ — **signed 2026-09-15.**
 2. **ADR-006 and ADR-007 are still `Proposed`** (ADR-008 and ADR-009 were accepted
    2026-09-15). ADR-006 is implemented, measured and load-bearing in the paper.
@@ -1622,9 +1741,21 @@ the depth sweep has no resolvable effect.
 
 ### 2. Phase 5 — the experiment this project exists to run
 
-**A1: cross-attention vs concatenation, with a fixed semantic representation.** Queued in
-`scripts/run_queue.py` as two groups, because an overfit run that fails still exits 0
-(§7 #52):
+**The frozen screen is DONE (2026-09-15, §1.21): cross_attention ≈ concat on Top-5
+(+0.0014, 0.07 sd); every fusion arm beats frozen `llm_only` on every seed; nothing beats
+Phase 3's fine-tuned 0.6141.**
+
+**NEEDS THE OWNER — ADR-009 D9.7, the fine-tuned confirmation.** The margin is nil, which is
+the case D9.7 exists for. Re-run cross_attention and concat **fine-tuned**
+(`train.semantic_cache.enabled=false llm.frozen=false`, same seeds and constants otherwise),
+3 seeds each. Cost from the ledger: Phase 3 semantic runs took 2.2–4.1 h, so ~6 runs ×
+~3–4 h ≈ **18–24 h** on this laptop, overnight-scale and sleep-sensitive (§7 #24, the
+11:41 sleep). It answers two things the frozen screen cannot: whether the mechanism ordering
+survives an adapting encoder, and **whether fusion beats fine-tuned LLM-only at all** — the
+comparison the paper most needs. Alternative: report the frozen result as-is, qualified.
+
+How the screen was run, for reproduction — two queue groups, because an overfit run that
+fails still exits 0 (§7 #52):
 
 ```bash
 python scripts/build_semantic_cache.py train=fused llm.frozen=true   # DONE, run c99764bc… (§1.20)
@@ -1641,8 +1772,8 @@ confirmation: `train.semantic_cache.enabled=false` with `llm.frozen=false`.
 
 **The claim A1 can support is the qualified one** — "with a fixed semantic representation,
 X beats Y by Z" (ADR-009 D9.1) — and D9.7's fine-tuned confirmation is triggered by the
-margin relative to the seed spread, not skipped because it is slow. After the screen, add a
-`report_seeds.py` step per arm (group on `fusion_kind`) — not yet written.
+margin relative to the seed spread, not skipped because it is slow. Per-arm reports:
+`artifacts/phase5/seed_report_fused_<arm>.json`.
 
 Two things that must travel with any A1 number, both of which are the *scaffold* and not
 the mechanism: the fused line mask is the union of both branches' coverage (§7 #42), and
