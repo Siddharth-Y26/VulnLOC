@@ -10,6 +10,11 @@ the code wins; fix this file in the same session and note the drift.
 
 ## 1. Read this first, in this order
 
+0. **Until 2026-10-09 — before anything else:** run
+   `python scripts/run_queue.py --only d97 --status`, then read **`docs/Memory.md` §6 item
+   0a** ("THE WEEK"). It holds the session-start rules, the day-by-day schedule and what
+   Phases 6–10 can and cannot deliver this week. **If a `d97-*` step is running or paused,
+   do not edit `src/vulnloc/` or `configs/`**, and commit any docs change at once.
 1. **`docs/Memory.md`** §1 (state), §1.4 (corpus statistics), §5 (open decisions),
    §6 (next actions), §7 (known issues). This is the project's working memory and the
    single most useful file.
@@ -54,6 +59,11 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 **2026-10-02 (session 14): ADR-009 D9.7 is running** — cross_attention, concat and
 `llm_only`, fine-tuned, seeds 42/1/2, as `run_queue.py --only d97`. No result yet. Owner
 deadline: the whole project in about a week. `Memory.md` §6 item 0a is the handoff.
+
+**Costs to plan with (measured):** a fine-tuned fused run is ~19–20 min per epoch, ≤ ~3.3 h;
+a frozen-cache run is ~15 min. **Fine-tune only the headline; sweeps and ablations run off
+the frozen cache.** Function-level anything (unit aggregation, external detector baselines,
+DiverseVul generalization) needs the 148,983-function split and is out of reach this week.
 
 | | |
 |---|---|
@@ -396,4 +406,9 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    same day. `Memory.md` §5.
 5b. **Review the Findings tab's fix templates.** Written in session 13, tested for what
    they match, not reviewed by a human for what they advise.
+5c. **Q13 — scope under the one-week deadline.** Phases 6–10 cannot all close as written by
+   ≈ 2026-10-09: the human evaluation and the independent reader need other people, Docker
+   is not installed, and every function-level criterion needs negatives the models never
+   trained on. `Memory.md` §6 item 0a lists each criterion; **the owner decides which are
+   deferred in writing.** Unanswered as of 2026-10-02 — raise it.
 6. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.

@@ -29,7 +29,7 @@
 | **Active phase** | **Phase 5 — Fusion. A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **Waiting on the owner: ADR-009 D9.7's fine-tuned confirmation** **2026-10-02: D9.7 is QUEUED AND RUNNING** — 3 arms (cross_attention, concat, llm_only) × seeds 42/1/2, fine-tuned, `run_queue.py --only d97`; no result yet |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15.** ADR-008 and ADR-009 accepted the same day |
 | **Last updated** | 2026-10-02 (session 14) |
-| **Open decision** | **None blocking A1.** Q10 closed 2026-09-15 (ADR-009). ADR-006 and ADR-007 are still `Proposed`. Q4/Q5 deferred to Phases 6–7 — the inspector's fix templates are explicitly not an answer to Q4 (§1.20) |
+| **Open decision** | **Q13 — scope under the one-week deadline** (§5, §6 item 0a): which Phase 6–10 criteria are deferred in writing. Raised 2026-10-02, unanswered. Also still open: ADR-006 and ADR-007 `Proposed` (ADR-007 now blocks ablation A3's CPG arm); Q4/Q5 deferred to Phases 6–7 |
 | **Last commit** | Session 14's resume/queue commit on `phase-2/representation` (see `git log`). **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
 | **Best model run ID** | Semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
 | **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` (project-wise, 80/10/10, seed 42) |
@@ -1753,6 +1753,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q10 | **Should A1 run with the semantic encoder frozen?** A1 as specified costs **60-80 GPU-h** (core two arms: 20-30 h). §1.9 measured `frozen` at **37.8 win/s vs 22.9** and **1,234 MiB vs 2,456** - and, far more important, a frozen encoder is a *pure function of its input*, so its output can be computed once and read from disk, putting a fused run at Phase 4's 2-5 minutes | Fine-tuned as specified · **frozen + cached, staged** · fewer seeds · fewer arms | **Frozen + cached, staged (ADR-009).** All six arms × 3 seeds becomes **~5 h**. It stays controlled by exactly ADR-008 §D8.4's argument - it changes how good *all* arms are, not which wins - and it is the **harder** test of the novelty, since a fine-tuned encoder can reshape its own line features until a trivial combiner suffices. Cost: A1 answers a narrower question and must be phrased that way, and D9.7's fine-tuned confirmation is triggered by the margin, not skipped by default. **Fewer seeds and fewer arms are not options** - §7 #37 is what that costs | Phase 5 / A1 | ✅ **Closed 2026-09-15 — ADR-009 accepted by the project owner.** Built and verified the same day (§1.20) |
 | Q11 | **Run ADR-009 D9.7's fine-tuned confirmation?** The frozen screen found cross_attention ≈ concat on Top-5 (+0.0014, 0.07 sd, §1.21) — the no-margin case D9.7 exists for. Phases.md's fifth Phase 5 criterion requires a negative A1 to be *investigated before Phase 6* | **Run it**: cross_attention and concat fine-tuned (`train.semantic_cache.enabled=false llm.frozen=false`, otherwise A1's constants), seeds 42/1/2, ~18–24 h, overnight, laptop kept awake · **Skip it**: report the frozen result, qualified, and record the skip as the owner's explicit decision · **Partial**: one fine-tuned seed per arm first as a probe (not citable — §7 #37) | **Run it.** It is the only way to learn whether fusion beats fine-tuned LLM-only (0.6141), which every fused arm currently loses to, and it is what closes criterion 5. A probe-only run would tempt a one-seed conclusion this project has retracted twice | **Phase 5 exit / Phase 6 start** | 🟩 **RUNNING since 2026-10-02 (session 14).** The owner delegated the schedule ("do whatever you feel is best"; laptop free except Saturday daytime), so: **all nine runs in one resumable queue group** rather than two fixed nights — `d97-{cross_attention,concat}` seed by seed, then **`llm_only` fine-tuned in the fused scaffold × 3**, added so that "fusion beats fine-tuned LLM-only" is measured against a controlled arm instead of Phase 3's 0.6141 from a different scaffold (ADR-008 §D8.6). Interruptions are continued, not restarted (§7 #53). Live-encoder overfit check first (`d97check`). **No result yet — do not quote one until all three seeds of an arm are FINISHED** |
 | Q12 | **Commit the A1 write-up?** Memory.md §1.21 + ledger, Phases.md criterion-5 note, CLAUDE.md §3, `frontend/phases.json`, `docs/review3_panel_brief.md` — uncommitted since `d1003f6` | Commit now · commit with the D9.7 runs | Commit before any D9.7 run starts: a dirty tree tags every run `-dirty` (§7 #4), so the write-up must be committed first either way | Clean `git_sha` on D9.7 runs | ✅ **Closed 2026-10-02** — committed as `18ca52b` (frontend) and `6e64486` (write-up, code map, report material, bibliography), before any D9.7 run |
+| Q13 | **Scope under the one-week deadline (≈ 2026-10-09): which Phase 6–10 exit criteria are met, and which are deferred in writing?** §6 item 0a lists them criterion by criterion. Three blockers cannot be worked around this week: people other than the owner (human evaluation run, independent reader), this machine (no Docker, one GPU), and negatives (anything function-level needs the 148,983-function split) | **Defer the ❌ rows explicitly** and ship the rest · extend the deadline · cut whole phases (9 or 7) to protect 8 | **Defer the ❌ rows explicitly.** Phases 5–6 closed, 7a, Phase 8 on the frozen grid with `test` + `clean_eval`, Phase 9 without verified Docker, a paper *draft* whose limitations name every deferral. If something must be cut, cut Phase 9's UI before any Phase 8 ablation — the claims are the project | **Marking Phases 6–10 done at all** | 🟥 **OPEN — raised 2026-10-02, owner has not answered** |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -1761,30 +1762,111 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 
 Ordered. Top item is what the next session starts with.
 
-### 0a. Where things stand (2026-10-02, session 14) — READ THIS BEFORE §0
+### 0a. THE WEEK — handoff for every session until 2026-10-09 — READ THIS BEFORE §0
 
-**D9.7 is running.** Owner deadline: the whole project in about a week (stated 2026-10-02),
-which makes GPU hours the scarce thing. The rule that follows: **fine-tune only the headline
-comparison (3–4 h a run); every sweep and ablation runs off the frozen cache (~15 min a run).**
+Written 2026-10-02 (session 14). **Owner deadline: the whole project in about a week
+(≈ Fri 2026-10-09).** One 4 GiB laptop GPU, one run at a time. Everything below follows
+from two measured costs:
+
+| Kind of run | Cost | Source |
+|---|---|---|
+| Fine-tuned fused run | **~19–20 min per epoch, ≤ ~3.3 h for 10 epochs** | session 14, D9.7 |
+| Frozen-cache fused run | **6–27 min, ~15 typical** | the A1 screen, `run_queue.py --status` |
+
+**So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
+cache.** A design that needs a tenth fine-tuned run needs an argument first.
+
+#### Start of every session — in this order
+
+1. `python scripts/run_queue.py --only d97 --status` — before reading anything else.
+2. **If a `d97-*` step is running or `[paus]`:** do not edit `src/vulnloc/` or `configs/` in
+   this working tree (§7 #54, and every remaining seed would differ from the logged ones).
+   Docs-only commits are safe — `report_seeds.py` allows a differing sha when `src/vulnloc`
+   did not change — **but commit them at once**: a dirty tree tags the next run `-dirty`.
+3. **If nothing is running, steps are pending and the laptop is free:** restart it —
+   `python scripts/run_queue.py --only d97` (add `--until HH:MM` if the laptop is needed).
+   It resumes a paused run itself. Never relaunch a `d97-*` step by hand.
+4. **Do not run CPU-heavy work beside a fine-tuned run** — the full test suite stretched an
+   overfit check from 21 to 28 minutes on 2026-10-02. Lint and small test files are fine.
+5. **Never quote a D9.7 number until all three seeds of that arm are FINISHED** (§7 #37),
+   and list each resumed run's `resumed_at` tag beside it (§7 #53).
+6. All nine runs must come from this laptop (§7 #49).
 
 ```bash
-python scripts/run_queue.py --only d97 --status      # where the nine runs are, with Top-5/Top-1
+python scripts/run_queue.py --only d97 --status      # the nine runs, with Top-5 / Top-1
 python scripts/run_queue.py --only d97 --until 08:00 # continue; pause cleanly at 08:00
 python scripts/run_queue.py --stop                   # pause now, from another terminal
 ```
 
-- The same command resumes a paused, killed or crashed run from its `last.pt` (§7 #53). Do
-  **not** relaunch a `d97-*` step by hand.
-- **Do not edit any config file while a step shows `[paus]`** (§7 #54).
-- **All nine runs must come from this laptop** (§7 #49).
-- Order: cross_attention/concat seed 42, 1, 2 — then llm_only × 3 — then three seed reports
-  (`artifacts/phase5/seed_report_fused_finetuned_<arm>.json`).
-- When all three seeds of an arm are FINISHED, write §1.22 from the seed reports, with each
-  resumed run's `resumed_at` tag listed. Not before (§7 #37).
-- Then, in this order, off the **frozen cache**: Phase 6's sweep and calibration, Phase 8's
-  ablation grid. Which Phase 6–10 exit criteria are met and which are explicitly deferred
-  within the week is an **owner decision not yet taken** — several need things no session can
-  do (Docker on a clean machine, a human evaluation protocol, an independent reader).
+D9.7's order: cross_attention / concat at seeds 42, 1, 2 — then llm_only × 3 — then three
+seed reports (`artifacts/phase5/seed_report_fused_finetuned_<arm>.json`).
+
+#### The schedule — a plan, not a promise; there is no slack in it
+
+| When | GPU (nights) | Daytime (no GPU) |
+|---|---|---|
+| Fri 2 → Sat 3, 08:00 | D9.7 runs 1–2; run 3 paused about half way | — |
+| Sat 3 evening → Sun 4 evening | Rest of D9.7 (~19 GPU-h, estimate), seed reports | — (source frozen) |
+| Sun 4 evening / Mon 5 | — | Write §1.22 from the seed reports. Close Phase 5 criterion 5; owner signs the gate. Fix the residual spill guard (session 14 log). Build: held-out evaluation of a checkpoint on `test` and `clean_eval`; the missing line metrics (Top-3/10, MFR/MAR, Recall@k%LOC, PR-AUC); calibration + reliability curve; threshold chosen on `val` |
+| Mon 5 night | Frozen slate 1 — Phase 6's sweep, **the same search budget for cross_attention and concat** (`ResearchPlan.md` §5, A1's rule) | — |
+| Tue 6 | Frozen slate 2 — A3 (graph type), A4 (GNN kind in fusion), A6 (attention direction), A8 (line-only vs joint), A9 (BCE / weighted / focal), 3 seeds each | Close Phase 6: calibration, threshold, best config frozen, Q5 deferred in writing. Phase 7a: evidence extraction, templates, grounding verifier |
+| Wed 7 | Final config fine-tuned × 3 seeds **only if it differs from D9.7's** (~9–10 h); then `test` + `clean_eval` evaluation | Faithfulness (deletion test). Human-evaluation protocol *written* |
+| Thu 8 | Buffer for reruns | Phase 8: tables and figures by script, significance over seeds, failure taxonomy (≥ 20 cases). Phase 9: FastAPI, schemas, latency |
+| Fri 9 | — | Paper draft: results, limitations, threats. Model card, README quickstart, final Memory.md |
+
+A6 and A8 need small code changes; A3 needs ADR-007 accepted (CPG has several relations).
+**None of that code can land before D9.7 finishes** unless it is written in a separate git
+worktree — not set up as of session 14, and note that `.venv` holds an *editable* install
+pointing at this tree's `src/`, so a worktree needs `PYTHONPATH` set to its own `src/` and
+its own link to `artifacts/`.
+
+#### Phases 6–10 against the week — what is possible, criterion by criterion
+
+Three things cannot be bought with effort this week. They are the whole reason the phases
+cannot all close as written:
+
+1. **People and elapsed time.** Some criteria are done by humans who are not the owner and
+   not a session.
+2. **This machine.** Docker is not installed (Phase 0's own criterion is open for the same
+   reason), and there is exactly one GPU.
+3. **Negatives.** Every model here trains on the 5,457 line-labelled *vulnerable* functions.
+   Anything function-level — "is this function vulnerable?" — needs the 148,983-function
+   train split, ~27× the units per epoch. Fine-tuned, that is days per run (**an estimate
+   from unit counts, not a measurement**), and it is why `function/f1` = 1.000 is degenerate
+   and why the model cannot say a function is safe.
+
+| Phase | Exit criterion / deliverable | This week? | Why |
+|---|---|---|---|
+| 5 | Negative A1 investigated before Phase 6 | ✅ | D9.7, done ~Sun 4 |
+| 6 | Line scores calibrated, reliability curve | ✅ | Post-hoc on `val`; no training |
+| 6 | Threshold chosen on validation only | ✅ | Same |
+| 6 | Best full-model config frozen and checkpointed | ✅ | From D9.7 + the frozen sweep |
+| 6 | CWE labelling decided or deferred (Q5) | ✅ as "deferred" | Owner's word needed |
+| 6 | Unit-level aggregation, joint loss that means something | ❌ | Blocker 3 — no negatives |
+| 6 | Hyperparameter sweep | 🟨 frozen only | A fine-tuned sweep is ~3 h a point |
+| 7 | 7a: a valid explanation for every positive prediction | ✅ | Deterministic; ~1–2 days of code |
+| 7 | Grounding test suite passes | ✅ | Automatic |
+| 7 | Explanations reviewed for attack instructions | 🟨 | A human must read them — owner |
+| 7 | Human-evaluation protocol **defined** | ✅ | A document |
+| 7 | 7b generative explainer; human evaluation **run** (E9: ≥ 3 raters, ≥ 100 samples) | ❌ | Blocker 1; and a local generator on 4 GiB beside CodeBERT |
+| 8 | Every table cell traceable to a run id | ✅ | Already how the repo works |
+| 8 | Ablations confirm or refute each novelty claim | 🟨 | A1–A4, A6, A8 (line vs joint), A9 fit on the frozen cache. **Not** A5 fine-tuned GraphCodeBERT (another ~10 h), A7 attention pooling (cannot use cached line features), A8 unit-only (blocker 3), A10 (needs 7b + raters) |
+| 8 | External baselines reproduced under our splits | ❌ mostly | LineVul / Devign-style detectors are function-level — blocker 3. A static analyser (Cppcheck/Flawfinder) is feasible if a day is spared. The rest stays `(reported)` via `docs/prior_work.yaml` |
+| 8 | Cross-dataset generalization (DiverseVul) | ❌ | Function-level only — blocker 3. `clean_eval` (PrimeVul-confirmed) **is** feasible and is the headline |
+| 8 | Failure taxonomy, ≥ 20 inspected cases | ✅ | A session drafts, the owner reviews |
+| 8 | Results reproducible from a clean clone | 🟨 | Tests + one frozen run from a fresh clone: yes. The 11 GB data pipeline end to end: hours, only if spared |
+| 9 | FastAPI, schemas, error responses, latency, model card | ✅ | ~1 day |
+| 9 | End-to-end request in Docker on a clean machine | ❌ here | Blocker 2. Installing Docker Desktop needs admin, WSL2 and usually a reboot — **not during a training run** — and "a clean machine" is a second machine |
+| 10 | Paper draft, limitations, reproducibility appendix, README | ✅ as a draft | Results land Wed–Thu, so the results sections are written in the last two days |
+| 10 | An independent reader reproduces a headline number | ❌ | Blocker 1 — another person, the 11 GB corpus, a GPU |
+| 10 | All licenses and citations verified | 🟨 | 37 BibTeX keys; needs the owner's check |
+
+**What the week can honestly deliver:** Phases 5 and 6 closed (6 with unit-level and Q5
+explicitly deferred), 7a built, Phase 8 with the frozen ablation grid and `test` /
+`clean_eval` numbers, Phase 9 without verified Docker, and a paper *draft* whose
+limitations section names every ❌ above. **Which ❌ and 🟨 rows are deferred is Q13 (§5) —
+the owner's decision, not yet taken.** Do not mark a phase done by quietly dropping a
+criterion; record the deferral under the phase in `Phases.md`.
 
 ### 0. Where things stood (2026-09-15, session 13)
 

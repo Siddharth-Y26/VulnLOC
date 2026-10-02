@@ -24,6 +24,14 @@ Durations are `[RECOMMENDATION]`s for a three-person student team, not commitmen
 
 ---
 
+> **2026-10-02 — one-week deadline (owner, ≈ 2026-10-09).** Phases 6–10 cannot all meet the
+> criteria below in that time. `Memory.md` §6 item 0a marks each one ✅ / 🟨 / ❌ with the
+> reason; which are deferred is open decision **Q13**. A criterion is deferred by writing
+> the deferral under its phase here, dated and attributed — never by leaving the box
+> unticked and moving on.
+
+---
+
 ## Phase 0 — Foundation & Scaffolding
 **Goal:** an empty but professional repo where every later phase drops in cleanly.
 
