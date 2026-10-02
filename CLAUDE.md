@@ -51,6 +51,10 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-02 (session 14): ADR-009 D9.7 is running** — cross_attention, concat and
+`llm_only`, fine-tuned, seeds 42/1/2, as `run_queue.py --only d97`. No result yet. Owner
+deadline: the whole project in about a week. `Memory.md` §6 item 0a is the handoff.
+
 | | |
 |---|---|
 | Branch | `phase-2/representation` — **the name is two phases stale**, ~25 commits ahead of `main`. Branching model still undecided (§10 #1). |
@@ -61,7 +65,7 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 | Phase 4 | ✅ **DONE — gate signed by the owner 2026-09-15.** Overfit test PASSED (`8b0a3c1d…`). **Best structural config: gcn depth 4 + subtokens, Top-5 0.4302 ± 0.0372 over 3 seeds** (ADR-002 §D2.5's second half, +0.066 over node-type-only — §1.15). Far below the semantic arm's 0.6141. **The depth sweep 2/4/6 shows NO resolvable effect at 3 seeds each** (every pairwise gap <0.6 sd, §1.16) — an earlier one-seed over-smoothing reading was retracted. |
 | Phase 5 | 🟨 **A1 frozen screen DONE; 4 / 5 criteria, the fifth half met.** ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6") is open: **ADR-009 D9.7's fine-tuned confirmation (~18–24 h) needs the owner.** |
 | Phases 6–10 | ⬜ Not started. |
-| Tests | **879 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **917 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -187,11 +191,21 @@ python scripts/build_semantic_cache.py train=fused llm.frozen=true   # ADR-009 c
 python scripts/run_queue.py --only p5check                  # overfit sanity, every A1 arm — READ Top-1 before the next
 python scripts/run_queue.py --only phase5                   # A1: 6 arms × 3 seeds, core pair first
 
+python scripts/run_queue.py --only d97check                 # ADR-009 D9.7: overfit with the encoder TRAINING — READ Top-1 first
+python scripts/run_queue.py --only d97 --until 08:00        # D9.7: 3 arms × 3 seeds fine-tuned; pauses at 08:00
+python scripts/run_queue.py --only d97                      # ...and the same command later resumes the paused run
+python scripts/run_queue.py --stop                          # from another terminal: pause the running step now
+
 # One A1 arm by hand — these constants are A1's, change one and the seeds stop comparing:
 python scripts/train_fused.py +fusion=cross_attention train=fused seed=42 +gnn=gcn gnn.use_subtokens=true llm.frozen=true
 
 python frontend/server.py                                   # Findings + Detailed report on http://127.0.0.1:8000
 ```
+
+**A fine-tuned run is 3–4 h and is expected to be interrupted.** `--until HH:MM`, `--stop`,
+Ctrl+C, a crash or a reboot all leave a `last.pt` the queue continues from on its next start
+— same MLflow run id, same learning curve, no batch trained twice (landmine #53). Never
+restart a `d97-*` step by hand with a fresh command; re-run the queue.
 
 The gates are signed (2026-09-15). `train=fused` reads the semantic cache and **refuses an
 unfrozen encoder** — `llm.frozen=true` is required; `train.semantic_cache.enabled=false` is
@@ -337,6 +351,8 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 36 | **`train.zero_dropout` lives in the `train` group, not as `gnn.dropout=0` on the command line.** Hydra group selection is order-dependent: `+gnn=gcn` placed after an experiment config silently restores the dropout, and the overfit test then fails for a reason nothing reports. A config value that governs a decision belongs where selection order cannot undo it. |
 | 37 | **The depth sweep has no resolvable signal, and a single seed said otherwise.** At n=1 depth 6 sat 0.047 Top-5 below depth 4 and it was written up as over-smoothing evidence; at **n=3 every pairwise depth gap in 2–6 is under 0.6 sd** (`Memory.md` §1.16). Two separate traps: reading a depth difference as architectural when §1.12 shows the *representation* differs by depth, and reading ~2 sd of seed noise as a finding. **Do not write down a comparison until every arm has ≥3 seeds** — the rule the headline numbers already follow. |
 | 38 | **Adding a config group to `config.yaml`'s `defaults` changes every run's `config_hash`** — including runs of other branches — and `scripts/report_seeds.py` uses that hash to decide whether two runs are replicates. Doing it mid-sweep makes a logged seed incomparable with the seeds still to run. `gnn` is therefore selected as `+gnn=…`; move it into `defaults` only when no sweep is in flight. |
+| 53 | **Until 2026-10-02 `train.resume_from` was a restart wearing a resume's name.** It opened a *second* MLflow run, reset early stopping (so the first post-resume epoch became "best" whatever it scored), and replayed the interrupted epoch from its start on mid-epoch weights. No logged result ever used it, which is the only reason none is wrong. Now a resume reopens the **same** run, restores patience and the best metrics, and skips exactly the batches already trained — pinned in `tests/unit/test_resume.py` by weight equality with an uninterrupted run. What is **not** restored is the dropout RNG: a resumed run is a replicate, not a bit-identical copy. Resumed runs carry a `resumed_at` tag; **report it beside any number from one.** |
+| 54 | **A resumed run's config must equal the one it started with**, and `tracking.start_run` refuses otherwise — every flattened param except `train.resume_from`. So a config change mid-sweep (#38) now also strands every *paused* run: finish or discard paused runs before touching a config file. `run_queue.py --status` shows them as `[paus]`. |
 
 
 ---
@@ -375,8 +391,8 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    2026-09-15, built and verified.** A1 reports in the qualified "fixed semantic
    representation" form; the fine-tuned confirmation (D9.7) is triggered by the margin.
 5a. **Q11 — run ADR-009 D9.7's fine-tuned confirmation of A1?** (~18–24 h; closes Phase 5's
-   fifth criterion) and **Q12 — commit the A1 write-up** (must precede any D9.7 run, or
-   every run logs `-dirty`). Both deferred by the owner 2026-09-15; `Memory.md` §5.
+   fifth criterion) — **running since 2026-10-02**; Q12 (commit the A1 write-up) closed the
+   same day. `Memory.md` §5.
 5b. **Review the Findings tab's fix templates.** Written in session 13, tested for what
    they match, not reviewed by a human for what they advise.
 6. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.

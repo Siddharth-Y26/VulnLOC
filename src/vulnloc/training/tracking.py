@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import mlflow
+from mlflow.exceptions import MlflowException
 from omegaconf import DictConfig
 
 from vulnloc.utils.config import provenance, resolve_config, save_config
@@ -33,6 +34,9 @@ _LOGGER = get_logger(__name__)
 _MAX_PARAM_CHARS = 500
 
 _SQLITE_PREFIX = "sqlite:///"
+
+RESUME_MAY_DIFFER = frozenset({"train.resume_from"})
+"""Config values a resumed run is allowed to disagree with its first half about."""
 
 
 def _prepare_backend(tracking_uri: str) -> None:
@@ -97,8 +101,51 @@ def flatten_params(config: Mapping[str, object], prefix: str = "") -> dict[str, 
     return flat
 
 
+def _reopen(run_id: str, resolved: Mapping[str, object]) -> list[str]:
+    """Check that ``run_id`` can be continued under this config, and how it has drifted.
+
+    A resumed run that quietly differs from its first half is one run id over two
+    experiments, and nothing downstream could tell. So the config the run was started
+    with must match the one resuming it, value for value.
+
+    Args:
+        run_id: The run to continue.
+        resolved: The resolved config of the process resuming it.
+
+    Returns:
+        The earlier resume points recorded on the run, oldest first.
+
+    Raises:
+        ConfigError: If the tracking store does not know the run, or the configs differ.
+    """
+    try:
+        existing = mlflow.get_run(run_id)
+    except MlflowException as error:
+        raise ConfigError(
+            "cannot resume: the tracking store has no such run",
+            run_id=run_id,
+            hint="train.resume_from must point at <checkpoint_dir>/<run_id>/last.pt.",
+        ) from error
+    logged = existing.data.params
+    differing = sorted(
+        key
+        for key, value in flatten_params(resolved).items()
+        if key not in RESUME_MAY_DIFFER and logged.get(key) != value
+    )
+    if differing:
+        raise ConfigError(
+            "cannot resume: this config is not the one the run was started with",
+            run_id=run_id,
+            differing=differing,
+        )
+    earlier = existing.data.tags.get("resumed_at", "")
+    return [point for point in earlier.split(";") if point]
+
+
 @contextmanager
-def start_run(cfg: DictConfig, *, run_name: str | None = None) -> Iterator[str]:
+def start_run(
+    cfg: DictConfig, *, run_name: str | None = None, resume_run_id: str | None = None
+) -> Iterator[str]:
     """Open an MLflow run for ``cfg``, tagged with full provenance.
 
     The resolved config is logged as ``config/resolved.yaml`` on the run, and the run
@@ -109,12 +156,18 @@ def start_run(cfg: DictConfig, *, run_name: str | None = None) -> Iterator[str]:
         cfg: The Hydra config for this run. Must contain an ``mlflow`` section with
             ``tracking_uri`` and ``experiment_name``.
         run_name: Optional human-readable run name.
+        resume_run_id: Continue this run instead of starting one. Its metric history,
+            its parameters and its provenance tags stay as they were logged; nothing is
+            logged twice. One interrupted training run is then one run id with one
+            learning curve, which is what ``scripts/report_seeds.py`` reads the best
+            step from.
 
     Yields:
         The MLflow run id.
 
     Raises:
-        ConfigError: If the ``mlflow`` config section is missing or incomplete.
+        ConfigError: If the ``mlflow`` config section is missing or incomplete, or if
+            ``resume_run_id`` is unknown or was started under a different config.
     """
     tracking = cfg.get("mlflow")
     if tracking is None:
@@ -133,6 +186,22 @@ def start_run(cfg: DictConfig, *, run_name: str | None = None) -> Iterator[str]:
     ensure_experiment(str(experiment_name), tracking.get("artifact_location"))
 
     resolved = resolve_config(cfg)
+    if resume_run_id:
+        earlier = _reopen(resume_run_id, resolved)
+        with mlflow.start_run(run_id=resume_run_id) as run:
+            run_id = run.info.run_id
+            # The original git_sha tag stays: it says what code started the run. A
+            # different sha here means the code changed underneath it, which has to be
+            # visible on the run rather than discovered later.
+            mlflow.set_tag("resume_git_sha", provenance(cfg)["git_sha"])
+            with bind_run_id(run_id):
+                _LOGGER.info(
+                    "MLflow run reopened",
+                    extra={"experiment": str(experiment_name), "earlier_resumes": len(earlier)},
+                )
+                yield run_id
+                _LOGGER.info("MLflow run finished")
+        return
     with mlflow.start_run(run_name=run_name) as run:
         run_id = run.info.run_id
         mlflow.set_tags(provenance(cfg))

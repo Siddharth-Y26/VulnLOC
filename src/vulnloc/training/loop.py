@@ -19,11 +19,20 @@ loop that waits for ``OutOfMemoryError`` never learns it is thrashing.
 **Checkpoints carry their provenance.** Config hash, git sha, run id and the epoch's
 metrics travel in the file, so a checkpoint found later can be traced to the run that made
 it — ``Rules.md`` §1.3, mechanically rather than by discipline.
+
+**An interrupted run continues; it does not approximately restart.** A fine-tuned run is
+hours and the machine is not free for hours at a stretch, so every run that matters is
+interrupted at least once. ``last.pt`` therefore carries the position *inside* the epoch,
+the early-stopping counters and the best metrics so far, and a resume replays the same
+shuffle and skips exactly the batches already trained on. What it does not carry is the
+dropout RNG: a resumed run is a replicate of the uninterrupted one, not a bit-identical
+copy of it — which CUDA never offered in the first place (``Memory.md`` §7 #50).
 """
 
 from __future__ import annotations
 
 import math
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -41,9 +50,32 @@ if TYPE_CHECKING:
 
     from vulnloc.training.losses import LineLoss
 
-__all__ = ["EarlyStopping", "TrainState", "Trainer", "evaluate"]
+__all__ = [
+    "PAUSED_EXIT_CODE",
+    "STOP_FILE_ENV",
+    "EarlyStopping",
+    "TrainState",
+    "Trainer",
+    "TrainingPaused",
+    "evaluate",
+]
 
 _LOGGER = get_logger(__name__)
+
+STOP_FILE_ENV = "VULNLOC_STOP_FILE"
+"""Environment variable naming a file whose existence asks a run to pause.
+
+An environment variable rather than a config key on purpose: a key would be logged as a
+parameter and change ``config_hash`` for every run of every branch (``Memory.md`` §7 #38),
+and whether the laptop is needed at eight in the morning is not part of an experiment.
+"""
+
+PAUSED_EXIT_CODE = 75
+"""Exit status of a run that paused on request (``EX_TEMPFAIL``): not done, not broken."""
+
+
+class TrainingPaused(Exception):  # noqa: N818 - a request honoured, not an error
+    """Raised once a pause request has been honoured and ``last.pt`` is on disk."""
 
 
 @dataclass
@@ -99,6 +131,21 @@ class TrainState:
     epoch: int = 0
     global_step: int = 0
     best_metric: float = -math.inf
+    # Everything below exists so a resume is a continuation. Each has a default, so a
+    # checkpoint written before these fields existed still loads — and resumes the old
+    # way, from the start of its epoch.
+    batch_in_epoch: int = 0
+    """Batches of ``epoch`` already trained on. A resume skips exactly this many."""
+    epoch_totals: dict[str, float] = field(default_factory=dict)
+    """Loss sums over those batches, so the epoch's logged train loss covers all of it."""
+    epoch_seconds: float = 0.0
+    waited: int = 0
+    """Early stopping's count of evaluations without improvement."""
+    best_metrics: dict[str, float] = field(default_factory=dict)
+    """The best epoch's full metric set — what ``summary.json`` reports."""
+    last_epoch_log: dict[str, Any] = field(default_factory=dict)
+    """``{"step", "metrics"}`` of the last finished epoch. The checkpoint is written
+    before the tracking store is, so a resume can log an epoch a kill left unlogged."""
 
 
 def _move(batch: Mapping[str, Any], device: torch.device) -> dict[str, Any]:
@@ -237,7 +284,11 @@ class Trainer:
         self.checkpoint_every_n_steps = checkpoint_every_n_steps
         self.scaler = torch.amp.GradScaler(device.type, enabled=self.use_amp)
         self.state = TrainState()
+        self.provenance: dict[str, Any] = {}
+        """Written into every rolling checkpoint. The caller puts the run id here."""
         self._memory_checked = False
+        stop_file = os.environ.get(STOP_FILE_ENV, "")
+        self._stop_file = Path(stop_file) if stop_file else None
 
     def _check_memory(self) -> None:
         """Warn if the step only fits because the driver paged to host RAM.
@@ -278,30 +329,78 @@ class Trainer:
             return
         if self.state.global_step % self.checkpoint_every_n_steps:
             return
+        self.save_last("periodic")
+
+    def save_last(self, kind: str) -> None:
+        """Write the rolling ``last.pt`` — the one file a resume reads.
+
+        Args:
+            kind: Why it was written: ``periodic``, ``epoch`` or ``paused``.
+        """
         self.save_checkpoint(
             self.checkpoint_dir / "last.pt",
             {},
-            kind="periodic",
+            **self.provenance,
+            kind=kind,
             global_step=self.state.global_step,
             epoch=self.state.epoch,
         )
 
-    def train_epoch(self, loader: DataLoader[Any]) -> dict[str, float]:
-        """Run one training epoch.
+    @property
+    def pause_requested(self) -> bool:
+        """Whether the stop file named by :data:`STOP_FILE_ENV` exists."""
+        return self._stop_file is not None and self._stop_file.exists()
+
+    def _maybe_pause(self) -> None:
+        """Honour a pause request at an optimizer-step boundary.
+
+        Only here, where no gradient is half-accumulated: the checkpoint written is then
+        a state the uninterrupted run also passed through.
+
+        Raises:
+            TrainingPaused: After ``last.pt`` is written.
+        """
+        if not self.pause_requested:
+            return
+        self.save_last("paused")
+        raise TrainingPaused(
+            f"paused at epoch {self.state.epoch}, batch {self.state.batch_in_epoch}, "
+            f"step {self.state.global_step}"
+        )
+
+    def train_epoch(self, loader: DataLoader[Any], *, resume: bool = False) -> dict[str, float]:
+        """Run one training epoch, or the rest of an interrupted one.
 
         Args:
-            loader: Training batches.
+            loader: Training batches, in the order the interrupted epoch saw them. The
+                batch samplers shuffle from ``seed + epoch`` alone, which is what makes
+                that order recoverable.
+            resume: Continue from ``state.batch_in_epoch`` instead of starting the epoch.
+                The batches before it are drawn and discarded, never trained on twice,
+                and the loss totals pick up from the checkpoint so the returned averages
+                still cover the whole epoch.
 
         Returns:
             ``{"loss": ..., "line_loss": ..., "function_loss": ..., "seconds": ...}``.
+
+        Raises:
+            TrainingPaused: If a pause was requested; ``last.pt`` is written first.
         """
         self.model.train()
         totals = {"loss": 0.0, "line_loss": 0.0, "function_loss": 0.0}
-        n_batches = 0
+        skip = 0
+        seconds_before = 0.0
+        if resume:
+            skip = self.state.batch_in_epoch
+            totals.update(self.state.epoch_totals)
+            seconds_before = self.state.epoch_seconds
+        n_batches = skip
         started = time.perf_counter()
 
         self.optimizer.zero_grad(set_to_none=True)
         for index, raw in enumerate(loader):
+            if index < skip:
+                continue
             batch = _move(raw, self.device)
             with torch.autocast(
                 device_type=self.device.type, dtype=torch.float16, enabled=self.use_amp
@@ -319,6 +418,15 @@ class Trainer:
 
             self.scaler.scale(loss).backward()
 
+            # Before the step, not after it: a checkpoint written by the step below has
+            # to count this batch as done, or a resume would train on it a second time.
+            for key in totals:
+                totals[key] += float(losses[key].detach())
+            n_batches += 1
+            self.state.batch_in_epoch = n_batches
+            self.state.epoch_totals = dict(totals)
+            self.state.epoch_seconds = seconds_before + time.perf_counter() - started
+
             if (index + 1) % self.accumulation_steps == 0:
                 if self.max_grad_norm > 0:
                     self.scaler.unscale_(self.optimizer)
@@ -331,14 +439,11 @@ class Trainer:
                 self.state.global_step += 1
                 self._check_memory()
                 self._maybe_checkpoint_step()
-
-            for key in totals:
-                totals[key] += float(losses[key].detach())
-            n_batches += 1
+                self._maybe_pause()
 
         return {
             **{key: value / max(n_batches, 1) for key, value in totals.items()},
-            "seconds": round(time.perf_counter() - started, 2),
+            "seconds": round(seconds_before + time.perf_counter() - started, 2),
         }
 
     def save_checkpoint(self, path: Path, metrics: Mapping[str, float], **provenance: Any) -> None:
@@ -350,6 +455,10 @@ class Trainer:
             **provenance: Run id, git sha, config hash — whatever the caller can supply.
         """
         path.parent.mkdir(parents=True, exist_ok=True)
+        # Written beside the target and renamed over it. A fine-tuned checkpoint is over a
+        # gigabyte and takes seconds to write; a process killed during those seconds would
+        # otherwise leave a truncated last.pt — the one file an interruption needs.
+        partial = path.with_name(path.name + ".tmp")
         torch.save(
             {
                 "model_state": self.model.state_dict(),
@@ -359,8 +468,9 @@ class Trainer:
                 "metrics": dict(metrics),
                 "provenance": provenance,
             },
-            path,
+            partial,
         )
+        partial.replace(path)
         _LOGGER.info("Checkpoint written", extra={"path": str(path), **dict(provenance)})
 
     def load_checkpoint(self, path: Path, *, weights_only: bool = False) -> dict[str, Any]:
