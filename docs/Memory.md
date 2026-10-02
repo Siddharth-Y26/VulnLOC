@@ -1343,6 +1343,15 @@ Learned:
     fix, was already a mild spill.
   - The cache-release guard fired once in that epoch (step 429, 4,250 MiB reserved) — the
     oversized unit of §1.17, as predicted. One release per epoch is the healthy pattern.
+  - **A residual, bounded spill remains and was left alone on purpose.** The clean
+    `d97-cross_attention-seed42` process (started 23:43 on `70824ec`) measured **3,839 MiB
+    dedicated + 302 MiB shared at ~1.59 s/step**, against 1.43 s/step with 0 shared. The
+    guard compares `memory_reserved` with the card's nominal 4,095.5 MiB, but the budget
+    Windows actually grants this process is ~3.84 GiB, so 3.84–4.10 GiB spills without
+    tripping it. Likely fix: trigger on `torch.cuda.mem_get_info()` free memory instead.
+    **Do not change it while D9.7 is in flight** — it is a `src/vulnloc` edit, and every
+    remaining seed would then differ from the logged ones (§7 #38's family). ~10% wall
+    clock, no effect on any number.
 Next:
   - §6 item 0a.
   - Tests 917 passed / 2 skipped; ruff / black / mypy clean.
