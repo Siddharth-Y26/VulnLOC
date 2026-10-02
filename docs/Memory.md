@@ -1791,6 +1791,10 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
 5. **Never quote a D9.7 number until all three seeds of that arm are FINISHED** (§7 #37),
    and list each resumed run's `resumed_at` tag beside it (§7 #53).
 6. All nine runs must come from this laptop (§7 #49).
+7. **Ask the owner the three held questions of Q13 (§5)** — held on 2026-10-03 at the
+   owner's request ("we will tackle them tomorrow"): the second laptop's GPU and VRAM;
+   external baseline as a balanced subsample or `(reported)`; whether the function-level
+   criteria and 7b are deferred in writing.
 
 ```bash
 python scripts/run_queue.py --only d97 --status      # the nine runs, with Top-5 / Top-1
