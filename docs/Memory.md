@@ -1753,7 +1753,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q10 | **Should A1 run with the semantic encoder frozen?** A1 as specified costs **60-80 GPU-h** (core two arms: 20-30 h). §1.9 measured `frozen` at **37.8 win/s vs 22.9** and **1,234 MiB vs 2,456** - and, far more important, a frozen encoder is a *pure function of its input*, so its output can be computed once and read from disk, putting a fused run at Phase 4's 2-5 minutes | Fine-tuned as specified · **frozen + cached, staged** · fewer seeds · fewer arms | **Frozen + cached, staged (ADR-009).** All six arms × 3 seeds becomes **~5 h**. It stays controlled by exactly ADR-008 §D8.4's argument - it changes how good *all* arms are, not which wins - and it is the **harder** test of the novelty, since a fine-tuned encoder can reshape its own line features until a trivial combiner suffices. Cost: A1 answers a narrower question and must be phrased that way, and D9.7's fine-tuned confirmation is triggered by the margin, not skipped by default. **Fewer seeds and fewer arms are not options** - §7 #37 is what that costs | Phase 5 / A1 | ✅ **Closed 2026-09-15 — ADR-009 accepted by the project owner.** Built and verified the same day (§1.20) |
 | Q11 | **Run ADR-009 D9.7's fine-tuned confirmation?** The frozen screen found cross_attention ≈ concat on Top-5 (+0.0014, 0.07 sd, §1.21) — the no-margin case D9.7 exists for. Phases.md's fifth Phase 5 criterion requires a negative A1 to be *investigated before Phase 6* | **Run it**: cross_attention and concat fine-tuned (`train.semantic_cache.enabled=false llm.frozen=false`, otherwise A1's constants), seeds 42/1/2, ~18–24 h, overnight, laptop kept awake · **Skip it**: report the frozen result, qualified, and record the skip as the owner's explicit decision · **Partial**: one fine-tuned seed per arm first as a probe (not citable — §7 #37) | **Run it.** It is the only way to learn whether fusion beats fine-tuned LLM-only (0.6141), which every fused arm currently loses to, and it is what closes criterion 5. A probe-only run would tempt a one-seed conclusion this project has retracted twice | **Phase 5 exit / Phase 6 start** | 🟩 **RUNNING since 2026-10-02 (session 14).** The owner delegated the schedule ("do whatever you feel is best"; laptop free except Saturday daytime), so: **all nine runs in one resumable queue group** rather than two fixed nights — `d97-{cross_attention,concat}` seed by seed, then **`llm_only` fine-tuned in the fused scaffold × 3**, added so that "fusion beats fine-tuned LLM-only" is measured against a controlled arm instead of Phase 3's 0.6141 from a different scaffold (ADR-008 §D8.6). Interruptions are continued, not restarted (§7 #53). Live-encoder overfit check first (`d97check`). **No result yet — do not quote one until all three seeds of an arm are FINISHED** |
 | Q12 | **Commit the A1 write-up?** Memory.md §1.21 + ledger, Phases.md criterion-5 note, CLAUDE.md §3, `frontend/phases.json`, `docs/review3_panel_brief.md` — uncommitted since `d1003f6` | Commit now · commit with the D9.7 runs | Commit before any D9.7 run starts: a dirty tree tags every run `-dirty` (§7 #4), so the write-up must be committed first either way | Clean `git_sha` on D9.7 runs | ✅ **Closed 2026-10-02** — committed as `18ca52b` (frontend) and `6e64486` (write-up, code map, report material, bibliography), before any D9.7 run |
-| Q13 | **Scope under the one-week deadline (≈ 2026-10-09): which Phase 6–10 exit criteria are met, and which are deferred in writing?** §6 item 0a lists them criterion by criterion. Three blockers cannot be worked around this week: people other than the owner (human evaluation run, independent reader), this machine (no Docker, one GPU), and negatives (anything function-level needs the 148,983-function split) | **Defer the ❌ rows explicitly** and ship the rest · extend the deadline · cut whole phases (9 or 7) to protect 8 | **Defer the ❌ rows explicitly.** Phases 5–6 closed, 7a, Phase 8 on the frozen grid with `test` + `clean_eval`, Phase 9 without verified Docker, a paper *draft* whose limitations name every deferral. If something must be cut, cut Phase 9's UI before any Phase 8 ablation — the claims are the project | **Marking Phases 6–10 done at all** | 🟥 **OPEN — raised 2026-10-02, owner has not answered** |
+| Q13 | **Scope under the one-week deadline (≈ 2026-10-09): which Phase 6–10 exit criteria are met, and which are deferred in writing?** §6 item 0a lists them criterion by criterion. Three blockers cannot be worked around this week: people other than the owner (human evaluation run, independent reader), this machine (no Docker, one GPU), and negatives (anything function-level needs the 148,983-function split) | **Defer the ❌ rows explicitly** and ship the rest · extend the deadline · cut whole phases (9 or 7) to protect 8 | **Defer the ❌ rows explicitly.** Phases 5–6 closed, 7a, Phase 8 on the frozen grid with `test` + `clean_eval`, Phase 9 without verified Docker, a paper *draft* whose limitations name every deferral. If something must be cut, cut Phase 9's UI before any Phase 8 ablation — the claims are the project | **Marking Phases 6–10 done at all** | 🟨 **PARTLY ANSWERED 2026-10-03.** Owner: three raters are available (human evaluation can run), a second GPU laptop exists (independent reproduction, clean-machine Docker), and Docker is installed Sat 3 evening. Those three rows move to ✅ in §6 item 0a. **Still unanswered:** deferring the function-level criteria (unit aggregation, DiverseVul, full external reproduction) and 7b; whether the external baseline runs as a balanced subsample or stays `(reported)`; the second laptop's GPU |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -1826,9 +1826,11 @@ Three things cannot be bought with effort this week. They are the whole reason t
 cannot all close as written:
 
 1. **People and elapsed time.** Some criteria are done by humans who are not the owner and
-   not a session.
+   not a session. **Largely lifted 2026-10-03:** the owner has three raters and a second
+   laptop. What remains is their *time* inside the week.
 2. **This machine.** Docker is not installed (Phase 0's own criterion is open for the same
-   reason), and there is exactly one GPU.
+   reason), and there is exactly one GPU. **Docker: lifted** — the owner installs it Sat 3
+   evening. One GPU per comparison group: unchanged.
 3. **Negatives.** Every model here trains on the 5,457 line-labelled *vulnerable* functions.
    Anything function-level — "is this function vulnerable?" — needs the 148,983-function
    train split, ~27× the units per epoch. Fine-tuned, that is days per run (**an estimate
@@ -1848,7 +1850,8 @@ cannot all close as written:
 | 7 | Grounding test suite passes | ✅ | Automatic |
 | 7 | Explanations reviewed for attack instructions | 🟨 | A human must read them — owner |
 | 7 | Human-evaluation protocol **defined** | ✅ | A document |
-| 7 | 7b generative explainer; human evaluation **run** (E9: ≥ 3 raters, ≥ 100 samples) | ❌ | Blocker 1; and a local generator on 4 GiB beside CodeBERT |
+| 7 | Human evaluation **run** (E9: ≥ 3 raters, ≥ 100 samples) | ✅ *(owner, 2026-10-03: three raters are available)* | Needs 7a's explanations first, so the rubric and the 100 samples must reach the raters by **Wed 7**; rating and agreement (Krippendorff's α / Fleiss' κ) Thu–Fri. The raters' time is the constraint, not the GPU |
+| 7 | 7b generative explainer | ❌ | Optional in `Phases.md` ("only after 7a is measured"); a local generator beside CodeBERT on 4 GiB, and a week with no slack |
 | 8 | Every table cell traceable to a run id | ✅ | Already how the repo works |
 | 8 | Ablations confirm or refute each novelty claim | 🟨 | A1–A4, A6, A8 (line vs joint), A9 fit on the frozen cache. **Not** A5 fine-tuned GraphCodeBERT (another ~10 h), A7 attention pooling (cannot use cached line features), A8 unit-only (blocker 3), A10 (needs 7b + raters) |
 | 8 | External baselines reproduced under our splits | ❌ mostly | LineVul / Devign-style detectors are function-level — blocker 3. A static analyser (Cppcheck/Flawfinder) is feasible if a day is spared. The rest stays `(reported)` via `docs/prior_work.yaml` |
@@ -1856,10 +1859,34 @@ cannot all close as written:
 | 8 | Failure taxonomy, ≥ 20 inspected cases | ✅ | A session drafts, the owner reviews |
 | 8 | Results reproducible from a clean clone | 🟨 | Tests + one frozen run from a fresh clone: yes. The 11 GB data pipeline end to end: hours, only if spared |
 | 9 | FastAPI, schemas, error responses, latency, model card | ✅ | ~1 day |
-| 9 | End-to-end request in Docker on a clean machine | ❌ here | Blocker 2. Installing Docker Desktop needs admin, WSL2 and usually a reboot — **not during a training run** — and "a clean machine" is a second machine |
+| 9 | End-to-end request in Docker on a clean machine | ✅ *(owner, 2026-10-03: Docker installed Sat 3 evening; a second laptop exists)* | Install **before** restarting the queue that evening — the queue is paused from 08:00 and the install wants a reboot. Keep Docker Desktop/WSL2 **closed during training**: it takes host RAM and CPU a fine-tuned run needs (the test suite alone cost 33%). Also closes Phase 0's open criterion. The image pins Python 3.11 (ADR-000 §D0.3); this tree runs 3.12 |
 | 10 | Paper draft, limitations, reproducibility appendix, README | ✅ as a draft | Results land Wed–Thu, so the results sections are written in the last two days |
-| 10 | An independent reader reproduces a headline number | ❌ | Blocker 1 — another person, the 11 GB corpus, a GPU |
+| 10 | An independent reader reproduces a headline number | ✅ *(owner, 2026-10-03: a second laptop with a GPU)* | "Independent" means **someone other than the owner, from the README alone**. Pick a frozen-cache number (~15 min once the corpus and cache exist), not a fine-tuned one. Setting that machine up *is* the clean-clone test of Phase 8. Its GPU model and VRAM are **not yet known** — and its runs never join a comparison group from this laptop (§7 #49) |
 | 10 | All licenses and citations verified | 🟨 | 37 BibTeX keys; needs the owner's check |
+
+#### The GPU budget, reviewed 2026-10-03 against session 14's measurements
+
+The owner brought back an earlier session's costing ("planned but not costed", 50–90 h).
+Its per-run figures hold up against what was measured tonight. Three of its lines do not:
+
+| Item | Earlier estimate | Reviewed | What changed |
+|---|---|---|---|
+| D9.7 | 6 runs, 18–24 h | **9 runs, ~24–29 h** | `llm_only` added as the scaffold control |
+| A3 graph types (frozen, 3 seeds) + ADR-007 comparison | 4–7 h | 4–7 h, **unmeasured for CPG** | CPG graphs are larger; ADR-007 must be accepted first |
+| A5 GraphCodeBERT, fine-tuned, 3 seeds | 7–12 h | ~9–10 h | One arm only. Both arms doubles it |
+| A6 direction, A7 pooling, A9 loss (frozen) | 5–6 h | 5–6 h **for max-pooling only in A7** | Attention pooling needs token states; the cache holds *pooled* line features. That arm runs the live frozen encoder — hours, not minutes — or is dropped |
+| GAT / GGNN to 3 seeds | ~10 min | ~10 min | — |
+| Phase 6 sweep + final config | fine-tuned, 10–30 h | **sweep frozen (~8–10 h), then one fine-tuned config × 3 seeds (~10 h) only if it differs from D9.7's** | A fine-tuned sweep is the line that breaks the week. The sweep must give concat the same search budget as cross-attention (`ResearchPlan.md` §5) |
+| External line-level baseline | 7–12 h | **~14–24 h, and only as a balanced subsample** | The estimate assumed our 5,457-unit population. A LineVul-style detector is function-level and needs negatives; even positives + matched negatives doubles each run, and the full 148,983-function split is out of reach. An estimate from unit counts, not measured |
+| Final `test` / `clean_eval`, Phases 7, 9, 10 | minutes | minutes **of GPU** | The table never costed engineering or rater time, and those are the week's real constraint |
+
+**Reviewed total: ~52–72 GPU-h without the external baseline, ~66–96 h with it.** From Sat 3
+evening to Fri 9 there are roughly 110–125 GPU-h **if this laptop trains nearly round the
+clock**, so the budget fits — on two conditions the table hides: the code for each slate
+must be ready when the GPU frees up, and nothing under `src/` may change while a
+fine-tuned group is in flight. The second laptop is the natural development machine for
+that reason, and could run a *self-contained* frozen ablation group of its own once it is
+set up.
 
 **What the week can honestly deliver:** Phases 5 and 6 closed (6 with unit-level and Q5
 explicitly deferred), 7a built, Phase 8 with the frozen ablation grid and `test` /

@@ -410,5 +410,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    ≈ 2026-10-09: the human evaluation and the independent reader need other people, Docker
    is not installed, and every function-level criterion needs negatives the models never
    trained on. `Memory.md` §6 item 0a lists each criterion; **the owner decides which are
-   deferred in writing.** Unanswered as of 2026-10-02 — raise it.
+   deferred in writing.** Partly answered 2026-10-03: three raters, a second GPU laptop and
+   Docker (installed Sat 3 evening) lift the people and Docker blockers. Still open: the
+   function-level criteria, 7b, and how the external baseline is run — raise it.
 6. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.
