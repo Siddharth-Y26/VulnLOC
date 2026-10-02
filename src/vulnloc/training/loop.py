@@ -287,6 +287,7 @@ class Trainer:
         self.provenance: dict[str, Any] = {}
         """Written into every rolling checkpoint. The caller puts the run id here."""
         self._memory_checked = False
+        self._cache_releases = 0
         stop_file = os.environ.get(STOP_FILE_ENV, "")
         self._stop_file = Path(stop_file) if stop_file else None
 
@@ -314,6 +315,35 @@ class Trainer:
                     "peak_mib": round(peak, 1),
                     "total_mib": round(total, 1),
                     "used_pct": round(100 * peak / total, 1),
+                },
+            )
+
+    def _release_cache_if_spilling(self) -> None:
+        """Hand cached blocks back to the driver once PyTorch holds more than the card has.
+
+        ``_check_memory`` looks once, at the first step, at what is *allocated*. What pages
+        to host RAM on Windows is what is *reserved* — allocated plus the allocator's cache
+        — and that grows later: after the one oversized unit an epoch contains
+        (``Memory.md`` §1.17), or after a checkpoint is loaded. Releasing the cache costs
+        a few re-allocations and changes no number; not releasing it costs every later
+        step, silently.
+        """
+        if self.device.type != "cuda":
+            return
+        total = torch.cuda.get_device_properties(self.device).total_memory
+        reserved = torch.cuda.memory_reserved(self.device)
+        if reserved <= total:
+            return
+        torch.cuda.empty_cache()
+        self._cache_releases += 1
+        if self._cache_releases == 1 or self._cache_releases % 50 == 0:
+            _LOGGER.warning(
+                "Reserved VRAM exceeded the card; cache released",
+                extra={
+                    "reserved_mib": round(reserved / 1024**2, 1),
+                    "total_mib": round(total / 1024**2, 1),
+                    "releases_so_far": self._cache_releases,
+                    "global_step": self.state.global_step,
                 },
             )
 
@@ -438,6 +468,7 @@ class Trainer:
                     self.scheduler.step()
                 self.state.global_step += 1
                 self._check_memory()
+                self._release_cache_if_spilling()
                 self._maybe_checkpoint_step()
                 self._maybe_pause()
 
@@ -489,7 +520,13 @@ class Trainer:
         """
         if not path.exists():
             raise ModelError("checkpoint not found", path=str(path))
-        payload: dict[str, Any] = torch.load(path, map_location=self.device, weights_only=False)
+        # To host memory, never straight to the card. MEASURED 2026-10-02 on run
+        # `cb2b1e99…`: loading a fine-tuned checkpoint onto the GPU put a second copy of
+        # the weights and the optimizer state beside the live ones, PyTorch kept the freed
+        # blocks cached, and the resumed process sat at 3,692 MiB dedicated plus 1,872 MiB
+        # *shared* — paging, 5.0 s/step against 2.0 before the pause, with nothing raised
+        # (Memory.md §7 #24). `load_state_dict` copies onto each parameter's own device.
+        payload: dict[str, Any] = torch.load(path, map_location="cpu", weights_only=False)
         self.model.load_state_dict(payload["model_state"])
         if not weights_only:
             self.optimizer.load_state_dict(payload["optimizer_state"])
