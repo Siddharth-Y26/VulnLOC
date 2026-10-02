@@ -2,20 +2,18 @@
 
    Two views over one paste. FINDINGS is for the developer: the lines to review first,
    ranked by the Phase 3 semantic model, with any known weakness pattern on each line and
-   its usual fix. DETAILED REPORT is the pipeline inspector: every stage that ran.
+   its usual fix. DETAILED REPORT shows each pipeline stage's output on the paste, and the
+   structural model's own ranking beside the semantic one.
 
-   Renders what the server measured. It computes nothing about the pipeline itself: if a
-   number is on screen it came from `/api/*`, which in turn came from `src/vulnloc` or a
-   logged run. The only arithmetic here is layout.
+   Renders what the server measured. If a number is on screen it came from `/api/*`, which
+   in turn came from `src/vulnloc` or a seed report on disk. The only arithmetic here is
+   layout.
 
    The model and the templates are two different sources and are never blended on screen.
-   The model ranks a line and gives no reason; a template matches the line's text and knows
-   nothing about the model. Merging them into one "because" would invent an explanation
-   Phase 7 has not built.
+   The model ranks a line and gives no reason; a template matches the line's text.
 
-   The stage list is driven by `phases.json`, so a stage that is planned but not built
-   still gets a panel, at the same visual weight, saying what it will do. Absence is
-   content — this project's state is largely defined by what is not finished yet.
+   Keep it short (owner, 2026-09-15): each stage shows one sentence, its numbers, and its
+   picture. Explanations belong in the docs, not on the page.
 */
 
 "use strict";
@@ -29,15 +27,16 @@ const el = (tag, cls, text) => {
 };
 
 let PHASES = [];
+let RESULTS = {};
 
-/* "1 lines carry" is the kind of seam that makes a tool look unfinished. */
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const pct = (x) => `${Math.round(x * 100)}%`;
 
 /* ── Bootstrap ─────────────────────────────────────────────────────────────── */
 
 async function boot() {
   setupTabs();
-  await Promise.all([loadModel(), loadPhases(), loadSamples(), loadCorpus()]);
+  await Promise.all([loadResults(), loadPhases(), loadSamples()]);
   $("run").addEventListener("click", run);
   $("code").addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run();
@@ -93,34 +92,19 @@ function setupTabs() {
   selectTab(TABS.includes(remembered) ? remembered : "findings");
 }
 
-let MODEL = null;
-
-async function loadModel() {
-  const model = await fetch("/api/model").then((r) => r.json());
-  MODEL = model;
-  const banner = $("model-banner");
-  banner.hidden = false;
-  banner.append(el("h2", null, model.headline));
-  const p = el("p");
-  // The lead-in comes from the server, not from here. It used to be hardcoded as
-  // "re-running the three seeds is what unblocks scores", which stopped being true the
-  // day the seeds were re-run — and a banner that is confidently out of date is worse
-  // than one that says less.
-  p.textContent = `${model.detail} ${model.next_step || "Where things stand:"} `;
-  p.append(el("code", null, model.unblocks));
-  banner.append(p);
+async function loadResults() {
+  RESULTS = await fetch("/api/results").then((r) => r.json());
 }
 
 async function loadPhases() {
   const manifest = await fetch("/api/phases").then((r) => r.json());
   PHASES = manifest.stages;
   const rail = $("rail");
-  for (const stage of PHASES) {
+  for (const stage of builtStages()) {
     const li = el("li");
     li.dataset.state = stage.state;
     const button = el("button");
     button.type = "button";
-    button.append(el("span", "rail-layer", `${stage.layer} · P${stage.phase}`));
     button.append(el("span", "rail-name", stage.name));
     button.addEventListener("click", () => {
       const target = document.getElementById(`stage-${stage.id}`);
@@ -130,6 +114,9 @@ async function loadPhases() {
     rail.append(li);
   }
 }
+
+const builtStages = () => PHASES.filter((s) => s.state !== "planned");
+const plannedStages = () => PHASES.filter((s) => s.state === "planned");
 
 let SAMPLES = [];
 
@@ -151,31 +138,29 @@ async function loadSamples() {
   }
 }
 
-async function loadCorpus() {
-  const corpus = await fetch("/api/corpus").then((r) => r.json());
-  const line = $("corpus-line");
-  const bits = [];
-  if (corpus.split?.fingerprint) {
-    bits.push(`split ${corpus.split.fingerprint.slice(0, 8)}…`);
-  }
-  if (corpus.shards?.run_id) bits.push(`shards ${corpus.shards.run_id.slice(0, 8)}…`);
-  if (corpus.leakage?.run_id) {
-    const leaking = corpus.leakage.partitions_leaking_as_shipped || [];
-    bits.push(
-      `leak audit ${corpus.leakage.run_id.slice(0, 8)}… — ${
-        leaking.length ? `${leaking.length} partitions leaking` : "no partition leaks"
-      }`
-    );
-  }
-  line.textContent = bits.length
-    ? `Corpus artefacts on disk: ${bits.join("; ")}.`
-    : "No corpus artefacts on disk yet — run the scripts in docs order to generate them.";
-  if (corpus.missing?.length) {
-    line.textContent += ` Not generated: ${corpus.missing.join(", ")}.`;
+/* ── Run ───────────────────────────────────────────────────────────────────── */
+
+async function postJson(url, body) {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
+    if (!response.ok) {
+      return { error: { ...data, status: response.status } };
+    }
+    return { data };
+  } catch (err) {
+    return { error: { error: String(err), kind: "network" } };
   }
 }
-
-/* ── Run ───────────────────────────────────────────────────────────────────── */
 
 async function run() {
   const button = $("run");
@@ -183,42 +168,29 @@ async function run() {
   button.textContent = "Analysing…";
   $("error-slot").replaceChildren();
 
-  // The two views are independent requests: the report is fast, the model is not on its
-  // first call, and neither should wait for the other.
+  // Three independent requests: the report is fast, the models are not on their first
+  // call, and none should wait for another.
   const code = $("code").value;
-  await Promise.all([runReport(code), runFindings(code)]);
+  const findings = postJson("/api/findings", { code });
+  const structural = postJson("/api/structural", { code });
+  await Promise.all([runReport(code, findings, structural), runFindings(findings)]);
   button.disabled = false;
   button.textContent = "Analyse";
 }
 
-async function runFindings(code) {
+async function runFindings(pending) {
   const host = $("findings");
-  host.replaceChildren(
-    el(
-      "p",
-      "empty loading",
-      "Ranking lines… The first analysis loads the model, which can take a minute while training runs on this machine."
-    )
-  );
-  try {
-    const response = await fetch("/api/findings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
-    });
-    const data = await response.json();
-    host.replaceChildren();
-    if (!response.ok) {
-      host.append(errorBox(data));
-      return;
-    }
-    renderFindings(host, data);
-  } catch (err) {
-    host.replaceChildren(errorBox({ error: String(err), kind: "network" }));
+  host.replaceChildren(el("p", "empty loading", "Ranking lines… the first run loads the model."));
+  const { data, error } = await pending;
+  host.replaceChildren();
+  if (error) {
+    host.append(errorBox(error));
+    return;
   }
+  renderFindings(host, data);
 }
 
-async function runReport(code) {
+async function runReport(code, findings, structural) {
   const body = {
     code,
     policy: $("policy").value,
@@ -228,23 +200,13 @@ async function runReport(code) {
     max_length: Number($("max_length").value),
     stride: Number($("stride").value),
   };
-
-  try {
-    const response = await fetch("/api/analyse", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      showError(data);
-      $("stages").replaceChildren();
-      return;
-    }
-    renderStages(data);
-  } catch (err) {
-    showError({ error: String(err), kind: "network" });
+  const { data, error } = await postJson("/api/analyse", body);
+  if (error) {
+    showError(error);
+    $("stages").replaceChildren();
+    return;
   }
+  renderStages(data, { findings, structural });
 }
 
 function errorBox(data) {
@@ -254,9 +216,20 @@ function errorBox(data) {
       ? "Nothing to analyse"
       : data.kind === "model"
         ? "The model raised"
-        : "The pipeline raised";
+        : data.kind === "network"
+          ? "Could not reach the server"
+          : "The pipeline raised";
   box.append(el("h2", null, title));
-  box.append(el("p", "empty", data.error));
+  // FastAPI's own errors (404, 405, 422) carry `detail`, not `error`. A box with a title
+  // and no message is what a stale server looked like on 2026-09-15.
+  const detail =
+    data.error ||
+    (typeof data.detail === "string" ? data.detail : data.detail && JSON.stringify(data.detail)) ||
+    "No message.";
+  box.append(el("p", "empty", data.status ? `HTTP ${data.status}: ${detail}` : detail));
+  if (data.status === 404 || data.status === 405) {
+    box.append(el("p", "empty", "The server may be older than this page. Restart it."));
+  }
   if (data.traceback) box.append(el("pre", null, data.traceback));
   return box;
 }
@@ -267,59 +240,38 @@ function showError(data) {
 
 /* ── Findings ──────────────────────────────────────────────────────────────── */
 
-const pct = (x) => `${Math.round(x * 100)}%`;
-
 function renderFindings(host, data) {
   const m = data.measured;
   const run = m.run || {};
 
-  // The one paragraph a developer needs before trusting a ranking. Numbers come from the
-  // seed report on disk; nothing here is typed in by hand.
   const trust = el("div", "trust");
   const trustHead = el("p", "trust-lead");
-  trustHead.append(el("b", null, "Lines to review first, ranked by the model. "));
+  trustHead.append(el("b", null, "Lines to review first. "));
   trustHead.append(
     document.createTextNode(
-      run.top_1 != null
-        ? `On held-out ${m.eval_split} functions the real flawed line was its first pick ${pct(run.top_1)} of the time and in its top ${data.top_k} ${pct(run.top_5)} of the time.`
-        : "Its held-out accuracy could not be read from the seed report."
+      run.top_5 != null
+        ? `On held-out data the real flawed line was in its top ${data.top_k} ${pct(run.top_5)} of the time.`
+        : ""
     )
   );
   trust.append(trustHead);
   const caveats = el("ul", "trust-caveats");
   caveats.append(
-    el("li", null, "It assumes the function has a flaw and ranks where. It cannot tell you code is safe."),
-    el("li", null, "Measured on Big-Vul (mostly Chrome and Linux). Your code is outside that data."),
-    el("li", null, "Fix advice comes from pattern templates, not from the model's reasoning.")
+    el("li", null, "It assumes there is a flaw and ranks where. It cannot tell you code is safe."),
+    el("li", null, "Fix advice comes from pattern templates, not from the model.")
   );
   trust.append(caveats);
   host.append(trust);
 
   const list = el("ol", "findings");
   for (const finding of data.top) {
-    list.append(findingCard(finding, data));
+    list.append(findingCard(finding));
   }
   host.append(list);
-  if (data.skipped_punctuation_lines.length) {
-    host.append(
-      el(
-        "p",
-        "note",
-        `Skipped ${plural(data.skipped_punctuation_lines.length, "line", "lines")} the model ranked this high that hold only punctuation (${data.skipped_punctuation_lines.map((l) => `L${l}`).join(", ")}), which is why the ranks above can jump.`
-      )
-    );
-  }
 
   if (data.patterns_elsewhere.length) {
     const other = el("section", "elsewhere");
-    other.append(el("h3", null, "Patterns on lines the model ranked lower"));
-    other.append(
-      el(
-        "p",
-        "note",
-        "A template matched these lines, but the model did not put them in its top five. Worth a look; not a finding."
-      )
-    );
+    other.append(el("h3", null, "Known patterns on lower-ranked lines"));
     const rows = el("ul", "elsewhere-list");
     for (const item of data.patterns_elsewhere) {
       for (const p of item.patterns) {
@@ -328,7 +280,6 @@ function renderFindings(host, data) {
         li.append(el("span", "cwe", p.cwe));
         li.append(el("span", null, `${p.title} — `));
         li.append(el("code", null, item.text));
-        li.append(el("span", "dim", item.rank ? ` · model rank ${item.rank}` : " · not scored"));
         rows.append(li);
       }
     }
@@ -339,17 +290,14 @@ function renderFindings(host, data) {
   host.append(sourceMap(data));
 
   const foot = el("p", "note");
-  foot.textContent =
-    `Scores from ${data.model.name}, run ${data.model.run_id.slice(0, 8)}… (seed ${run.seed}), on ${data.model.device}. ` +
-    `Scores are shown for ordering only: the model never saw a safe function, so they are not calibrated probabilities. ` +
-    `About ${m.label_noise} of the line labels it learned from are wrong (Memory.md §1.6).`;
+  foot.textContent = "Scores are for ordering only, not probabilities.";
   if (data.beyond_line_cap) {
     foot.textContent += ` ${plural(data.beyond_line_cap, "line", "lines")} past line 512 cannot be scored.`;
   }
   host.append(foot);
 }
 
-function findingCard(finding, data) {
+function findingCard(finding) {
   const li = el("li", "finding");
   li.id = `finding-L${finding.line}`;
 
@@ -357,7 +305,7 @@ function findingCard(finding, data) {
   head.append(el("span", "finding-rank", `#${finding.rank}`));
   head.append(el("span", "finding-line", `Line ${finding.line}`));
   const meter = el("span", "meter");
-  meter.title = `score ${finding.score.toFixed(3)} — for ordering, not a probability`;
+  meter.title = `score ${finding.score.toFixed(3)}`;
   const fill = el("span", "meter-fill");
   fill.style.width = `${Math.max(4, finding.score * 100)}%`;
   meter.append(fill);
@@ -380,17 +328,6 @@ function findingCard(finding, data) {
     snippet.append(line);
   }
   li.append(snippet);
-
-  if (!finding.patterns.length) {
-    li.append(
-      el(
-        "p",
-        "no-pattern",
-        "No template matches this line. The model ranks it highly but gives no reason, so read it with the lines around it: what reaches it, and what it writes."
-      )
-    );
-    return li;
-  }
 
   for (const p of finding.patterns) {
     const block = el("div", "pattern");
@@ -418,8 +355,7 @@ function findingCard(finding, data) {
 }
 
 /* The whole function with the model's ordering alongside. Top-ranked lines carry their rank
-   and link to their card; every other scored line is shaded by score, faintly, so the eye
-   reads rank first and gradient second. */
+   and link to their card; every other scored line is shaded by score, faintly. */
 function sourceMap(data) {
   const wrap = el("section", "source-map");
   wrap.append(el("h3", null, "Whole function"));
@@ -433,7 +369,7 @@ function sourceMap(data) {
     const heat = el("span", "heat");
     if (entry.score == null) {
       heat.textContent = "—";
-      heat.title = "no tokens on this line, so it is not scored";
+      heat.title = "not scored";
     } else if (rank) {
       const a = el("a", "heat-rank", `#${rank}`);
       a.href = `#finding-L${entry.line}`;
@@ -453,33 +389,25 @@ function sourceMap(data) {
 
 /* ── Stage scaffolding ─────────────────────────────────────────────────────── */
 
+const BADGES = {
+  live: ["badge badge-live", "ran on your code"],
+  trained: ["badge badge-trained", "trained"],
+};
+
 function stagePanel(stage) {
   const section = el("section", "stage");
   section.id = `stage-${stage.id}`;
   section.dataset.state = stage.state;
 
   const head = el("div", "stage-head");
-  head.append(el("span", "stage-layer", `${stage.layer} · Phase ${stage.phase}`));
+  head.append(el("span", "stage-layer", `Phase ${stage.phase}`));
   head.append(el("h2", null, stage.name));
-  if (stage.state === "live") head.append(el("span", "badge badge-live", "ran just now"));
-  if (stage.state === "built-untrained")
-    head.append(el("span", "badge badge-signal", "built, never validly trained"));
-  // Every state in phases.json needs a branch here. A state with no branch renders with
-  // no badge at all and looks like a stage nobody thought about, which is the opposite of
-  // what this page is for.
-  if (stage.state === "trained")
-    head.append(el("span", "badge badge-trained", "trained, measured"));
-  if (stage.state === "trained-one-seed")
-    head.append(el("span", "badge badge-signal", "trained · one seed, not yet a result"));
-  if (stage.state === "built-unrun")
-    head.append(el("span", "badge badge-signal", "built · not yet run, gated"));
-  if (stage.state === "running")
-    head.append(el("span", "badge badge-signal", "running · no result yet"));
-  if (stage.state === "planned") head.append(el("span", "badge badge-void", "not built"));
-  if (stage.adr) head.append(el("span", "stage-layer", stage.adr));
+  const badge = BADGES[stage.state];
+  if (badge) head.append(el("span", badge[0], badge[1]));
   section.append(head);
 
   const body = el("div", "stage-body");
+  body.append(el("p", "stage-why", stage.does));
   section.append(body);
   return { section, body };
 }
@@ -507,8 +435,7 @@ function table(headers, rows, opts = {}) {
   const thead = el("thead");
   const tr = el("tr");
   headers.forEach((h, i) => {
-    const th = el("th", opts.numeric?.includes(i) ? "num" : null, h);
-    tr.append(th);
+    tr.append(el("th", opts.numeric?.includes(i) ? "num" : null, h));
   });
   thead.append(tr);
   t.append(thead);
@@ -517,13 +444,24 @@ function table(headers, rows, opts = {}) {
     const line = el("tr");
     if (row.chosen) line.dataset.chosen = "true";
     (row.cells || row).forEach((cell, i) => {
-      line.append(el("td", opts.numeric?.includes(i) ? "num" : null, String(cell)));
+      const td = el("td", opts.numeric?.includes(i) ? "num" : null);
+      if (cell instanceof Node) td.append(cell);
+      else td.textContent = String(cell);
+      line.append(td);
     });
     tbody.append(line);
   }
   t.append(tbody);
   wrap.append(t);
   return wrap;
+}
+
+/* A collapsed extra: the detail a curious reader can open, out of everyone else's way. */
+function more(label, content) {
+  const d = el("details", "more");
+  d.append(el("summary", null, label));
+  d.append(content);
+  return d;
 }
 
 /* ── Stage bodies ──────────────────────────────────────────────────────────── */
@@ -535,136 +473,102 @@ const RENDERERS = {
   tokens: renderTokens,
   axis: renderAxis,
   semantic: renderSemantic,
+  structural: renderStructural,
+  fusion: renderFusion,
 };
 
-function renderStages(data) {
+function renderStages(data, pending) {
   const host = $("stages");
   host.replaceChildren();
-  for (const stage of PHASES) {
+  for (const stage of builtStages()) {
     const { section, body } = stagePanel(stage);
-    body.append(el("p", "stage-why", stage.why));
     const renderer = RENDERERS[stage.id];
-    if (renderer) {
-      renderer(body, data);
-    } else {
-      renderPlanned(body, stage);
-    }
+    if (renderer) renderer(body, data, pending);
     host.append(section);
   }
+  host.append(renderPlanned());
 }
 
-function renderPlanned(body, stage) {
+function renderPlanned() {
+  const section = el("section", "stage");
+  section.dataset.state = "planned";
+  const head = el("div", "stage-head");
+  head.append(el("h2", null, "Not built yet"));
+  section.append(head);
+  const body = el("div", "stage-body");
   const list = el("ul", "planned-list");
-  list.append(el("li", null, stage.does));
-  // The fallback used to say "nothing is built" for every stage without a renderer, which
-  // was false for the trained structural branch. What is absent differs by state.
-  const absent = {
-    planned: `Nothing is shown here because nothing is built. When Phase ${stage.phase} lands, this panel is where its output goes.`,
-    trained: "Built and measured, but this tool does not run it on your paste; only the semantic model scores lines in Findings.",
-    "built-unrun": "Built, not yet run. No output exists to show.",
-    running: "Being run now. No output exists to show until a result is logged.",
-  };
-  list.append(el("li", null, absent[stage.state] || "No output to show for this stage."));
+  for (const stage of plannedStages()) {
+    const li = el("li");
+    li.append(el("b", null, `Phase ${stage.phase} · ${stage.name}: `));
+    li.append(document.createTextNode(stage.does));
+    list.append(li);
+  }
   body.append(list);
+  section.append(body);
+  return section;
 }
 
 function renderNormalize(body, data) {
   const n = data.normalization;
-  const before = n.leak_tell.lines_flagged_before.length;
-  const after = n.leak_tell.lines_flagged_after.length;
-
   body.append(
     readout([
       ["Lines", n.n_lines],
-      ["Lines changed", n.n_lines_changed, n.n_lines_changed ? "signal" : null],
-      ["Line count preserved", n.line_count_preserved ? "yes" : "NO", n.line_count_preserved ? "live" : "void"],
-      ["Applied", n.applied ? "yes" : "no", n.applied ? "live" : "void"],
+      ["Lines changed", n.n_lines_changed],
     ])
   );
-
-  const demo = el("p", "note");
-  demo.textContent =
-    `The leak rule reads no code and no label — it only asks whether a line starts with a space or tab. ` +
-    `On your paste as typed it would flag ${before} of ${n.n_lines} lines; after normalization, ${after}. ` +
-    `On Big-Vul as shipped that same rule recovers the real flaw label at precision 1.0000 with zero false positives on all six partitions, which is why this stage exists.`;
-  body.append(demo);
-
   if (!n.applied) {
-    const warn = el("p", "note note-warn");
-    warn.textContent =
-      "Normalization is switched off. This reproduces pre-ADR-006 behaviour and must never produce a reported number.";
-    body.append(warn);
+    body.append(el("p", "note note-warn", "Normalization is off. The models expect it on."));
   }
-
   if (n.changed.length) {
     body.append(
-      table(
-        ["line", "as pasted", "normalized"],
-        n.changed.map((c) => [c.line, JSON.stringify(c.before), JSON.stringify(c.after)]),
-        { numeric: [0] }
+      more(
+        "Show changed lines",
+        table(
+          ["line", "before", "after"],
+          n.changed.map((c) => [c.line, JSON.stringify(c.before), JSON.stringify(c.after)]),
+          { numeric: [0] }
+        )
       )
     );
-    if (n.changed_truncated) {
-      body.append(el("p", "note", `Showing the first 60 of ${n.n_lines_changed} changed lines.`));
-    }
   }
 }
 
 function renderParse(body, data) {
   const p = data.parse;
+  const pairs = [
+    ["Grammar", p.language_used === "cpp" ? "C++" : p.language_used === "c" ? "C" : p.language_used, "live"],
+    ["Clean parse", p.is_clean ? "yes" : "no", p.is_clean ? "live" : "void"],
+  ];
+  if (!p.is_clean) {
+    pairs.push(["Errors", p.error_nodes + p.missing_nodes, "void"]);
+    pairs.push(["First error on line", p.first_error_line ?? "—", "void"]);
+  }
+  body.append(readout(pairs));
   body.append(
-    readout([
-      ["Grammar used", p.language_used, "live"],
-      ["Clean parse", p.is_clean ? "yes" : "no", p.is_clean ? "live" : "void"],
-      ["ERROR nodes", p.error_nodes, p.error_nodes ? "void" : null],
-      ["MISSING nodes", p.missing_nodes, p.missing_nodes ? "void" : null],
-      ["First damage", p.first_error_line ?? "—", p.first_error_line ? "void" : null],
-    ])
-  );
-
-  body.append(
-    el(
-      "p",
-      "note",
-      "Tree-sitter recovers from anything, so a tree is not evidence of a parse. Clean means zero ERROR and zero MISSING nodes — the same definition the corpus report uses."
-    )
-  );
-
-  body.append(
-    table(
-      ["policy", "grammar", "clean", "errors", "missing"],
-      data.grammars.map((row) => ({
-        chosen: row.policy === p.policy,
-        cells: row.error
-          ? [row.policy, "—", "—", row.error, "—"]
-          : [
-              row.policy,
-              row.language_used,
-              row.is_clean ? "yes" : "no",
-              row.error_nodes,
-              row.missing_nodes,
-            ],
-      })),
-      { numeric: [3, 4] }
+    more(
+      "Compare grammars",
+      table(
+        ["policy", "grammar", "clean", "errors"],
+        data.grammars.map((row) => ({
+          chosen: row.policy === p.policy,
+          cells: row.error
+            ? [row.policy, "—", "—", row.error]
+            : [row.policy, row.language_used, row.is_clean ? "yes" : "no", row.error_nodes + row.missing_nodes],
+        })),
+        { numeric: [3] }
+      )
     )
   );
 }
 
 function renderGraphs(body, data) {
   const g = data.graph;
-  body.append(
-    readout([
-      ["Nodes", g.n_nodes.toLocaleString()],
-      ["Edges", g.n_edges.toLocaleString()],
-      [
-        "Lines with a node",
-        `${g.lines_covered.length}/${g.n_lines}`,
-        g.line_coverage_pct === 100 ? "live" : "signal",
-        `${g.line_coverage_pct}%`,
-      ],
-    ])
-  );
-
+  const pairs = [
+    ["Nodes", g.n_nodes.toLocaleString()],
+    ["Edges", g.n_edges.toLocaleString()],
+    ["Lines with a node", `${g.lines_covered.length}/${g.n_lines}`],
+  ];
+  body.append(readout(pairs));
   body.append(graphCanvas(g));
 
   const legend = el("ul", "legend");
@@ -678,33 +582,16 @@ function renderGraphs(body, data) {
     li.append(swatch, document.createTextNode(`${type} ${g.edge_types[type]}`));
     legend.append(li);
   }
-  legend.append(el("li", null, "y = source line"));
+  legend.append(el("li", null, "rows = source lines"));
   body.append(legend);
 
   if (g.nodes_truncated || g.edges_truncated) {
-    body.append(
-      el(
-        "p",
-        "note note-warn",
-        `Drawing is capped at ${g.render_caps.nodes} nodes and ${g.render_caps.edges} edges; this graph is larger, so the picture is a prefix rather than the whole graph. The counts above are complete.`
-      )
-    );
-  }
-
-  if (g.lines_uncovered.length) {
-    body.append(
-      el(
-        "p",
-        "note",
-        `${plural(g.lines_uncovered.length, "line has", "lines have")} no node at all (${g.lines_uncovered.join(", ")}), so the structural branch cannot score ${g.lines_uncovered.length === 1 ? "it" : "them"}. Corpus-wide this costs 7.84% of flagged lines, and it is a separate ceiling from label noise.`
-      )
-    );
+    body.append(el("p", "note", `Picture shows the first ${g.render_caps.nodes} nodes only.`));
   }
 }
 
 /* Graph laid out with source line on the Y axis. Nodes on the same line spread along X
-   in id order, so horizontal distance is tree order and vertical distance is real
-   source distance — a long vertical edge is a relation that jumps across the function. */
+   in id order, so a long vertical edge is a relation that jumps across the function. */
 function graphCanvas(g) {
   const wrap = el("div", "graph-wrap");
   const byLine = new Map();
@@ -737,8 +624,6 @@ function graphCanvas(g) {
     });
   }
 
-  // Lanes first, so edges and nodes sit above them. Every line that carries a node gets
-  // a faint band: the band is the line, and that is what the layout is claiming.
   for (const [line, nodes] of byLine) {
     const y = 12 + (line - 1) * rowHeight;
     const band = document.createElementNS(svgns, "rect");
@@ -777,10 +662,7 @@ function graphCanvas(g) {
     if (!a || !b) continue;
     const path = document.createElementNS(svgns, "path");
     const bow = Math.min(40, Math.abs(b.y - a.y) * 0.35 + 6);
-    path.setAttribute(
-      "d",
-      `M ${a.x} ${a.y} C ${a.x + bow} ${a.y}, ${b.x + bow} ${b.y}, ${b.x} ${b.y}`
-    );
+    path.setAttribute("d", `M ${a.x} ${a.y} C ${a.x + bow} ${a.y}, ${b.x + bow} ${b.y}, ${b.x} ${b.y}`);
     path.setAttribute("class", `edge edge-${edge.type}`);
     svg.append(path);
   }
@@ -805,54 +687,30 @@ function graphCanvas(g) {
 
 function renderTokens(body, data) {
   const t = data.tokens;
-  const lost = t.truncation.would_lose_lines;
   body.append(
     readout([
-      ["Body tokens", t.n_body_tokens.toLocaleString()],
-      ["Windows", t.n_windows, t.n_windows > 1 ? "signal" : null],
-      ["Window length", t.max_length],
-      ["Stride", t.stride],
-      [
-        "Lines a truncating encoder would lose",
-        lost,
-        lost ? "void" : "live",
-      ],
+      ["Tokens", t.n_body_tokens.toLocaleString()],
+      ["Windows", t.n_windows],
     ])
   );
-
-  if (!t.windowing) {
+  if (!t.windowing && t.truncation.would_lose_lines) {
     body.append(
-      el(
-        "p",
-        "note note-warn",
-        "Windowing is off, so only the first window exists. This reproduces the published-baseline behaviour and any line-level number taken this way must be labelled as truncated."
+      el("p", "note note-warn", `Windowing is off: ${plural(t.truncation.would_lose_lines, "line is", "lines are")} cut.`)
+    );
+  }
+  if (t.n_windows > 1) {
+    body.append(
+      table(
+        ["window", "tokens", "lines"],
+        t.windows.map((w) => [
+          w.index,
+          w.n_real_tokens,
+          w.lines.length ? `${w.lines[0]}–${w.lines[w.lines.length - 1]}` : "—",
+        ]),
+        { numeric: [0, 1] }
       )
     );
   }
-
-  body.append(
-    table(
-      ["window", "real tokens", "lines covered"],
-      t.windows.map((w) => [
-        w.index,
-        w.n_real_tokens,
-        w.lines.length ? `${w.lines[0]}–${w.lines[w.lines.length - 1]} (${w.lines.length})` : "—",
-      ]),
-      { numeric: [0, 1] }
-    )
-  );
-
-  body.append(
-    el(
-      "p",
-      "note",
-      lost
-        ? `Truncating at ${t.max_length} tokens would keep lines ${t.truncation.lines_in_first_window[0]}–${
-            t.truncation.lines_in_first_window[t.truncation.lines_in_first_window.length - 1]
-          } and drop ${lost} others. Measured corpus-wide, truncation destroys 38.1% of all flagged lines and 44.5% on clean_eval (run b7ccc9ca…); windowing keeps 100%.`
-        : "This function fits in a single window, so truncation and windowing agree. On the corpus they do not: truncation destroys 38.1% of all flagged lines (run b7ccc9ca…)."
-    )
-  );
 }
 
 function renderAxis(body, data) {
@@ -862,54 +720,23 @@ function renderAxis(body, data) {
 
   const box = el("div", "axis");
   const head = el("div", "axis-head");
-  ["line", "source", "nodes", "tokens", "window"].forEach((h) =>
-    head.append(el("span", null, h))
-  );
+  ["line", "source", "nodes", "tokens", "window"].forEach((h) => head.append(el("span", null, h)));
   box.append(head);
-
-  const changed = new Set((data.normalization.changed || []).map((c) => c.line));
 
   for (const row of axis.rows) {
     const line = el("div", "axis-row");
     line.dataset.blank = String(row.blank);
-    if (changed.has(row.line)) line.dataset.changed = "true";
-
     line.append(el("span", "ln", String(row.line)));
     line.append(el("code", "src", row.text || " "));
     line.append(trackCell(row.n_nodes, maxNodes, "bar-node", `${row.n_nodes} graph nodes: ${row.node_types.join(", ")}`, !row.blank && !row.has_nodes));
     line.append(trackCell(row.n_tokens, maxTokens, "bar-token", `${row.n_tokens} tokens`, !row.blank && !row.has_tokens));
-    line.append(
-      el("span", "bar-window", row.in_windows.length ? row.in_windows.join(",") : "—")
-    );
+    line.append(el("span", "bar-window", row.in_windows.length ? row.in_windows.join(",") : "—"));
     box.append(line);
   }
   body.append(box);
-
-  const notes = [];
-  if (axis.lines_without_nodes.length) {
-    notes.push(
-      `${plural(axis.lines_without_nodes.length, "line carries", "lines carry")} no graph node, so the structural branch is blind to it.`
-    );
-  }
-  if (axis.lines_without_tokens.length) {
-    notes.push(
-      `${plural(axis.lines_without_tokens.length, "line carries", "lines carry")} no token, so the semantic branch is blind to it.`
-    );
-  }
-  if (changed.size) {
-    notes.push(
-      `An amber line number marks a line the whitespace fix changed — ${plural(changed.size, "line", "lines")} here.`
-    );
-  }
-  notes.push(
-    "Both branches must land on this same index before fusion can happen. A bug in either mapping shows up here as a bar against the wrong line, which is why the view exists."
-  );
-  body.append(el("p", "note", notes.join(" ")));
 }
 
-/* One track cell: a bar whose length is the count, or an explicit gap marker when a line
-   exists but the branch cannot see it. A blank cell and a blind line must not look the
-   same — the second is a ceiling and the first is just an empty line. */
+/* A bar whose length is the count, or "none" when a line has code but a branch cannot see it. */
 function trackCell(count, max, cls, title, blind) {
   const cell = el("span", "track");
   if (count > 0) {
@@ -924,28 +751,79 @@ function trackCell(count, max, cls, title, blind) {
   return cell;
 }
 
+/* Held-out accuracy for one model, from its seed report. */
+function accuracy(name, label) {
+  const r = RESULTS[name];
+  if (!r || r.missing) return [[label, "no report"]];
+  return [
+    [`${label} top-5 hit rate`, pct(r.top_5), "live", `± ${Math.round(r.top_5_std * 100)} pts`],
+    [`${label} top-1 hit rate`, pct(r.top_1)],
+  ];
+}
+
 function renderSemantic(body) {
-  const m = MODEL?.measured;
-  const three = m?.three_seed;
-  if (!three) {
-    body.append(el("p", "note note-warn", "The Phase 3 seed report could not be read, so no measured number is shown."));
+  body.append(readout(accuracy("semantic", "Held-out")));
+  const go = el("button", "link-button", "See its ranking in Findings →");
+  go.type = "button";
+  go.addEventListener("click", () => selectTab("findings", true));
+  body.append(go);
+}
+
+async function renderStructural(body, _data, pending) {
+  body.append(readout(accuracy("structural", "Held-out")));
+
+  const slot = el("div");
+  slot.append(el("p", "empty loading", "Ranking lines… the first run loads the model."));
+  body.append(slot);
+
+  const [structural, findings] = await Promise.all([pending.structural, pending.findings]);
+  slot.replaceChildren();
+  if (structural.error) {
+    slot.append(errorBox(structural.error));
     return;
   }
-  body.append(
-    readout([
-      ["Encoder", "CodeBERT", "live"],
-      ["Seeds", String(m.n_seeds), "live"],
-      [`Top-5 (${m.eval_split})`, three.top_5_mean.toFixed(4), "live", `± ${three.top_5_std.toFixed(4)}`],
-      [`Top-1 (${m.eval_split})`, three.top_1_mean.toFixed(4), "live"],
-      ["Scores shown", "Findings tab", "signal", `seed ${m.run.seed}`],
-    ])
-  );
-  body.append(
-    el(
-      "p",
-      "note",
-      `Findings runs this model (run ${m.run.run_id.slice(0, 8)}…, seed ${m.run.seed} — the default seed, not the best of three, so the choice is not made on validation data) on your paste. Its function-level F1 of 1.000 is degenerate — every evaluation unit is vulnerable — and is never shown. Run 1843412a… remains void (ADR-006).`
+  const s = structural.data;
+  const semanticRank = new Map((findings.data?.scores || []).map((e) => [e.line, e.rank]));
+
+  slot.append(el("h3", "sub", "Top lines on your code"));
+  slot.append(
+    table(
+      ["#", "line", "code", "semantic model's rank"],
+      s.top.map((e) => {
+        const code = el("code", null, e.text);
+        const other = semanticRank.get(e.line);
+        return [e.rank, e.line, code, other ?? "—"];
+      }),
+      { numeric: [0, 1, 3] }
     )
+  );
+  if (s.lines_without_node.length) {
+    slot.append(
+      el("p", "note", `Not scored (no graph node): ${plural(s.lines_without_node.length, "line", "lines")} — ${s.lines_without_node.join(", ")}.`)
+    );
+  }
+}
+
+function renderFusion(body) {
+  const rows = [
+    ["cross_attention", "Cross-attention"],
+    ["concat", "Concatenation"],
+    ["sum", "Sum"],
+    ["gated", "Gated"],
+  ];
+  const semantic = RESULTS.semantic;
+  const tableRows = rows
+    .filter(([name]) => RESULTS[name] && !RESULTS[name].missing)
+    .map(([name, label]) => ({
+      chosen: name === "cross_attention",
+      cells: [label, pct(RESULTS[name].top_5), pct(RESULTS[name].top_1)],
+    }));
+  if (semantic && !semantic.missing) {
+    tableRows.push({ cells: ["Semantic model alone (Findings)", pct(semantic.top_5), pct(semantic.top_1)] });
+  }
+  body.append(table(["method", "top-5 hit rate", "top-1 hit rate"], tableRows, { numeric: [1, 2] }));
+  body.append(
+    el("p", "note", "The fusion runs used a frozen semantic model to save GPU time, which is why they score below it. A full run is pending.")
   );
 }
 

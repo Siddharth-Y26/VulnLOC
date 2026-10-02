@@ -29,7 +29,14 @@ from vulnloc.representation.line_map import split_lines
 from vulnloc.representation.units import CodeUnit
 from vulnloc.utils.text import normalize_source_whitespace
 
-__all__ = ["AnalysisOptions", "analyse", "findings", "sample_functions"]
+__all__ = [
+    "AnalysisOptions",
+    "analyse",
+    "findings",
+    "measured_results",
+    "sample_functions",
+    "structural_findings",
+]
 
 # A pasted function is small, but a pathological paste is not. The AST of a 500-line
 # function reaches a few thousand nodes, and shipping all of them to a browser that draws
@@ -252,7 +259,10 @@ def _tokenizer(options: AnalysisOptions) -> Any:
     Returns:
         The tokenizer.
     """
-    from transformers import AutoTokenizer
+    from frontend.scoring import IMPORT_LOCK
+
+    with IMPORT_LOCK:
+        from transformers import AutoTokenizer
 
     from vulnloc.representation.tokenization import LineTokenizer
 
@@ -535,6 +545,83 @@ def findings(code: str) -> dict[str, Any]:
         "model": scored["model"],
         "measured": scored["measured"],
     }
+
+
+def structural_findings(code: str) -> dict[str, Any]:
+    """The Detailed report's Structural branch panel: the GNN's top lines on this paste.
+
+    Built like :func:`findings` — normalization always on, punctuation-only lines skipped
+    with the model's own ranks kept — so the two rankings are comparable line for line.
+
+    Args:
+        code: The pasted source.
+
+    Returns:
+        A JSON-serializable report.
+
+    Raises:
+        ValueError: If ``code`` is empty.
+    """
+    from frontend.structural import score_lines
+
+    if not code.strip():
+        raise ValueError("Paste a function first — there is nothing to analyse.")
+
+    unit = CodeUnit.from_source("paste", code, language="C", normalize_whitespace=True)
+    lines = list(unit.lines)
+    scored = score_lines(unit)
+    ranked = sorted((e for e in scored["scores"] if e["rank"] is not None), key=lambda e: e["rank"])
+    chosen = [e for e in ranked if not _PUNCTUATION_ONLY.match(lines[e["line"] - 1])]
+    return {
+        "top": [{**e, "text": lines[e["line"] - 1]} for e in chosen[: scored["top_k"]]],
+        # Only lines holding code: a blank line having no node is not worth a reader's time.
+        "lines_without_node": [
+            line for line in scored["lines_without_node"] if lines[line - 1].strip()
+        ],
+        "model": scored["model"],
+    }
+
+
+_SEED_REPORTS = {
+    "semantic": "artifacts/phase3/seed_report_semantic.json",
+    "structural": "artifacts/phase4/seed_report_structural.json",
+    "cross_attention": "artifacts/phase5/seed_report_fused_cross_attention.json",
+    "concat": "artifacts/phase5/seed_report_fused_concat.json",
+    "sum": "artifacts/phase5/seed_report_fused_sum.json",
+    "gated": "artifacts/phase5/seed_report_fused_gated.json",
+    "llm_only": "artifacts/phase5/seed_report_fused_llm_only.json",
+}
+"""Where each trained model's held-out numbers live. Read, never typed in."""
+
+
+def measured_results() -> dict[str, Any]:
+    """Held-out Top-5/Top-1 for every trained model, read from the seed reports on disk.
+
+    Returns:
+        ``{name: {"top_5", "top_5_std", "top_1", "n_seeds", "eval_split", "run_ids"}}``, or
+        ``{name: {"missing": path}}`` for a report that has not been generated.
+    """
+    import json
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parent.parent
+    results: dict[str, Any] = {}
+    for name, relative in _SEED_REPORTS.items():
+        path = repo / relative
+        if not path.exists():
+            results[name] = {"missing": relative}
+            continue
+        report = json.loads(path.read_text(encoding="utf-8"))
+        headline = report["headline"]
+        results[name] = {
+            "top_5": headline["eval/line/top_5_accuracy"]["mean"],
+            "top_5_std": headline["eval/line/top_5_accuracy"]["std"],
+            "top_1": headline["eval/line/top_1_accuracy"]["mean"],
+            "n_seeds": report.get("n_seeds"),
+            "eval_split": report.get("eval_split"),
+            "run_ids": [run["run_id"] for run in report.get("runs", [])],
+        }
+    return results
 
 
 def sample_functions() -> list[dict[str, str]]:

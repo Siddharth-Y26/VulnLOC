@@ -17,8 +17,8 @@
       <div class="masthead-top">
         <h1 class="wordmark">VulnLoc <span>line-level review</span></h1>
         <p class="masthead-note">
-          Paste a C or C++ function. Findings shows the lines to review first and what to
-          check on each. Detailed report shows every pipeline stage that ran.
+          Paste a C or C++ function. Findings: the lines to review first. Detailed report:
+          each step's output, and the structural model's ranking.
         </p>
       </div>
 
@@ -102,9 +102,6 @@
         </div>
 
         <div role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden>
-          <!-- Filled from /api/model: what the tool scores with, and what it does not. -->
-          <div class="model-banner" id="model-banner" hidden></div>
-
           <nav aria-label="Pipeline stages">
             <ol class="rail" id="rail"></ol>
           </nav>
@@ -118,15 +115,6 @@
         </div>
       </section>
     </main>
-
-    <footer>
-      <p id="corpus-line">Loading the measured corpus artefacts…</p>
-      <p>
-        A development instrument, not the Phase&nbsp;9 serving API — that phase is
-        unstarted, and this tool lives outside <code>src/vulnloc</code> so it ships
-        nothing Phase&nbsp;9 has to inherit.
-      </p>
-    </footer>
 
     <script src="app.js"></script>
   </body>

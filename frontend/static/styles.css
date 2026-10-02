@@ -146,36 +146,6 @@ a {
   outline-offset: -2px;
 }
 
-/* Says what scores lines and what does not. Informational, not an alarm: the thing it used
-   to announce — no scores anywhere — is no longer true. */
-.model-banner {
-  margin: 0 0 0.25rem;
-  border: 1px solid var(--rule);
-  border-left: 3px solid var(--signal);
-  background: var(--panel);
-  padding: 0.85rem 1.1rem;
-  border-radius: 3px;
-}
-
-.model-banner h2 {
-  margin: 0 0 0.3rem;
-  font-size: 0.95rem;
-  color: var(--signal);
-}
-
-.model-banner p {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--dim);
-  max-width: 92ch;
-}
-
-.model-banner code {
-  font-family: var(--mono);
-  color: var(--signal);
-  background: none;
-}
-
 /* ─── Pipeline rail ────────────────────────────────────────────────────────── */
 
 .rail {
@@ -191,10 +161,9 @@ a {
 .rail li {
   flex: 0 0 auto;
   position: relative;
-  padding: 0 1.15rem 0.9rem 0;
-  margin-right: 1.15rem;
+  padding: 0 0.9rem 0.9rem 0;
+  margin-right: 0.9rem;
   border-bottom: 2px solid var(--rule);
-  min-width: 7.5rem;
 }
 
 .rail li::after {
@@ -874,16 +843,63 @@ tr[data-chosen="true"] td {
   margin-bottom: 0.3rem;
 }
 
-footer {
-  border-top: 1px solid var(--rule);
-  padding: 1.25rem clamp(1rem, 3vw, 2.25rem);
-  color: var(--dim);
-  font-size: 0.8rem;
+.planned-list b {
+  color: var(--type);
+  font-weight: 500;
 }
 
-footer p {
-  margin: 0 0 0.4rem;
-  max-width: 88ch;
+/* Collapsed extras inside a stage: detail for whoever opens it, out of the way otherwise. */
+.more {
+  margin-top: 0.8rem;
+}
+
+.more summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--dim);
+}
+
+.more summary:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.more[open] summary {
+  margin-bottom: 0.5rem;
+}
+
+.stage-body h3.sub {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.stage-body td code {
+  font-family: var(--mono);
+  color: var(--code);
+  font-size: 0.8rem;
+  white-space: pre;
+}
+
+.link-button {
+  margin-top: 0.8rem;
+  background: none;
+  border: 1px solid var(--live);
+  color: var(--live);
+  padding: 0.4rem 0.8rem;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  background: var(--live-soft);
+}
+
+.link-button:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
 }
 
 /* ─── Composer: report options ─────────────────────────────────────────────── */

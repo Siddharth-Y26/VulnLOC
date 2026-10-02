@@ -1,126 +1,90 @@
 {
-  "_comment": "Mirrors CLAUDE.md section 3 and docs/Phases.md. This file is a SUMMARY and is not authoritative — when it disagrees with docs/Memory.md, Memory.md wins and this file is the thing to fix. Update it in the same commit as any phase change.",
+  "_comment": "Mirrors CLAUDE.md section 3 and docs/Phases.md. This file is a SUMMARY and is not authoritative — when it disagrees with docs/Memory.md, Memory.md wins and this file is the thing to fix. Update it in the same commit as any phase change. 'does' is one short sentence shown under each stage; keep it that way (owner, 2026-09-15). Measured numbers are NOT written here — the page reads them from the seed reports via /api/results.",
   "_updated": "2026-09-15",
   "stages": [
     {
       "id": "normalize",
-      "layer": "L0",
       "phase": 1,
       "name": "Normalize",
       "state": "live",
-      "adr": "ADR-006",
-      "does": "Strips leading and trailing whitespace from every source line, as the corpus is read.",
-      "why": "The LineVul release writes the flaw label into the indentation: every line of processed_func is flush left except the flagged ones, which are pasted back verbatim from flaw_line. 'Line starts with a space' recovers the label at precision 1.0000 with zero false positives on all six partitions."
+      "does": "Strips leading and trailing whitespace from every line."
     },
     {
       "id": "parse",
-      "layer": "L1",
       "phase": 2,
       "name": "Parse",
       "state": "live",
-      "adr": "ADR-005",
-      "does": "Parses with Tree-sitter under whichever grammar parses best: C++ first, C as well only if damage remains, C++ winning ties.",
-      "why": "The corpus's own lang column is the worst selector available — 37.01% clean parses against 89.14% for best-of-two, because 98.6% of Big-Vul is labelled C and much of it is C++."
+      "does": "Parses the code with the grammar (C or C++) that fits it best."
     },
     {
       "id": "graphs",
-      "layer": "L1",
       "phase": 2,
       "name": "Graphs",
       "state": "live",
-      "adr": "ADR-002",
-      "does": "Builds AST, CFG, DFG and the CPG as their union over one shared node set.",
-      "why": "All four share a node set, so node-to-line is identical across them and ablation A3 is an edge-type filter rather than a second construction."
+      "does": "Builds the code graph: syntax tree, control flow and data flow."
     },
     {
       "id": "tokens",
-      "layer": "L1",
       "phase": 3,
       "name": "Tokenize",
       "state": "live",
-      "adr": null,
-      "does": "Tokenizes for CodeBERT and windows long functions, keeping a source line attached to every token.",
-      "why": "Truncating at 512 tokens destroys 38.1% of all flagged lines and 44.5% on clean_eval. Windowing keeps 100%."
+      "does": "Splits the code into CodeBERT tokens, in 512-token windows."
     },
     {
       "id": "axis",
-      "layer": "L2",
       "phase": 3,
       "name": "Line axis",
       "state": "live",
-      "adr": null,
-      "does": "Pools tokens onto source lines, and would pool graph nodes the same way, through one shared primitive.",
-      "why": "The line index is the atomic unit of the whole system. Both branches must land on it before anything can be fused."
+      "does": "How many graph nodes and tokens land on each line."
     },
     {
       "id": "semantic",
-      "layer": "L2",
       "phase": 3,
-      "name": "Semantic branch",
+      "name": "Semantic model",
       "state": "trained",
-      "adr": null,
-      "does": "CodeBERT encoder plus a per-line head, on ADR-006 normalized text. Three seeds logged; Phase 3 gate signed 2026-09-15.",
-      "why": "Three seeds on held-out val: Top-5 0.6141 +/- 0.0055, Top-1 0.3513, line F1 0.3692. Seed 42 is the model the Findings tab ranks lines with — trained only on vulnerable functions, so it ranks where a flaw most likely is and cannot say whether there is one."
+      "does": "CodeBERT reads the code as text and scores each line. This is the model behind the Findings tab."
     },
     {
       "id": "structural",
-      "layer": "L2",
       "phase": 4,
-      "name": "Structural branch",
+      "name": "Structural model",
       "state": "trained",
-      "adr": "ADR-007",
-      "does": "GCN / GAT / GGNN over the code graphs, pooled onto the same line axis. Node features are a node-type embedding plus — optionally — an identifier subtoken embedding (ADR-002 D2.5). Relations are typed: a graph carrying several edge kinds is refused unless the model is told how to treat them.",
-      "why": "Phase 4's four exit criteria are met; gate signed 2026-09-15. Best config is GCN depth 4 with identifier subtokens: Top-5 0.4302 +/- 0.0372 over three seeds, against 0.3645 without them. Still far below the semantic branch, which is the honest result rather than a failure. The 2/4/6 depth sweep shows no resolvable effect at three seeds per depth."
+      "does": "A graph neural network (GCN) reads the code graph and scores each line."
     },
     {
       "id": "fusion",
-      "layer": "L2",
       "phase": 5,
-      "name": "Cross-attention fusion",
-      "state": "running",
-      "adr": "ADR-008, ADR-009",
-      "does": "Bidirectional multi-head attention between the two branches over the shared line axis, attention maps retained for the explanation layer. Five comparators sit behind the same interface — concat, sum, gated, llm_only, gnn_only — so switching arms is a flag, not a code change.",
-      "why": "The project's central novelty, and experiment A1: if it does not beat plain concatenation, that is the result and it gets reported. Gates signed 2026-09-15; A1 is being run with a frozen semantic encoder whose line features are cached (ADR-009), so its claim is 'with a fixed semantic representation'. No fused result exists, so nothing in this tool shows a fused score."
+      "name": "Fusion",
+      "state": "trained",
+      "does": "Combines both models. Measured on the dataset only; not run on your code."
     },
     {
       "id": "localize",
-      "layer": "L3",
       "phase": 6,
       "name": "Localization head",
       "state": "planned",
-      "adr": null,
-      "does": "Per-line vulnerability scores, and a CWE type if the labels support one.",
-      "why": "Line labels are roughly 30% wrong, so this head must not treat them as clean."
+      "does": "Calibrated line scores with a cut-off, so only real suspects are listed."
     },
     {
       "id": "explain",
-      "layer": "L5",
       "phase": 7,
       "name": "Explanation",
       "state": "planned",
-      "adr": null,
-      "does": "An evidence-grounded account of why a line was flagged, built from retained attention and graph paths.",
-      "why": "Whether generative quality can be claimed at all depends on open decision Q4. Until then, the fix advice in Findings comes from pattern templates that match line text, and says so."
+      "does": "Says why a line was flagged, from what the model looked at."
     },
     {
       "id": "evaluate",
-      "layer": "L4",
       "phase": 8,
       "name": "Evaluation",
       "state": "planned",
-      "adr": null,
-      "does": "Baselines, ablations, and every headline number reported against its ceiling.",
-      "why": "Three partition-specific ceilings must travel with every line-level figure: label noise, no-node coverage, and the line cap."
+      "does": "Final benchmark numbers against other tools."
     },
     {
       "id": "serve",
-      "layer": "L6",
       "phase": 9,
       "name": "Serving",
       "state": "planned",
-      "adr": null,
-      "does": "The packaged API and UI this inspector is a rehearsal for, not a substitute for.",
-      "why": "Phases.md forbids building ahead, so this inspector lives outside src/vulnloc and ships nothing Phase 9 will have to inherit."
+      "does": "The packaged API and app."
     }
   ]
 }

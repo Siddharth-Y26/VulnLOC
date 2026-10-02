@@ -40,7 +40,16 @@ SEED_REPORT = _REPO / "artifacts" / "phase3" / "seed_report_semantic.json"
 TOP_K = 5
 """Lines ranked as findings. Top-5 is the metric the model was selected and reported on."""
 
-_LOCK = threading.Lock()
+IMPORT_LOCK = threading.RLock()
+"""Held while any model loads or ``transformers`` is first imported.
+
+The startup warm-up thread and the first request both import ``transformers``; its lazy
+module is not safe to initialise from two threads at once, and the loser saw
+``ImportError: cannot import name 'AutoTokenizer'`` (2026-09-15). Shared with
+``structural.py`` and ``pipeline.py``.
+"""
+
+_LOCK = IMPORT_LOCK
 _MODEL: Any = None
 _CFG: Any = None
 
@@ -140,12 +149,14 @@ def score_lines(unit: Any) -> dict[str, Any]:
         ``score`` is the sigmoid of the line logit; lines with no token carry ``None``.
     """
     import torch
-    from transformers import AutoTokenizer
+
+    model, cfg = _load()
+    with IMPORT_LOCK:
+        from transformers import AutoTokenizer
 
     from vulnloc.representation.tokenization import LineTokenizer
     from vulnloc.training.datasets import EncodedUnit, collate_units
 
-    model, cfg = _load()
     tokenizer = LineTokenizer(
         AutoTokenizer.from_pretrained(str(cfg.llm.tokenizer_name)),
         max_length=int(cfg.llm.max_length),

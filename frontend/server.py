@@ -41,7 +41,14 @@ from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
-from frontend.pipeline import AnalysisOptions, analyse, findings, sample_functions  # noqa: E402
+from frontend.pipeline import (  # noqa: E402
+    AnalysisOptions,
+    analyse,
+    findings,
+    measured_results,
+    sample_functions,
+    structural_findings,
+)
 
 _ARTIFACTS = _REPO / "artifacts"
 
@@ -131,6 +138,41 @@ def api_findings(request: FindingsRequest) -> JSONResponse:
         )
 
 
+@app.post("/api/structural")
+def api_structural(request: FindingsRequest) -> JSONResponse:
+    """Rank a pasted function's lines with the Phase 4 structural model.
+
+    Args:
+        request: The code.
+
+    Returns:
+        The structural ranking, or a 400/500 carrying the real error.
+    """
+    try:
+        return JSONResponse(structural_findings(request.code))
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc), "kind": "input"}, status_code=400)
+    except Exception as exc:  # noqa: BLE001 - returned to the caller, never hidden
+        return JSONResponse(
+            {
+                "error": f"{type(exc).__name__}: {exc}",
+                "kind": "model",
+                "traceback": traceback.format_exc(limit=12),
+            },
+            status_code=500,
+        )
+
+
+@app.get("/api/results")
+def api_results() -> dict[str, Any]:
+    """Held-out accuracy of every trained model, read from the seed reports on disk.
+
+    Returns:
+        One entry per model; see :func:`frontend.pipeline.measured_results`.
+    """
+    return measured_results()
+
+
 @app.get("/api/samples")
 def api_samples() -> list[dict[str, str]]:
     """Return the built-in sample functions.
@@ -203,12 +245,11 @@ def api_corpus() -> dict[str, Any]:
 
 @app.get("/api/model")
 def api_model() -> dict[str, Any]:
-    """Report what scores lines in this tool, and what does not.
+    """Report what scores lines in this tool.
 
-    Until 2026-09-15 this said no scores were shown anywhere. The project owner then chose
-    to let the Findings tab rank lines with the Phase 3 semantic model (seed 42); the
-    caveats that rule protected now travel with the scores instead. No fused score exists
-    anywhere — experiment A1 has not produced one.
+    The Findings tab ranks lines with the Phase 3 semantic model (seed 42); no fused score
+    is shown anywhere. This used to also carry the text of a status banner on the Detailed
+    report tab, removed by the owner on 2026-09-15 — its "A1 has no result" had gone stale.
 
     Returns:
         The model record, including the held-out numbers read from the seed report.
@@ -220,20 +261,6 @@ def api_model() -> dict[str, Any]:
         "scores_with": "phase-3-semantic",
         "run_id": RUN_ID,
         "measured": _measured(),
-        "headline": (
-            "Findings ranks lines with the Phase 3 semantic model. No fused score exists yet."
-        ),
-        "detail": (
-            "The semantic model (CodeBERT, seed 42) ranks the lines of your paste in the "
-            "Findings tab. It was trained only on vulnerable functions, so it ranks where "
-            "a flaw most likely is and cannot say whether one exists, and its accuracy was "
-            "measured on held-out Big-Vul functions, not on code like yours. Fusion "
-            "(experiment A1) is being run on a frozen semantic encoder (ADR-009) and has "
-            "no result. Run 1843412a remains void: it scored 0.96 by reading the corpus's "
-            "indentation (ADR-006)."
-        ),
-        "next_step": "What is running, and what it has produced so far:",
-        "unblocks": "python scripts/run_queue.py --status",
     }
 
 
@@ -247,8 +274,13 @@ def warm_model() -> None:
     import threading
 
     from frontend.scoring import _load
+    from frontend.structural import _load as _load_structural
 
-    threading.Thread(target=_load, name="warm-model", daemon=True).start()
+    def warm() -> None:
+        _load()
+        _load_structural()
+
+    threading.Thread(target=warm, name="warm-model", daemon=True).start()
 
 
 app.mount("/", StaticFiles(directory=_HERE / "static", html=True), name="static")
