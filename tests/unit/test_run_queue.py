@@ -326,6 +326,14 @@ def test_each_machine_two_variant_changes_one_thing_against_its_reference():
             set(),
         ),
         "line_only": ({"train.function_weight=0"}, set()),
+        "graphcodebert": (
+            {
+                "llm.model_name=microsoft/graphcodebert-base",
+                "llm.tokenizer_name=microsoft/graphcodebert-base",
+                "train.semantic_cache.dir=./artifacts/semantic_cache_graphcodebert",
+            },
+            set(),
+        ),
     }
     for name, (added, removed) in expected.items():
         for seed in (42, 1, 2):
@@ -349,4 +357,73 @@ def test_machine_two_runs_seed_by_seed():
     """A night cut short leaves every variant at the same seed count."""
     seeds = [step.name.rsplit("seed", 1)[1] for step in _group("m2")]
 
-    assert seeds == ["42"] * 6 + ["1"] * 6 + ["2"] * 6
+    assert seeds == ["42"] * 7 + ["1"] * 7 + ["2"] * 7
+
+
+def test_the_graphcodebert_cache_is_built_before_anything_reads_it():
+    check = [step.name for step in _group("m2check")]
+
+    assert check[0] == "m2-build-graphcodebert-cache"
+    build = _group("m2check")[0]
+    reader = next(s for s in _group("m2") if s.name == "m2-graphcodebert-seed42")
+    cache_dir = "train.semantic_cache.dir=./artifacts/semantic_cache_graphcodebert"
+    assert cache_dir in build.args
+    assert cache_dir in reader.args
+
+
+# --- machine 2, fine-tuned: A5 with both arms on the same machine ------------------------
+
+
+def test_the_fine_tuned_codebert_arm_is_d97s_cross_attention_config():
+    """So it can be read beside D9.7 as a reproduction — and never pooled with it."""
+    d97 = _overrides(next(s for s in _group("d97") if s.name == "d97-cross_attention-seed42"))
+    m2ft = _overrides(next(s for s in _group("m2ft") if s.name == "m2ft-codebert-seed42"))
+
+    assert d97 == m2ft
+
+
+def test_the_fine_tuned_arms_differ_only_in_the_encoder():
+    steps = {step.name: step for step in _group("m2ft")}
+    for seed in (42, 1, 2):
+        codebert = _overrides(steps[f"m2ft-codebert-seed{seed}"])
+        graphcodebert = _overrides(steps[f"m2ft-graphcodebert-seed{seed}"])
+        assert graphcodebert - codebert == {
+            "llm.model_name=microsoft/graphcodebert-base",
+            "llm.tokenizer_name=microsoft/graphcodebert-base",
+        }
+        assert codebert - graphcodebert == set()
+        assert steps[f"m2ft-codebert-seed{seed}"].resumable
+
+
+def test_the_fine_tuned_machine_two_runs_go_seed_by_seed_and_are_checked_first():
+    names = [step.name for step in _group("m2ft")]
+
+    assert names == [
+        f"m2ft-{arm}-seed{seed}" for seed in (42, 1, 2) for arm in ("codebert", "graphcodebert")
+    ]
+    for step in _group("m2ftcheck"):
+        assert "train=overfit_fused" in step.args
+        assert "llm.frozen=false" in step.args
+        assert not step.resumable
+
+
+# --- a fresh machine must name its groups -----------------------------------------------
+
+
+def test_a_fresh_machine_refuses_to_start_the_whole_slate(queue, monkeypatch):
+    """The second laptop starts with an empty state file; unscoped, it would run Phase 3."""
+    monkeypatch.setattr(sys, "argv", ["run_queue.py"])
+
+    assert queue.main() == 2
+    assert not queue.LOG_DIR.exists()
+
+
+def test_several_groups_can_be_named_at_once(queue, monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys, "argv", ["run_queue.py", "--only", "m2check", "m2ftcheck", "--dry-run"]
+    )
+
+    assert queue.main() == 0
+    printed = capsys.readouterr().out
+    assert printed.count("train=overfit_fused") == 5
+    assert "build_semantic_cache.py" in printed

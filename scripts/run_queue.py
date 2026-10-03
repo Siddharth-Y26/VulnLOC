@@ -434,6 +434,15 @@ def build_plan() -> list[Step]:
     # arm re-run on that machine — and, set beside this laptop's 0.5408 ± 0.0181, a
     # cross-machine reproducibility check for free (reported side by side, never pooled).
     m2_reference = ["+fusion=cross_attention", "train=fused", *a1_constants]
+    # A5 swaps the encoder. GraphCodeBERT shares CodeBERT's tokenizer vocabulary, so the
+    # windows and the line axis are unchanged; its frozen features need a cache of their
+    # own, in a directory of their own, because the cache's digest includes the model name
+    # and would — correctly — refuse to be read as the other encoder's.
+    graphcodebert = [
+        "llm.model_name=microsoft/graphcodebert-base",
+        "llm.tokenizer_name=microsoft/graphcodebert-base",
+    ]
+    graphcodebert_cache = "train.semantic_cache.dir=./artifacts/semantic_cache_graphcodebert"
     m2_variants: dict[str, tuple[str, list[str]]] = {
         "reference": ("A1 cross_attention, frozen — the arm every variant is read against", []),
         "gat": ("A4 in fusion: GAT instead of GCN", ["+gnn=gat"]),
@@ -451,6 +460,10 @@ def build_plan() -> list[Step]:
             "function is vulnerable), so this asks whether it costs anything",
             ["train.function_weight=0"],
         ),
+        "graphcodebert": (
+            "A5 frozen: GraphCodeBERT's line features instead of CodeBERT's",
+            [*graphcodebert, graphcodebert_cache],
+        ),
     }
 
     def m2_args(
@@ -465,15 +478,34 @@ def build_plan() -> list[Step]:
         base = [train if a == "train=fused" else a for a in base]
         return [*base, *overrides, *seed_args]
 
-    # A convolution the fused model has never been trained with gets the overfit gate
-    # first, for the reason p5check exists (§7 #52). Loss and weighting variants change no
-    # architecture and do not.
-    for name in ("gat", "ggnn"):
+    # The GraphCodeBERT feature cache is built on machine 2 itself, first: every frozen
+    # A5 run reads it, and building it there needs only the model in the local HF cache
+    # (docs/SecondMachine.md step 2). Minutes, and it refuses itself if anything differs.
+    steps.append(
+        Step(
+            name="m2-build-graphcodebert-cache",
+            group="m2check",
+            why="MACHINE 2 ONLY. Frozen GraphCodeBERT line features for A5 — read by every "
+            "m2-graphcodebert run.",
+            script="scripts/build_semantic_cache.py",
+            args=[
+                "train=fused",
+                "llm.frozen=true",
+                *graphcodebert,
+                graphcodebert_cache,
+                "device.kind=cuda",
+            ],
+        )
+    )
+    # A convolution or an encoder the fused model has never been trained with gets the
+    # overfit gate first, for the reason p5check exists (§7 #52). Loss and weighting
+    # variants change no architecture and do not.
+    for name in ("gat", "ggnn", "graphcodebert"):
         steps.append(
             Step(
                 name=f"m2-overfit-{name}",
                 group="m2check",
-                why=f"MACHINE 2 ONLY. Sanity: cross_attention with {name.upper()} must memorise "
+                why=f"MACHINE 2 ONLY. Sanity: cross_attention with {name} must memorise "
                 "32 functions, frozen. Never a result.",
                 script="scripts/train_fused.py",
                 args=m2_args(m2_variants[name][1], [], train="train=overfit_fused"),
@@ -488,6 +520,42 @@ def build_plan() -> list[Step]:
                     why=f"MACHINE 2 ONLY. {why}. Seed {seed} of 3.",
                     script="scripts/train_fused.py",
                     args=m2_args(overrides, [f"seed={seed}"]),
+                )
+            )
+
+    # --- Machine 2: A5 fine-tuned — GraphCodeBERT against CodeBERT, encoder training ----
+    # Added 2026-10-03 once the second laptop was known to have 6 GB: a fine-tuned fused
+    # run peaked at 3,786 MiB on a 4 GiB card (§1.17), so it fits there without the spill
+    # of §7 #55. Both arms run THERE: the CodeBERT arm is D9.7's cross_attention config,
+    # re-run, because a GraphCodeBERT seed set beside this laptop's D9.7 seeds would be a
+    # cross-machine comparison (§7 #49). Read side by side with D9.7, it is also D9.7's
+    # cross_attention arm reproduced on other hardware.
+    m2ft_variants = {
+        "codebert": ("A5 fine-tuned: CodeBERT — D9.7's cross_attention config, re-run here", []),
+        "graphcodebert": ("A5 fine-tuned: GraphCodeBERT instead of CodeBERT", graphcodebert),
+    }
+    m2ft_base = ["+fusion=cross_attention", *d97_constants]
+    for name, (_, overrides) in m2ft_variants.items():
+        steps.append(
+            Step(
+                name=f"m2ft-overfit-{name}",
+                group="m2ftcheck",
+                why=f"MACHINE 2 ONLY. Sanity: {name} must memorise 32 functions with the "
+                "encoder TRAINING. Never a result.",
+                script="scripts/train_fused.py",
+                args=[m2ft_base[0], "train=overfit_fused", *m2ft_base[1:], *overrides],
+            )
+        )
+    for seed in (42, 1, 2):
+        for name, (why, overrides) in m2ft_variants.items():
+            steps.append(
+                Step(
+                    name=f"m2ft-{name}-seed{seed}",
+                    group="m2ft",
+                    why=f"MACHINE 2 ONLY. {why}. Seed {seed} of 3.",
+                    script="scripts/train_fused.py",
+                    args=[m2ft_base[0], "train=fused", f"seed={seed}", *m2ft_base[1:], *overrides],
+                    resumable=True,
                 )
             )
 
@@ -837,8 +905,11 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="Print commands, run nothing.")
     parser.add_argument(
         "--only",
+        nargs="+",
         default=None,
-        help="Run one group (phase3, phase4, p5check, phase5, d97check, d97).",
+        metavar="GROUP",
+        help="Run only these groups, in plan order (phase3, phase4, p5check, phase5, "
+        "d97check, d97, m2check, m2, m2ftcheck, m2ft).",
     )
     parser.add_argument(
         "--until",
@@ -865,8 +936,17 @@ def main() -> int:
 
     plan = build_plan()
     state = load_state()
+    if not args.only and not args.status and not args.dry_run and not state["steps"]:
+        # A fresh state file means a fresh machine — the second laptop, set up from
+        # docs/SecondMachine.md. Without a group it would start on Phase 3's slate, which is
+        # this laptop's work and hours long. On the first laptop the state is never empty.
+        print(
+            "  Fresh queue state: name the groups to run, e.g. --only m2check "
+            "(docs/SecondMachine.md). Refusing to start the whole slate."
+        )
+        return 2
     if args.only:
-        plan = [s for s in plan if s.group == args.only]
+        plan = [s for s in plan if s.group in args.only]
 
     if args.status:
         print_status(plan, state)
@@ -896,7 +976,7 @@ def main() -> int:
         while not stopped:
             plan = build_plan()
             if args.only:
-                plan = [s for s in plan if s.group == args.only]
+                plan = [s for s in plan if s.group in args.only]
             todo = [
                 step
                 for step in plan
@@ -927,7 +1007,7 @@ def main() -> int:
 
     shown = build_plan()
     if args.only:
-        shown = [s for s in shown if s.group == args.only]
+        shown = [s for s in shown if s.group in args.only]
     print_status(shown, state)
     return 1 if failures else 0
 

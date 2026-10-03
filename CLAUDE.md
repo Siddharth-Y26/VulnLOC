@@ -80,7 +80,7 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 4 | ✅ **DONE — gate signed by the owner 2026-09-15.** Overfit test PASSED (`8b0a3c1d…`). **Best structural config: gcn depth 4 + subtokens, Top-5 0.4302 ± 0.0372 over 3 seeds** (ADR-002 §D2.5's second half, +0.066 over node-type-only — §1.15). Far below the semantic arm's 0.6141. **The depth sweep 2/4/6 shows NO resolvable effect at 3 seeds each** (every pairwise gap <0.6 sd, §1.16) — an earlier one-seed over-smoothing reading was retracted. |
 | Phase 5 | 🟨 **A1 frozen screen DONE; 4 / 5 criteria, the fifth half met.** ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6") is open: **ADR-009 D9.7's fine-tuned confirmation (~18–24 h) needs the owner.** |
 | Phases 6–10 | ⬜ Not started. |
-| Tests | **917 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
+| Tests | **937 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -210,6 +210,11 @@ python scripts/run_queue.py --only d97check                 # ADR-009 D9.7: over
 python scripts/run_queue.py --only d97 --until 08:00        # D9.7: 3 arms × 3 seeds fine-tuned; pauses at 08:00
 python scripts/run_queue.py --only d97                      # ...and the same command later resumes the paused run
 python scripts/run_queue.py --stop                          # from another terminal: pause the running step now
+
+# SECOND LAPTOP ONLY (docs/SecondMachine.md) — its own clone, its own mlflow.db:
+python scripts/run_queue.py --only m2check m2ftcheck        # cache build + 5 overfit gates — READ Top-1 first
+python scripts/run_queue.py --only m2 m2ft                  # 21 frozen ablation runs, then A5 fine-tuned x 6
+python scripts/export_results.py --groups m2check m2 m2ftcheck m2ft --out <USB>\results   # bring results back
 
 # One A1 arm by hand — these constants are A1's, change one and the seeds stop comparing:
 python scripts/train_fused.py +fusion=cross_attention train=fused seed=42 +gnn=gcn gnn.use_subtokens=true llm.frozen=true

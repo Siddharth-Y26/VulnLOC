@@ -1326,6 +1326,11 @@ Runs logged:
   - `d97-overfit-*` : live-encoder overfit, **all three arms PASS** — Top-1 = 1.000 with
     `frozen=False`, cache off: cross_attention `d3dbd7e9…`, concat `b4998f5c…`, llm_only
     `ad9f36e8…`. Never results.
+  - `2e3b19d5…` + a `semantic-cache` run : **code-path checks for the second machine, never
+    results.** The GraphCodeBERT frozen cache built offline on this laptop (train 5,457 units,
+    932 MB, 124 s, digest `5b3828776f7a`; val 488 units, `df44be5f6030`) into
+    `artifacts/semantic_cache_graphcodebert/`, and its frozen overfit gate reached Top-1 = 1.000
+    (123 of 150 epochs) reading that cache. The second machine rebuilds the cache itself.
   - `cb2b1e99…` : **VOID** (tagged). The first `d97-cross_attention-seed42` attempt, used as
     the vehicle for the live pause/resume test: paused twice in epoch 0, ran 190 steps
     paging VRAM (§7 #55), started on `929970a` before the fix. Checkpoints deleted, log kept
@@ -1802,10 +1807,15 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
 5. **Never quote a D9.7 number until all three seeds of that arm are FINISHED** (§7 #37),
    and list each resumed run's `resumed_at` tag beside it (§7 #53).
 6. All nine runs must come from this laptop (§7 #49).
-7. **A second GPU laptop can train side by side** (owner, 2026-10-03) — `docs/SecondMachine.md`.
-   It runs whole groups only (`m2check`, then `m2`: 18 frozen ablation runs around the A1
-   cross_attention arm — A4 GAT/GGNN in fusion, A9 BCE variants, A8 line-only), keeps its own
-   `mlflow.db`, and reports there. Never copy `mlflow.db` or checkpoints between machines (§7 #49).
+7. **A second GPU laptop (6 GB) trains side by side** (owner, 2026-10-03) —
+   `docs/SecondMachine.md`. It runs whole groups only: `m2check` + `m2ftcheck` (GraphCodeBERT
+   cache build, five overfit gates), then `m2` (21 frozen ablation runs around the A1
+   cross_attention arm: A4 GAT/GGNN in fusion, A9 BCE variants, A8 line-only, A5 frozen
+   GraphCodeBERT) and `m2ft` (A5 fine-tuned: CodeBERT vs GraphCodeBERT × 3 seeds, ~12–17 h).
+   It keeps its own `mlflow.db` and reports there; results come back with
+   `scripts/export_results.py` into `artifacts/machine2/`, never into this machine's store.
+   Never copy `mlflow.db` or checkpoints between machines (§7 #49). The transfer folder is
+   `D:\vulnloc_transfer\` (~2.7 GB).
 8. **Ask the owner the three held questions of Q13 (§5)** — held on 2026-10-03 at the
    owner's request ("we will tackle them tomorrow"): the second laptop's GPU and VRAM;
    external baseline as a balanced subsample or `(reported)`; whether the function-level
