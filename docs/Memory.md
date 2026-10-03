@@ -1802,7 +1802,11 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
 5. **Never quote a D9.7 number until all three seeds of that arm are FINISHED** (§7 #37),
    and list each resumed run's `resumed_at` tag beside it (§7 #53).
 6. All nine runs must come from this laptop (§7 #49).
-7. **Ask the owner the three held questions of Q13 (§5)** — held on 2026-10-03 at the
+7. **A second GPU laptop can train side by side** (owner, 2026-10-03) — `docs/SecondMachine.md`.
+   It runs whole groups only (`m2check`, then `m2`: 18 frozen ablation runs around the A1
+   cross_attention arm — A4 GAT/GGNN in fusion, A9 BCE variants, A8 line-only), keeps its own
+   `mlflow.db`, and reports there. Never copy `mlflow.db` or checkpoints between machines (§7 #49).
+8. **Ask the owner the three held questions of Q13 (§5)** — held on 2026-10-03 at the
    owner's request ("we will tackle them tomorrow"): the second laptop's GPU and VRAM;
    external baseline as a balanced subsample or `(reported)`; whether the function-level
    criteria and 7b are deferred in writing.

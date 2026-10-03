@@ -15,6 +15,8 @@ the code wins; fix this file in the same session and note the drift.
    0a** ("THE WEEK"). It holds the session-start rules, the day-by-day schedule and what
    Phases 6–10 can and cannot deliver this week. **If a `d97-*` step is running or paused,
    do not edit `src/vulnloc/` or `configs/`**, and commit any docs change at once.
+   **On the owner's second laptop, read `docs/SecondMachine.md` first instead** — it runs only
+   the `m2check` / `m2` groups, with its own MLflow store, never mixed with this machine's.
 1. **`docs/Memory.md`** §1 (state), §1.4 (corpus statistics), §5 (open decisions),
    §6 (next actions), §7 (known issues). This is the project's working memory and the
    single most useful file.

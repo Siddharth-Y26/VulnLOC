@@ -291,3 +291,62 @@ def test_status_reports_a_finished_runs_result(queue, tmp_path):
     assert queue.result_line(RUN_ID) == "  Top-5 0.5408  Top-1 0.3000"
     assert queue.result_line(None) == ""
     assert queue.result_line("f" * 32) == ""
+
+
+# --- machine 2: whole groups, each with its own reference arm (Memory.md §7 #49) --------
+
+
+def _overrides(step: Any) -> set[str]:
+    return {argument for argument in step.args if not argument.startswith("seed=")}
+
+
+def test_every_machine_two_run_is_frozen_and_reads_the_cache():
+    for step in _group("m2") + _group("m2check"):
+        assert "llm.frozen=true" in step.args
+        assert not any("semantic_cache.enabled=false" in argument for argument in step.args)
+        assert step.why.startswith("MACHINE 2 ONLY")
+
+
+def test_machine_two_carries_its_own_reference_arm_at_every_seed():
+    """Without it, a variant would be read against this laptop's runs — §7 #49."""
+    names = {step.name for step in _group("m2")}
+
+    assert {f"m2-reference-seed{seed}" for seed in (42, 1, 2)} <= names
+
+
+def test_each_machine_two_variant_changes_one_thing_against_its_reference():
+    steps = {step.name: step for step in _group("m2")}
+    reference = _overrides(steps["m2-reference-seed42"])
+    expected = {
+        "gat": ({"+gnn=gat"}, {"+gnn=gcn"}),
+        "ggnn": ({"+gnn=ggnn"}, {"+gnn=gcn"}),
+        "bce_weighted": ({"train.loss=bce", "train.auto_pos_weight=true"}, set()),
+        "bce_plain": (
+            {"train.loss=bce", "train.auto_pos_weight=false", "train.pos_weight=1.0"},
+            set(),
+        ),
+        "line_only": ({"train.function_weight=0"}, set()),
+    }
+    for name, (added, removed) in expected.items():
+        for seed in (42, 1, 2):
+            variant = _overrides(steps[f"m2-{name}-seed{seed}"])
+            assert variant - reference == added, name
+            assert reference - variant == removed, name
+
+
+def test_the_reference_arm_is_the_a1_arm_it_is_compared_with():
+    """Machine 2's reference arm is this laptop's frozen A1 cross_attention arm.
+
+    So the two can be set side by side as a reproducibility check — and never pooled.
+    """
+    a1 = _overrides(next(s for s in _group("phase5") if s.name == "a1-cross_attention-seed42"))
+    m2 = _overrides(next(s for s in _group("m2") if s.name == "m2-reference-seed42"))
+
+    assert a1 == m2
+
+
+def test_machine_two_runs_seed_by_seed():
+    """A night cut short leaves every variant at the same seed count."""
+    seeds = [step.name.rsplit("seed", 1)[1] for step in _group("m2")]
+
+    assert seeds == ["42"] * 6 + ["1"] * 6 + ["2"] * 6

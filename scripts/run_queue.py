@@ -421,6 +421,76 @@ def build_plan() -> list[Step]:
             )
         )
 
+    # --- Machine 2: frozen ablations around the A1 reference, run side by side -------
+    # Added 2026-10-03. The owner has a second GPU laptop; this slate is ITS work, never
+    # this laptop's. Memory.md §7 #49: `resolved_device` reads "cuda:0" on every card, so
+    # a seed from each machine in one group would be averaged without a word. The guard
+    # is physical rather than logical: machine 2 keeps its OWN mlflow.db (never copied
+    # across), every group below carries its own reference arm, and its seed reports run
+    # there. Setup and transfer: docs/SecondMachine.md.
+    #
+    # Config-only, frozen encoder, cached semantic features, A1's constants. Each variant
+    # changes exactly one thing against the reference, which is the A1 cross_attention
+    # arm re-run on that machine — and, set beside this laptop's 0.5408 ± 0.0181, a
+    # cross-machine reproducibility check for free (reported side by side, never pooled).
+    m2_reference = ["+fusion=cross_attention", "train=fused", *a1_constants]
+    m2_variants: dict[str, tuple[str, list[str]]] = {
+        "reference": ("A1 cross_attention, frozen — the arm every variant is read against", []),
+        "gat": ("A4 in fusion: GAT instead of GCN", ["+gnn=gat"]),
+        "ggnn": ("A4 in fusion: GGNN instead of GCN", ["+gnn=ggnn"]),
+        "bce_weighted": (
+            "A9: weighted BCE instead of focal",
+            ["train.loss=bce", "train.auto_pos_weight=true"],
+        ),
+        "bce_plain": (
+            "A9: unweighted BCE — the 'clean everywhere' risk the ablation exists for",
+            ["train.loss=bce", "train.auto_pos_weight=false", "train.pos_weight=1.0"],
+        ),
+        "line_only": (
+            "A8: line loss only. The function loss is degenerate here (every training "
+            "function is vulnerable), so this asks whether it costs anything",
+            ["train.function_weight=0"],
+        ),
+    }
+
+    def m2_args(
+        overrides: list[str], seed_args: list[str], train: str = "train=fused"
+    ) -> list[str]:
+        # `+gnn=` must not appear twice: a variant that picks a GNN replaces gcn.
+        base = [
+            a
+            for a in m2_reference
+            if not (a.startswith("+gnn=") and any(o.startswith("+gnn=") for o in overrides))
+        ]
+        base = [train if a == "train=fused" else a for a in base]
+        return [*base, *overrides, *seed_args]
+
+    # A convolution the fused model has never been trained with gets the overfit gate
+    # first, for the reason p5check exists (§7 #52). Loss and weighting variants change no
+    # architecture and do not.
+    for name in ("gat", "ggnn"):
+        steps.append(
+            Step(
+                name=f"m2-overfit-{name}",
+                group="m2check",
+                why=f"MACHINE 2 ONLY. Sanity: cross_attention with {name.upper()} must memorise "
+                "32 functions, frozen. Never a result.",
+                script="scripts/train_fused.py",
+                args=m2_args(m2_variants[name][1], [], train="train=overfit_fused"),
+            )
+        )
+    for seed in (42, 1, 2):
+        for name, (why, overrides) in m2_variants.items():
+            steps.append(
+                Step(
+                    name=f"m2-{name}-seed{seed}",
+                    group="m2",
+                    why=f"MACHINE 2 ONLY. {why}. Seed {seed} of 3.",
+                    script="scripts/train_fused.py",
+                    args=m2_args(overrides, [f"seed={seed}"]),
+                )
+            )
+
     # `frozen` is part of the group: the A1 screen logged the same arms under the same
     # `train.name`, and a filter on the arm alone would hand both to the comparability
     # guard, which would refuse them — correctly, but only after the runs were done.
