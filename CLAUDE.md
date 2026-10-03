@@ -56,11 +56,14 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
-**2026-10-02 (session 14): ADR-009 D9.7 is running** — cross_attention, concat and
-`llm_only`, fine-tuned, seeds 42/1/2, as `run_queue.py --only d97`. No result yet. Owner
-deadline: the whole project in about a week. `Memory.md` §6 item 0a is the handoff.
+**2026-10-03 (session 14): ADR-009 D9.7 is in progress — 3 of 9 runs FINISHED**
+(cross_attention seeds 42 and 1, concat 42), concat seed 1 paused at 08:00, five pending —
+cross_attention, concat and `llm_only`, fine-tuned, seeds 42/1/2, as `run_queue.py --only d97`.
+**No arm has three seeds, so no comparison may be written yet.** Owner deadline: the whole
+project in about a week. `Memory.md` §6 item 0a is the handoff.
 
-**Costs to plan with (measured):** a fine-tuned fused run is ~19–20 min per epoch, ≤ ~3.3 h;
+**Costs to plan with (measured):** a fine-tuned fused run is 118–168 min (early stopping at
+epochs 5–6; ≤ ~3.3 h if all 10 epochs ran);
 a frozen-cache run is ~15 min. **Fine-tune only the headline; sweeps and ablations run off
 the frozen cache.** Function-level anything (unit aggregation, external detector baselines,
 DiverseVul generalization) needs the 148,983-function split and is out of reach this week.
