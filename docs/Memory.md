@@ -1341,6 +1341,12 @@ Learned:
     10 epochs** and ~2.7 h if early stopping lands where Phase 3's did. Nine runs ≈ 24–29 h.
     The earlier 18–24 h estimate for six runs was about right; ~2.0 s/step, seen before the
     fix, was already a mild spill.
+  - **Overnight 2026-10-02/03, measured:** three D9.7 runs FINISHED with no resume —
+    `80fc5238…`, `fbf65554…`, `c193e3bc…` — in **118, 123 and 168 min**, early stopping at
+    epochs 5–6, so a full fine-tuned run is **~2–2.8 h**, under the estimate. `d97-concat-seed1`
+    paused itself at 08:00:30 (epoch 5, batch 418, step 3821). Remaining: that run's tail, then
+    five runs ≈ **12 h** from the Sat 3 evening restart. **No arm has three seeds yet — no
+    comparison may be written down** (§7 #37).
   - The cache-release guard fired once in that epoch (step 429, 4,250 MiB reserved) — the
     oversized unit of §1.17, as predicted. One release per epoch is the healthy pattern.
   - **A residual, bounded spill remains and was left alone on purpose.** The clean
