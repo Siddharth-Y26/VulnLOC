@@ -1426,6 +1426,9 @@ Learned:
     open my laptop"); the owner sets Docker up later. **Consequence for the project:** the
     corpus, the checkpoints and Docker share one spinning disk — never run Docker beside
     training, and wait for D: to settle after a boot before restarting the queue.
+    At 22:40 the owner had the accelerator stopped too: its two SYSTEM scheduled tasks
+    (`MATLAB R2023a Startup Accelerator`, `MATLAB R2026b Startup Accelerator`; logon + twice
+    daily) are **disabled**, not deleted. D: read 0% busy afterwards.
 Next:
   - `python scripts/run_queue.py --only d97` — resumes `llm_only` seed 42, runs seeds 1 and
     2 and the three seed reports: **≈ 5–8 h**. Then add the control comparison to §1.22 and
@@ -1954,9 +1957,11 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
 - **D: is a spinning hard disk** (Seagate ST1000LM049, SATA, 932 GB); C: is the NVMe SSD
   (238 GB, 24 GB free). The project, its data, the checkpoints **and Docker** all live on
   the HDD, which reads 100% busy at a few MB/s under scattered I/O. Docker on it will be
-  slow, and **Docker and a training run must never share it at the same time.** After any
-  boot, MATLAB's startup accelerator (`D:\MATLAB`) reads from D: for several minutes —
-  **let D: settle before restarting the queue.**
+  slow, and **Docker and a training run must never share it at the same time.** MATLAB's
+  startup accelerator (`D:\MATLAB`) used to read from D: for minutes after every sign-in and
+  twice a day; **both of its scheduled tasks were disabled on 2026-10-04 at the owner's
+  request** (R2023a and R2026b; re-enable with `Enable-ScheduledTask`). Still check that D:
+  is quiet before restarting the queue.
 - **Close hardware-accelerated browsers before restarting** — Brave held 162 MiB of the
   NVIDIA card during a run (§3 session 15).
 - The second machine has `D:\vulnloc_transfer\` and is running its slate (owner's report).

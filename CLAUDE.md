@@ -164,9 +164,10 @@ Tracked but not blocking: why our measured line counts differ from the published
   licence accepted, auto-start off, **no image built yet** — and **keep it closed during
   training**). **No GNU make** on this machine. Use `make.ps1`.
 - **D: is a spinning SATA hard disk; C: is the NVMe SSD (24 GB free).** The repo, the
-  corpus, the checkpoints and Docker all sit on the HDD: it shows 100% busy at a few MB/s,
-  and MATLAB's startup accelerator reads from it for minutes after every sign-in. Let it
-  settle before starting a run, and never run Docker beside one.
+  corpus, the checkpoints and Docker all sit on the HDD: it shows 100% busy at a few MB/s
+  under scattered I/O (Docker and MATLAB's startup accelerator did that after a boot; the
+  accelerator's scheduled tasks are disabled since 2026-10-04). Check D: is quiet before
+  starting a run, and never run Docker beside one.
 - Windows-primary. PowerShell blocks scripts by default:
   `powershell -ExecutionPolicy Bypass -File .\make.ps1 <target>`
 
