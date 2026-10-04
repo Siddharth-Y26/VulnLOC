@@ -76,7 +76,7 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | | |
 |---|---|
 | Branch | `phase-2/representation` — **the name is two phases stale**, ~25 commits ahead of `main`. Branching model still undecided (§10 #1). |
-| Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker not installed). Blocks nothing downstream. |
+| Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker Desktop installed 2026-10-04; reboot pending, image never built). Blocks nothing downstream. |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
 | Phase 3 | ✅ **DONE — gate signed by the owner 2026-09-15.** **LLM-only over three seeds on normalized text: Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60** (§1.14). Top-5 varies by under a point across seeds while P/R swing ±0.04 in opposite directions — the threshold moving, not the model. Run `1843412a…` remains VOID (ADR-006); `function/f1` = 1.000 is degenerate and must never be quoted. |
@@ -160,7 +160,9 @@ Tracked but not blocking: why our measured line counts differ from the published
 - **Python 3.12** in `.venv` (3.11 is not installed; Docker pins 3.11 — ADR-000 §D0.3)
 - **GPU: NVIDIA RTX 3050 Ti Laptop, 4.0 GiB, cc 8.6**, `torch 2.13.0+cu130`.
   `pip install torch` gives a **CPU-only** wheel on Windows — use `make setup-cuda`.
-- **No Docker**, **no GNU make** on this machine. Use `make.ps1`.
+- **Docker Desktop 4.93.0 installed 2026-10-04 at `D:\Docker`** (data root `D:\Docker\wsl`;
+  reboot pending, never launched, nothing built — and **keep it closed during training**).
+  **No GNU make** on this machine. Use `make.ps1`.
 - Windows-primary. PowerShell blocks scripts by default:
   `powershell -ExecutionPolicy Bypass -File .\make.ps1 <target>`
 
@@ -425,7 +427,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    is not installed, and every function-level criterion needs negatives the models never
    trained on. `Memory.md` §6 item 0a lists each criterion; **the owner decides which are
    deferred in writing.** Partly answered 2026-10-03: three raters, a second GPU laptop and
-   Docker lift the people and Docker blockers — **but Docker was not installed on Sat 3 and
-   is still absent on Sun 4.** Still open: the function-level criteria, 7b, and how the
+   Docker lift the people and Docker blockers — Docker was installed on Sun 4 (session 15),
+   **reboot pending and nothing built yet.** Still open: the function-level criteria, 7b, and how the
    external baseline is run — raise it.
 6. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.
