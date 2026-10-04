@@ -26,10 +26,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Active phase** | **Phase 5 — Fusion. A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **Waiting on the owner: ADR-009 D9.7's fine-tuned confirmation** **D9.7 (fine-tuned confirmation) IN PROGRESS — 3 of 9 runs FINISHED** (cross_attention 42 and 1, concat 42), concat seed 1 paused at 08:00 on 2026-10-03, five pending (§4, §6 item 0a). **No arm has three seeds; nothing may be compared yet** |
+| **Active phase** | **Phase 5 — Fusion. A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **D9.7 (fine-tuned confirmation): the six runs ADR-009 specifies are FINISHED (§1.22) — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, again no resolvable difference.** The added scaffold control `llm_only` × 3 is **0 of 3**: seed 42 **PAUSED** at epoch 6 on 2026-10-04 21:51 at the owner's request, seeds 1 and 2 pending (§4, §6 item 0a). **Nothing about fusion vs fine-tuned LLM-only may be written until that arm has three seeds** |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15.** ADR-008 and ADR-009 accepted the same day |
-| **Last updated** | 2026-10-03 (session 14) |
-| **Open decision** | **Q13 — scope under the one-week deadline** (§5, §6 item 0a): which Phase 6–10 criteria are deferred in writing. Raised 2026-10-02, unanswered. Also still open: ADR-006 and ADR-007 `Proposed` (ADR-007 now blocks ablation A3's CPG arm); Q4/Q5 deferred to Phases 6–7 |
+| **Last updated** | 2026-10-04 (session 15) |
+| **Open decision** | **Q13 — scope under the one-week deadline** (§5, §6 item 0a): which Phase 6–10 criteria are deferred in writing. Raised 2026-10-02, partly answered 2026-10-03; **two questions still held for the owner** (§6 item 0a rule 8). **The Phase 5 gate** (criterion 5) is the owner's to sign once the `llm_only` control is in. Also still open: ADR-006 and ADR-007 `Proposed` (ADR-007 now blocks ablation A3's CPG arm); Q4/Q5 deferred to Phases 6–7 |
 | **Last commit** | Session 14's resume/queue commit on `phase-2/representation` (see `git log`). **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
 | **Best model run ID** | Semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
 | **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` (project-wise, 80/10/10, seed 42) |
@@ -45,7 +45,7 @@
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
 | 3 LLM Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. **All three seeds are in (§1.14): Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204.** The ≥3-seed criterion is MET; **gate signed by the owner 2026-09-15** |
 | 4 GNN Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | All four met by logged runs — `python scripts/report_phase4.py`, §1.13. Overfit test (`8b0a3c1d…`, Top-1 = Top-5 = 1.000); all three variants on real data; depth sweep 2/4/6; ≥3 seeds (gcn depth 4, Top-5 **0.3645 ± 0.0231**). **Gate signed by the owner 2026-09-15.** A4 (§1.15): subtokens lift Top-5 to **0.4302 ± 0.0372**, and A1 uses them |
-| 5 Fusion | 🟨 **Frozen screen done — D9.7 pending** | **4 / 5** (head-to-head at ≥3 seeds measured, §1.21) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it |
+| 5 Fusion | 🟨 **Frozen screen done; D9.7's six runs done — `llm_only` control and the owner's gate pending** | **4 / 5** (head-to-head at ≥3 seeds measured, §1.21 frozen and §1.22 fine-tuned) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it. **2026-10-04 (session 15): the investigation's six runs are in (§1.22) — the null survives fine-tuning.** Still owed before the gate: the `llm_only` scaffold control (0 / 3, seed 42 paused) and the owner's signature |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
 | 7 Explanation | ⬜ Not started | 0 / 4 | |
 | 8 Evaluation | ⬜ Not started | 0 / 4 | |
@@ -1238,6 +1238,72 @@ CodeBERT read from cache `77f7b07e…`, GCN depth 4 over AST with identifier sub
 
 ---
 
+## 1.22 D9.7 — fine-tuned, cross-attention still does not beat concatenation (control arm pending)
+
+The six runs ADR-009 D9.7 specifies: cross_attention and concat × seeds 42/1/2 with the
+**encoder training** (`llm.frozen=false train.semantic_cache.enabled=false`), otherwise A1's
+constants (GCN depth 4 over AST, identifier subtokens), all from `run_queue.py --only d97` on
+this laptop. `src/vulnloc` is identical across the six — the logged shas `70824ec` /
+`0ce5d96` / `782ea98` differ in docs, scripts and tests only; `report_seeds.py` compared them
+and accepted no drift, and no run had uncommitted changes. Aggregated 2026-10-04 by
+`report_seeds.py train=fused '+seeds.where={fusion_kind: <arm>, frozen: False}'
++seeds.tag=finetuned_<arm> +seeds.output_dir=./artifacts/phase5`; every run cross-checks
+`agrees`. **Held-out `val`, validation-selected (§1.18), n = 3 per arm.**
+
+| Arm | Top-5 (headline) | Top-1 | IFA ↓ | Line F1 @ 0.5 | Coverage | Runs (42 / 1 / 2) |
+|---|---|---|---|---|---|---|
+| cross_attention | **0.6162 ± 0.0184** | 0.3444 ± 0.0293 | 11.26 ± 1.45 | 0.2954 ± 0.0855 | 99.96% | `80fc5238` `c193e3bc` `829c3555` |
+| concat | **0.6169 ± 0.0104** | 0.3645 ± 0.0073 | 11.46 ± 0.68 | 0.3811 ± 0.0159 | 99.96% | `fbf65554` `633ea97b`† `a0c42d6f` |
+
+Per seed, Top-5: cross_attention 0.6224 / 0.6307 / 0.5954; concat 0.6058 / 0.6183 / 0.6266.
+Selected steps 2 / 5 / 2 and 3 / 4 / 7.
+
+† **`633ea97b` is a resumed run** (§7 #53): tags `resumed_at=epoch=5,batch=418,step=3821`,
+`resume_git_sha=782ea98`. Its selected checkpoint is step 4, reached **before** the pause —
+the resume log shows `best_so_far=0.6183`, the value reported — so the resume decided when
+the run stopped, not what it reports.
+
+### What this supports
+
+1. **A1's null survives fine-tuning.** cross_attention − concat on Top-5 = **−0.0007 (0.05
+   pooled sd)**; paired by seed +0.017 / +0.012 / −0.031 — the sign flips, as it did frozen
+   (§1.21). The admissible phrasing is *"with the semantic encoder fine-tuned, bidirectional
+   cross-attention did not outperform concatenation on Top-5 (0.6162 ± 0.0184 vs
+   0.6169 ± 0.0104, 3 seeds)"*. The frozen screen and the confirmation **agree**, so ADR-009
+   D9.7's "report both" has no disagreement to write up.
+2. **Fine-tuning the encoder lifts both fused arms by about the same amount**: cross_attention
+   0.5408 → 0.6162 (+0.0754), concat 0.5394 → 0.6169 (+0.0775), three seeds on each side.
+   That is the adapting-encoder case ADR-009 D9.1 worried about, and it did not separate the
+   mechanisms.
+3. **The frozen screen's secondary signals did not survive.** IFA: frozen, cross_attention
+   led on all three seeds (12.19 vs 15.12); fine-tuned it is 11.26 ± 1.45 vs 11.46 ± 0.68,
+   paired −0.35 / −1.01 / +0.77. Top-1: −0.0201 (0.94 pooled sd), paired −0.017 / +0.010 /
+   −0.054. Both signs flip; neither is a finding.
+
+### What it does not support
+
+- **Nothing about fusion vs fine-tuned LLM-only.** Both fused arms sit within noise of
+  Phase 3's 0.6141 ± 0.0055 (§1.14), but that number is from a different scaffold (ADR-008
+  §D8.6) and is not the control. The control — `llm_only` fine-tuned in the fused scaffold —
+  has **0 of 3 seeds FINISHED** (seed 42, `179632f5…`, paused at epoch 6). **Do not write
+  "fusion adds" or "fusion adds nothing" over a fine-tuned LLM until it has three** (§7 #37).
+- **Not line F1.** concat's 0.3811 against cross_attention's 0.2954 is 1.39 pooled sd, and
+  cross_attention's recall at the 0.5 threshold swings 0.12–0.28 across seeds while its
+  precision stays at 0.56–0.65 — the threshold moving, as in §1.14. F1 means something only
+  after Phase 6 chooses a threshold on `val`.
+- **Not `test` or `clean_eval`.** Every number here is `val`.
+
+### Run-level observations
+
+- Queue wall clock: 118 / 168 / 114 min (cross_attention), 123 / 183 over two attempts /
+  211 min (concat). **A fine-tuned fused run therefore costs 114–211 min**, not the 118–168
+  the first three suggested; `a0c42d6f` selected step 7 and ran longest.
+- The first 79 steps after `633ea97b`'s resume took 156 s (~1.97 s/step, warm-up included)
+  at 3,575 MiB dedicated + 462 MiB shared — session 14's residual spill, with a
+  hardware-accelerated browser (Brave) holding 162 MiB on the NVIDIA adapter (§3 session 15).
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -1291,6 +1357,60 @@ Learned:
 Next:
   - <handoff to the next session>
 ```
+
+---
+
+### 2026-10-04 (session 15) — D9.7's six runs finished: the null survives fine-tuning; queue paused at the owner's request
+
+Phase: 5 (criterion 5: the investigation's six runs are in; the scaffold control and the
+gate are not).
+
+Did:
+  - **Found the GPU idle at session start** (Sun 12:58): the queue had not been restarted
+    since it paused itself on Sat 3 at 08:00. Checked that nothing under `src/vulnloc` or
+    `configs/` changed since the paused run began (`0ce5d96..782ea98`: no files), that the
+    tree was clean and `last.pt` was on disk, then restarted `run_queue.py --only d97` at
+    12:59 in its own console window so it outlives the session.
+  - `d97-concat-seed1` resumed at 13:04:07 from epoch 5, batch 418, step 3821 into the same
+    MLflow run (`earlier_resumes=0`) and FINISHED at 14:31. `cross_attention` seed 2 (114 min)
+    and `concat` seed 2 (211 min) then ran uninterrupted.
+  - **Paused at 21:51 at the owner's request** (`run_queue.py --stop`):
+    `d97-llm_only-seed42` (`179632f5…`) stopped at epoch 6, batch 500, step 4565 after
+    114 min, wrote `last.pt`, exited 75; the GPU is free.
+  - Ran the two seed reports whose arms have three FINISHED seeds, by hand, with exactly the
+    commands `run_queue.py --dry-run` prints. The queue runs them again at its end and
+    rewrites the same files. **Wrote §1.22.**
+  - Owner: `D:\vulnloc_transfer\` was handed to the second machine and its slate is running
+    there (the owner's report — not verified from this machine; nothing is in
+    `artifacts/machine2/` yet).
+Files touched:
+  - Docs only: this file, `CLAUDE.md`, `docs/Phases.md`. No code, no config.
+Runs logged:
+  - `633ea97b…` : concat seed 1, FINISHED, **resumed** (`resumed_at=epoch=5,batch=418,step=3821`).
+  - `829c3555…` : cross_attention seed 2, FINISHED. `a0c42d6f…` : concat seed 2, FINISHED.
+  - `179632f5…` : llm_only seed 42, **PAUSED — no number.**
+  - Two `report_seeds.py` runs →
+    `artifacts/phase5/seed_report_fused_finetuned_{cross_attention,concat}.json`:
+    **Top-5 0.6162 ± 0.0184 vs 0.6169 ± 0.0104** (§1.22).
+Learned:
+  - **A paused queue is silent.** The plan's "restart Saturday evening" depended on a person,
+    did not happen, and nothing said so: the card sat idle from Sat 08:00 to Sun 12:59. The
+    session-start `--status` check is what caught it — never skip it.
+  - **A hardware-accelerated browser takes dedicated VRAM on the NVIDIA adapter.** Brave held
+    162 MiB there during the resumed run, while VS Code and `dwm` sat on the integrated GPU.
+    With it open the run showed 3,575 MiB dedicated + 462 MiB shared and ~1.97 s/step over
+    its first 79 steps (warm-up included). Close it during fine-tuned runs; per-process
+    numbers come from `Get-Counter '\GPU Process Memory(*)\Dedicated Usage'`.
+  - **MLflow shows a paused run as `FAILED`** until it is resumed and finishes (`633ea97b`
+    did the same). Trust `run_queue.py --status`' `[paus]`, not the MLflow status column.
+  - **Docker is still not installed** (no `C:\Program Files\Docker`, `docker` not on PATH,
+    checked Sun 4). The queue being paused is the window for the install and its reboot.
+Next:
+  - `python scripts/run_queue.py --only d97` — resumes `llm_only` seed 42, runs seeds 1 and
+    2 and the three seed reports: **≈ 5–8 h**. Then add the control comparison to §1.22 and
+    put the Phase 5 gate to the owner.
+  - The two held Q13 questions (§6 item 0a rule 8) are still unanswered.
+  - Tests not run this session — no code changed.
 
 ---
 
@@ -1708,7 +1828,8 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
-| `80fc5238…` `c193e3bc…` / `fbf65554…` | 2026-10-02/03 | `run_queue.py --only d97` — `train_fused.py train=fused llm.frozen=false train.semantic_cache.enabled=false +gnn=gcn gnn.use_subtokens=true`, **ADR-009 D9.7**, `src/vulnloc` as of `af4af6a` (logged shas `70824ec` / `0ce5d96` differ in docs only) | 42, 1 / 42 | cross_attention / concat | fused | — | 0.6224, 0.6307 / 0.6058 | 10.47, 10.38 / 10.82 | **IN PROGRESS — per run, NOT a comparison.** n = 2 vs n = 1; nothing is written about the arms until each has three FINISHED seeds (§7 #37). Top-1 0.3402, 0.3755 / 0.3568; line F1 0.3097, 0.3728 / 0.3634. Early stopping at epochs 5–6; 118, 168 / 123 min. No resumes. Pending: concat 1 (paused at epoch 5, batch 418), cross_attention 2, concat 2, llm_only 42/1/2 |
+| `179632f5…` | 2026-10-04 | `run_queue.py --only d97` — as the row below with `+fusion=llm_only`: **D9.7's scaffold control** | 42 | llm_only | fused | — | — | — | **PAUSED at epoch 6, batch 500, step 4565 (21:51, the owner's request) — no number until FINISHED, and no arm-level statement until seeds 1 and 2 are FINISHED too** (§7 #37). 114 min so far. MLflow shows a paused run as `FAILED` until it resumes |
+| `80fc5238…` `c193e3bc…` `829c3555…` / `fbf65554…` `633ea97b…` `a0c42d6f…` | 2026-10-02 → 04 | `run_queue.py --only d97` — `train_fused.py train=fused llm.frozen=false train.semantic_cache.enabled=false +gnn=gcn gnn.use_subtokens=true`, **ADR-009 D9.7**, `src/vulnloc` as of `af4af6a` (logged shas `70824ec` / `0ce5d96` / `782ea98` differ in docs, scripts and tests only) | 42, 1, 2 | cross_attention / concat | fused | 1.000 *(degenerate)* | **0.6162 ± 0.0184 / 0.6169 ± 0.0104** | 11.26 / 11.46 | **D9.7: THE NULL SURVIVES FINE-TUNING (−0.0007, 0.05 pooled sd; paired signs flip).** Top-1 0.3444 ± 0.0293 / 0.3645 ± 0.0073 and IFA are not resolvable either; line F1 0.2954 ± 0.0855 / 0.3811 ± 0.0159 is the threshold moving. Per seed Top-5 0.6224, 0.6307, 0.5954 / 0.6058, 0.6183, 0.6266. `633ea97b` is **resumed** (`resumed_at=epoch=5,batch=418,step=3821`); its selected checkpoint predates the pause. Validation-selected, `val`. 118, 168, 114 / 123, 183, 211 min. §1.22 |
 | `d3dbd7e9…` `b4998f5c…` `ad9f36e8…` | 2026-10-02 | `run_queue.py --only d97check` — overfit, **D9.7 config**, encoder training | 42 | cross_attention / concat / llm_only | fused | — | Top-1 1.000 ×3 | — | **The D9.7 overfit gate. Never cite as a result.** Top-1 = 1.000 in 141 / 134 / 141 of 150 epochs; first-step peak 2,532.6 MiB |
 | `cb2b1e99…` · `1ab2fd03…` | 2026-10-02 | `cb2b1e99`: first `d97-cross_attention-seed42` attempt · `1ab2fd03`: `train_structural.py train.limit=300` on CPU | 42 | cross_attention · — | fused · structural | — | — | — | **Both VOID / probes, never results.** `cb2b1e99` was the live pause/resume test vehicle and found §7 #55 (tagged `void`, checkpoints deleted). `1ab2fd03` proved pause → resume end to end through Hydra (§3 session 14) |
 | `192e067c…` `e7ae3108…` `ce2380bf…` / `86343b54…` `1428a86f…` `5b09a7a4…` | 2026-09-15 | `train_fused.py train=fused llm.frozen=true +gnn=gcn gnn.use_subtokens=true` — **A1 core**, commit `d1003f6` | 42, 1, 2 | cross_attention / concat | fused | 1.000 *(degenerate)* | **0.5408 ± 0.0181 / 0.5394 ± 0.0198** | 12.19 / 15.12 | **A1: NO RESOLVABLE DIFFERENCE on Top-5 (+0.0014, 0.07 sd; paired signs flip).** Frozen semantic encoder — the claim is the qualified one (ADR-009 D9.1). IFA favours cross_attention on all three seeds; Top-1 favours concat on all three. Validation-selected. §1.21 |
@@ -1767,9 +1888,9 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q8 | **Which grammar parses a Big-Vul function?** Measured corpus-wide (§1.7): the dataset's own `lang` column yields **37.01%** clean parses, C **35.74%**, C++ **88.24%**, best-of-two per unit **89.14%** | Trust `lang` · always C · always C++ · **best of two per unit** | **Best of two per unit**, C++ first and C++ wins ties. The 1,712 units it gains over always-C++ are C that the C++ grammar *misreads* (`class`, `new`, `this` are identifiers in C), so the trade is a clean tree against a confidently wrong one. Cost: the grammar becomes data-dependent, and the node-type vocabulary is now a union over two grammars — a Phase 4 input | Phase 2 corpus build | ✅ **Closed 2026-08-16 — ADR-005 accepted by the project owner.** Reversible via `graph.language={cpp,c,declared}`; `declared` reproduces every pre-ADR-005 number |
 | Q9 | **Should the ADR-006 whitespace normalization also be applied at L0**, so `source` never carries the defect into the hashes, the split or the shards? | L1 only · **L0 as well** | **L0.** Chosen by the project owner 2026-09-08. It was accepted expecting a new split fingerprint and **turned out to cost nothing**: every field the split reads is invariant under the transform — `func_hash` already strips all whitespace (landmine #3), and the line count is preserved — so the assignment is bit-identical and `0ade7483…` stands. Only the shards' source text changes. L1 stays as idempotent defence in depth | Phase 3 retraining | ✅ **Closed 2026-09-08 — ADR-006 D6.6** |
 | Q10 | **Should A1 run with the semantic encoder frozen?** A1 as specified costs **60-80 GPU-h** (core two arms: 20-30 h). §1.9 measured `frozen` at **37.8 win/s vs 22.9** and **1,234 MiB vs 2,456** - and, far more important, a frozen encoder is a *pure function of its input*, so its output can be computed once and read from disk, putting a fused run at Phase 4's 2-5 minutes | Fine-tuned as specified · **frozen + cached, staged** · fewer seeds · fewer arms | **Frozen + cached, staged (ADR-009).** All six arms × 3 seeds becomes **~5 h**. It stays controlled by exactly ADR-008 §D8.4's argument - it changes how good *all* arms are, not which wins - and it is the **harder** test of the novelty, since a fine-tuned encoder can reshape its own line features until a trivial combiner suffices. Cost: A1 answers a narrower question and must be phrased that way, and D9.7's fine-tuned confirmation is triggered by the margin, not skipped by default. **Fewer seeds and fewer arms are not options** - §7 #37 is what that costs | Phase 5 / A1 | ✅ **Closed 2026-09-15 — ADR-009 accepted by the project owner.** Built and verified the same day (§1.20) |
-| Q11 | **Run ADR-009 D9.7's fine-tuned confirmation?** The frozen screen found cross_attention ≈ concat on Top-5 (+0.0014, 0.07 sd, §1.21) — the no-margin case D9.7 exists for. Phases.md's fifth Phase 5 criterion requires a negative A1 to be *investigated before Phase 6* | **Run it**: cross_attention and concat fine-tuned (`train.semantic_cache.enabled=false llm.frozen=false`, otherwise A1's constants), seeds 42/1/2, ~18–24 h, overnight, laptop kept awake · **Skip it**: report the frozen result, qualified, and record the skip as the owner's explicit decision · **Partial**: one fine-tuned seed per arm first as a probe (not citable — §7 #37) | **Run it.** It is the only way to learn whether fusion beats fine-tuned LLM-only (0.6141), which every fused arm currently loses to, and it is what closes criterion 5. A probe-only run would tempt a one-seed conclusion this project has retracted twice | **Phase 5 exit / Phase 6 start** | 🟩 **RUNNING since 2026-10-02 (session 14).** The owner delegated the schedule ("do whatever you feel is best"; laptop free except Saturday daytime), so: **all nine runs in one resumable queue group** rather than two fixed nights — `d97-{cross_attention,concat}` seed by seed, then **`llm_only` fine-tuned in the fused scaffold × 3**, added so that "fusion beats fine-tuned LLM-only" is measured against a controlled arm instead of Phase 3's 0.6141 from a different scaffold (ADR-008 §D8.6). Interruptions are continued, not restarted (§7 #53). Live-encoder overfit check first (`d97check`). **No result yet — do not quote one until all three seeds of an arm are FINISHED** |
+| Q11 | **Run ADR-009 D9.7's fine-tuned confirmation?** The frozen screen found cross_attention ≈ concat on Top-5 (+0.0014, 0.07 sd, §1.21) — the no-margin case D9.7 exists for. Phases.md's fifth Phase 5 criterion requires a negative A1 to be *investigated before Phase 6* | **Run it**: cross_attention and concat fine-tuned (`train.semantic_cache.enabled=false llm.frozen=false`, otherwise A1's constants), seeds 42/1/2, ~18–24 h, overnight, laptop kept awake · **Skip it**: report the frozen result, qualified, and record the skip as the owner's explicit decision · **Partial**: one fine-tuned seed per arm first as a probe (not citable — §7 #37) | **Run it.** It is the only way to learn whether fusion beats fine-tuned LLM-only (0.6141), which every fused arm currently loses to, and it is what closes criterion 5. A probe-only run would tempt a one-seed conclusion this project has retracted twice | **Phase 5 exit / Phase 6 start** | 🟨 **6 of 9 runs FINISHED; PAUSED 2026-10-04 21:51 at the owner's request** (running since 2026-10-02, session 14). The owner delegated the schedule ("do whatever you feel is best"; laptop free except Saturday daytime), so: **all nine runs in one resumable queue group** rather than two fixed nights — `d97-{cross_attention,concat}` seed by seed, then **`llm_only` fine-tuned in the fused scaffold × 3**, added so that "fusion beats fine-tuned LLM-only" is measured against a controlled arm instead of Phase 3's 0.6141 from a different scaffold (ADR-008 §D8.6). Interruptions are continued, not restarted (§7 #53). Live-encoder overfit check first (`d97check`). **2026-10-04: the six runs D9.7 specifies are FINISHED — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, no resolvable difference, agreeing with the frozen screen (§1.22).** The `llm_only` control is 0 of 3 (seed 42 paused at epoch 6); **do not quote that arm, or any fusion-vs-LLM-only statement, until all three are FINISHED** |
 | Q12 | **Commit the A1 write-up?** Memory.md §1.21 + ledger, Phases.md criterion-5 note, CLAUDE.md §3, `frontend/phases.json`, `docs/review3_panel_brief.md` — uncommitted since `d1003f6` | Commit now · commit with the D9.7 runs | Commit before any D9.7 run starts: a dirty tree tags every run `-dirty` (§7 #4), so the write-up must be committed first either way | Clean `git_sha` on D9.7 runs | ✅ **Closed 2026-10-02** — committed as `18ca52b` (frontend) and `6e64486` (write-up, code map, report material, bibliography), before any D9.7 run |
-| Q13 | **Scope under the one-week deadline (≈ 2026-10-09): which Phase 6–10 exit criteria are met, and which are deferred in writing?** §6 item 0a lists them criterion by criterion. Three blockers cannot be worked around this week: people other than the owner (human evaluation run, independent reader), this machine (no Docker, one GPU), and negatives (anything function-level needs the 148,983-function split) | **Defer the ❌ rows explicitly** and ship the rest · extend the deadline · cut whole phases (9 or 7) to protect 8 | **Defer the ❌ rows explicitly.** Phases 5–6 closed, 7a, Phase 8 on the frozen grid with `test` + `clean_eval`, Phase 9 without verified Docker, a paper *draft* whose limitations name every deferral. If something must be cut, cut Phase 9's UI before any Phase 8 ablation — the claims are the project | **Marking Phases 6–10 done at all** | 🟨 **PARTLY ANSWERED 2026-10-03.** Owner: three raters are available (human evaluation can run), a second GPU laptop exists (independent reproduction, clean-machine Docker), and Docker is installed Sat 3 evening. Those three rows move to ✅ in §6 item 0a. **Still unanswered:** deferring the function-level criteria (unit aggregation, DiverseVul, full external reproduction) and 7b; whether the external baseline runs as a balanced subsample or stays `(reported)`; the second laptop's GPU |
+| Q13 | **Scope under the one-week deadline (≈ 2026-10-09): which Phase 6–10 exit criteria are met, and which are deferred in writing?** §6 item 0a lists them criterion by criterion. Three blockers cannot be worked around this week: people other than the owner (human evaluation run, independent reader), this machine (no Docker, one GPU), and negatives (anything function-level needs the 148,983-function split) | **Defer the ❌ rows explicitly** and ship the rest · extend the deadline · cut whole phases (9 or 7) to protect 8 | **Defer the ❌ rows explicitly.** Phases 5–6 closed, 7a, Phase 8 on the frozen grid with `test` + `clean_eval`, Phase 9 without verified Docker, a paper *draft* whose limitations name every deferral. If something must be cut, cut Phase 9's UI before any Phase 8 ablation — the claims are the project | **Marking Phases 6–10 done at all** | 🟨 **PARTLY ANSWERED 2026-10-03.** Owner: three raters are available (human evaluation can run), a second GPU laptop exists (independent reproduction, clean-machine Docker), and Docker is installed Sat 3 evening. Those three rows move to ✅ in §6 item 0a. **Still unanswered:** deferring the function-level criteria (unit aggregation, DiverseVul, full external reproduction) and 7b; whether the external baseline runs as a balanced subsample or stays `(reported)`. (The second laptop's GPU is answered: 6 GB, `docs/SecondMachine.md`.) **Docker was not installed on Sat 3 after all — still absent on Sun 4** |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -1786,11 +1907,26 @@ from two measured costs:
 
 | Kind of run | Cost | Source |
 |---|---|---|
-| Fine-tuned fused run | **~15–19 min per epoch; 118–168 min per run** (early stopping at epochs 5–6; ≤ ~3.3 h if all 10 ran) | session 14, D9.7 runs 1–3 |
+| Fine-tuned fused run | **~15–19 min per epoch; 114–211 min per run** by the queue's clock (six runs; the longest, `a0c42d6f`, selected step 7) | sessions 14–15, D9.7 runs 1–6 (§1.22) |
 | Frozen-cache fused run | **6–27 min, ~15 typical** | the A1 screen, `run_queue.py --status` |
 
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
+
+#### Where it stands — 2026-10-04 21:51 (session 15): PAUSED at the owner's request
+
+- **6 of 9 runs FINISHED.** cross_attention and concat have three seeds each and are
+  aggregated (§1.22): **0.6162 ± 0.0184 vs 0.6169 ± 0.0104 Top-5 — no resolvable difference.**
+- **`d97-llm_only-seed42` is `[paus]`** at epoch 6, batch 500, step 4565 (`179632f5…`).
+  Seeds 1 and 2 and the three seed reports are pending — **≈ 5–8 h** once restarted with
+  `python scripts/run_queue.py --only d97`. Nothing restarts it but a person or a session.
+- **Because a step is paused, rule 2 below is in force**: no edits under `src/vulnloc/` or
+  `configs/` in this tree.
+- **Docker is still not installed** on this laptop (checked Sun 4). The pause is the window
+  for the install and its reboot — before the queue restarts, not during a run.
+- **Close hardware-accelerated browsers before restarting** — Brave held 162 MiB of the
+  NVIDIA card during a run (§3 session 15).
+- The second machine has `D:\vulnloc_transfer\` and is running its slate (owner's report).
 
 #### Start of every session — in this order
 
@@ -1815,11 +1951,15 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
    It keeps its own `mlflow.db` and reports there; results come back with
    `scripts/export_results.py` into `artifacts/machine2/`, never into this machine's store.
    Never copy `mlflow.db` or checkpoints between machines (§7 #49). The transfer folder is
-   `D:\vulnloc_transfer\` (~2.7 GB).
-8. **Ask the owner the three held questions of Q13 (§5)** — held on 2026-10-03 at the
-   owner's request ("we will tackle them tomorrow"): the second laptop's GPU and VRAM;
-   external baseline as a balanced subsample or `(reported)`; whether the function-level
-   criteria and 7b are deferred in writing.
+   `D:\vulnloc_transfer\` (~2.7 GB). **Handed over and running there as of 2026-10-04 (the
+   owner's report); nothing has come back to `artifacts/machine2/` yet.** Remind the owner that each
+   overfit gate's Top-1 must be read before `m2` / `m2ft` start (§7 #52).
+8. **Ask the owner the two held questions of Q13 (§5)** — held on 2026-10-03 at the
+   owner's request ("we will tackle them tomorrow"), raised again on 2026-10-04 and **not
+   yet answered**: external baseline as a balanced subsample or `(reported)`; whether the
+   function-level criteria and 7b are deferred in writing. (The third, the second laptop's
+   GPU, is answered: 6 GB.) Session 15's recommendation: `(reported)`, since the night lost
+   on Sat 3 used the buffer the subsample depended on; and defer both in writing.
 
 ```bash
 python scripts/run_queue.py --only d97 --status      # the nine runs, with Top-5 / Top-1
@@ -1835,13 +1975,20 @@ seed reports (`artifacts/phase5/seed_report_fused_finetuned_<arm>.json`).
 | When | GPU (nights) | Daytime (no GPU) |
 |---|---|---|
 | Fri 2 → Sat 3, 08:00 | **DONE:** D9.7 runs 1–3 FINISHED; run 4 (concat seed 1) paused at epoch 5 | — |
-| Sat 3 evening → Sun 4 morning | Owner installs Docker **first** (reboot), closes it, restarts the queue. Rest of D9.7: run 4's tail + 5 runs ≈ **12 h** at measured times; then the seed reports | — (source frozen) |
-| Sun 4 evening / Mon 5 | — | Write §1.22 from the seed reports. Close Phase 5 criterion 5; owner signs the gate. Fix the residual spill guard (session 14 log). Build: held-out evaluation of a checkpoint on `test` and `clean_eval`; the missing line metrics (Top-3/10, MFR/MAR, Recall@k%LOC, PR-AUC); calibration + reliability curve; threshold chosen on `val` |
+| Sat 3 evening → Sun 4 morning | **Did not happen** — the queue was not restarted and Docker was not installed | — |
+| Sun 4, 12:59 → 21:51 | **DONE:** concat seed 1 (resumed), cross_attention seed 2, concat seed 2 — both fused arms complete and aggregated (§1.22). `llm_only` seed 42 paused at epoch 6 at the owner's request | §1.22 written for the two fused arms |
+| Next GPU slot | Docker install **first** if it is to happen (reboot), browsers closed, then `run_queue.py --only d97`: `llm_only` 42's tail + seeds 1 and 2 ≈ **5–8 h**, then the three seed reports | — (source frozen) |
+| Mon 5 | — | Add the `llm_only` control to §1.22 once its three seeds are in. Close Phase 5 criterion 5; owner signs the gate. Fix the residual spill guard (session 14 log). Build: held-out evaluation of a checkpoint on `test` and `clean_eval`; the missing line metrics (Top-3/10, MFR/MAR, Recall@k%LOC, PR-AUC); calibration + reliability curve; threshold chosen on `val` |
 | Mon 5 night | Frozen slate 1 — Phase 6's sweep, **the same search budget for cross_attention and concat** (`ResearchPlan.md` §5, A1's rule) | — |
 | Tue 6 | Frozen slate 2 — A3 (graph type), A4 (GNN kind in fusion), A6 (attention direction), A8 (line-only vs joint), A9 (BCE / weighted / focal), 3 seeds each | Close Phase 6: calibration, threshold, best config frozen, Q5 deferred in writing. Phase 7a: evidence extraction, templates, grounding verifier |
 | Wed 7 | Final config fine-tuned × 3 seeds **only if it differs from D9.7's** (~9–10 h); then `test` + `clean_eval` evaluation | Faithfulness (deletion test). Human-evaluation protocol *written* |
 | Thu 8 | Buffer for reruns | Phase 8: tables and figures by script, significance over seeds, failure taxonomy (≥ 20 cases). Phase 9: FastAPI, schemas, latency |
 | Fri 9 | — | Paper draft: results, limitations, threats. Model card, README quickstart, final Memory.md |
+
+**Session 15 (2026-10-04): the plan is about a day behind** — the Sat 3 night was lost and
+D9.7 still owes ≈ 5–8 GPU-h. Every row from "Mon 5 night" down shifts unless Thursday's
+buffer absorbs it. Against that, the second machine has taken A4, A9, A8 line-only and A5
+off "frozen slate 2", so this GPU's slate 2 is A3 and A6 only.
 
 A6 and A8 need small code changes; A3 needs ADR-007 accepted (CPG has several relations).
 **None of that code can land before D9.7 finishes** unless it is written in a separate git
@@ -1868,7 +2015,7 @@ cannot all close as written:
 
 | Phase | Exit criterion / deliverable | This week? | Why |
 |---|---|---|---|
-| 5 | Negative A1 investigated before Phase 6 | ✅ | D9.7, done ~Sun 4 |
+| 5 | Negative A1 investigated before Phase 6 | ✅ | D9.7's six runs done Sun 4 (§1.22); the `llm_only` control needs ≈ 5–8 GPU-h more, then the owner's signature |
 | 6 | Line scores calibrated, reliability curve | ✅ | Post-hoc on `val`; no training |
 | 6 | Threshold chosen on validation only | ✅ | Same |
 | 6 | Best full-model config frozen and checkpointed | ✅ | From D9.7 + the frozen sweep |

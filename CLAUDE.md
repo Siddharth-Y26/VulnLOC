@@ -58,14 +58,17 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
-**2026-10-03 (session 14): ADR-009 D9.7 is in progress — 3 of 9 runs FINISHED**
-(cross_attention seeds 42 and 1, concat 42), concat seed 1 paused at 08:00, five pending —
-cross_attention, concat and `llm_only`, fine-tuned, seeds 42/1/2, as `run_queue.py --only d97`.
-**No arm has three seeds, so no comparison may be written yet.** Owner deadline: the whole
-project in about a week. `Memory.md` §6 item 0a is the handoff.
+**2026-10-04 (session 15): ADR-009 D9.7 — 6 of 9 runs FINISHED; the queue is PAUSED (21:51,
+the owner's request).** The six runs the ADR specifies are in and aggregated: **fine-tuned,
+cross-attention still does not beat concat on Top-5 — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104,
+0.05 sd, 3 seeds each (`Memory.md` §1.22)**, agreeing with the frozen screen. The added
+scaffold control, `llm_only` fine-tuned × seeds 42/1/2, is **0 of 3** — seed 42 paused at
+epoch 6, two pending — **so nothing about fusion vs fine-tuned LLM-only may be written yet.**
+`python scripts/run_queue.py --only d97` resumes it (≈ 5–8 h, then the seed reports). Owner
+deadline: the whole project in about a week. `Memory.md` §6 item 0a is the handoff.
 
-**Costs to plan with (measured):** a fine-tuned fused run is 118–168 min (early stopping at
-epochs 5–6; ≤ ~3.3 h if all 10 epochs ran);
+**Costs to plan with (measured):** a fine-tuned fused run is 114–211 min by the queue's
+clock (six D9.7 runs);
 a frozen-cache run is ~15 min. **Fine-tune only the headline; sweeps and ablations run off
 the frozen cache.** Function-level anything (unit aggregation, external detector baselines,
 DiverseVul generalization) needs the 148,983-function split and is out of reach this week.
@@ -78,7 +81,7 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
 | Phase 3 | ✅ **DONE — gate signed by the owner 2026-09-15.** **LLM-only over three seeds on normalized text: Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60** (§1.14). Top-5 varies by under a point across seeds while P/R swing ±0.04 in opposite directions — the threshold moving, not the model. Run `1843412a…` remains VOID (ADR-006); `function/f1` = 1.000 is degenerate and must never be quoted. |
 | Phase 4 | ✅ **DONE — gate signed by the owner 2026-09-15.** Overfit test PASSED (`8b0a3c1d…`). **Best structural config: gcn depth 4 + subtokens, Top-5 0.4302 ± 0.0372 over 3 seeds** (ADR-002 §D2.5's second half, +0.066 over node-type-only — §1.15). Far below the semantic arm's 0.6141. **The depth sweep 2/4/6 shows NO resolvable effect at 3 seeds each** (every pairwise gap <0.6 sd, §1.16) — an earlier one-seed over-smoothing reading was retracted. |
-| Phase 5 | 🟨 **A1 frozen screen DONE; 4 / 5 criteria, the fifth half met.** ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6") is open: **ADR-009 D9.7's fine-tuned confirmation (~18–24 h) needs the owner.** |
+| Phase 5 | 🟨 **A1 frozen screen DONE; 4 / 5 criteria, the fifth half met.** ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6"): **D9.7's fine-tuned confirmation agrees — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104 (`Memory.md` §1.22).** Still owed before the gate: the `llm_only` scaffold control (0 / 3 seeds) and the owner's signature. |
 | Phases 6–10 | ⬜ Not started. |
 | Tests | **937 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
@@ -373,7 +376,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 38 | **Adding a config group to `config.yaml`'s `defaults` changes every run's `config_hash`** — including runs of other branches — and `scripts/report_seeds.py` uses that hash to decide whether two runs are replicates. Doing it mid-sweep makes a logged seed incomparable with the seeds still to run. `gnn` is therefore selected as `+gnn=…`; move it into `defaults` only when no sweep is in flight. |
 | 53 | **Until 2026-10-02 `train.resume_from` was a restart wearing a resume's name.** It opened a *second* MLflow run, reset early stopping (so the first post-resume epoch became "best" whatever it scored), and replayed the interrupted epoch from its start on mid-epoch weights. No logged result ever used it, which is the only reason none is wrong. Now a resume reopens the **same** run, restores patience and the best metrics, and skips exactly the batches already trained — pinned in `tests/unit/test_resume.py` by weight equality with an uninterrupted run. What is **not** restored is the dropout RNG: a resumed run is a replicate, not a bit-identical copy. Resumed runs carry a `resumed_at` tag; **report it beside any number from one.** |
 | 54 | **A resumed run's config must equal the one it started with**, and `tracking.start_run` refuses otherwise — every flattened param except `train.resume_from`. So a config change mid-sweep (#38) now also strands every *paused* run: finish or discard paused runs before touching a config file. `run_queue.py --status` shows them as `[paus]`. |
-| 55 | **`nvidia-smi` cannot show a VRAM spill; the Windows counters can.** A resumed fine-tuned run sat at 3,692 MiB dedicated **plus 1,872 MiB shared** and ran 2.5× slower (5.0 vs 2.0 s/step) because the checkpoint had been loaded straight onto the card. Fixed: checkpoints load to host memory, and the loop releases PyTorch's cache whenever *reserved* memory exceeds the card. The baseline to compare a live D9.7 run against is **~2.0 s per optimizer step**; check with `Get-Counter '\GPU Process Memory(*)\Shared Usage'`. |
+| 55 | **`nvidia-smi` cannot show a VRAM spill; the Windows counters can.** A resumed fine-tuned run sat at 3,692 MiB dedicated **plus 1,872 MiB shared** and ran 2.5× slower (5.0 vs 2.0 s/step) because the checkpoint had been loaded straight onto the card. Fixed: checkpoints load to host memory, and the loop releases PyTorch's cache whenever *reserved* memory exceeds the card. The baseline to compare a live D9.7 run against is **~2.0 s per optimizer step**; check with `Get-Counter '\GPU Process Memory(*)\Shared Usage'`. **A hardware-accelerated browser takes dedicated VRAM on the NVIDIA adapter (Brave: 162 MiB, measured 2026-10-04) — close it before a fine-tuned run.** |
 
 
 ---
@@ -412,8 +415,9 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    2026-09-15, built and verified.** A1 reports in the qualified "fixed semantic
    representation" form; the fine-tuned confirmation (D9.7) is triggered by the margin.
 5a. **Q11 — run ADR-009 D9.7's fine-tuned confirmation of A1?** (~18–24 h; closes Phase 5's
-   fifth criterion) — **running since 2026-10-02**; Q12 (commit the A1 write-up) closed the
-   same day. `Memory.md` §5.
+   fifth criterion) — **6 of 9 runs FINISHED, paused 2026-10-04; the two fused arms agree
+   with the frozen screen (`Memory.md` §1.22), the `llm_only` control is pending**; Q12
+   (commit the A1 write-up) closed 2026-10-02. `Memory.md` §5.
 5b. **Review the Findings tab's fix templates.** Written in session 13, tested for what
    they match, not reviewed by a human for what they advise.
 5c. **Q13 — scope under the one-week deadline.** Phases 6–10 cannot all close as written by
@@ -421,6 +425,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    is not installed, and every function-level criterion needs negatives the models never
    trained on. `Memory.md` §6 item 0a lists each criterion; **the owner decides which are
    deferred in writing.** Partly answered 2026-10-03: three raters, a second GPU laptop and
-   Docker (installed Sat 3 evening) lift the people and Docker blockers. Still open: the
-   function-level criteria, 7b, and how the external baseline is run — raise it.
+   Docker lift the people and Docker blockers — **but Docker was not installed on Sat 3 and
+   is still absent on Sun 4.** Still open: the function-level criteria, 7b, and how the
+   external baseline is run — raise it.
 6. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.

@@ -168,6 +168,10 @@ most likely to be underestimated.** CFG/DFG construction is real compiler work.
 - [ ] If cross-attention does **not** beat concat, this is recorded honestly in `Memory.md` and investigated before Phase 6 — not papered over
   - *2026-09-15:* it did not (frozen encoder, `Memory.md` §1.21) — **recorded; not yet
     investigated.** ADR-009 D9.7's fine-tuned confirmation is the pending investigation.
+  - *2026-10-04:* **investigated — it still does not.** D9.7's six fine-tuned runs are in
+    (`Memory.md` §1.22): cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5,
+    3 seeds each, agreeing with the frozen screen. The box stays open until the added
+    `llm_only` scaffold control (0 of 3 seeds) is in and the owner signs the gate.
 
 ---
 
