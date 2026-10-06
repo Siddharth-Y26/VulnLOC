@@ -1379,10 +1379,19 @@ Did:
   - Told the owner what to bring back from the second machine: one `export_results.py`
     folder into `artifacts/machine2/`, seed reports run there first, no `mlflow.db`, no
     checkpoints, no queue state.
+  - **Wed 7, 00:21 — the owner asked for progress; `--status` showed seed 1 `[FAIL]`.** Read
+    its log: `PermissionError [WinError 5]` on the checkpoint rename at 22:47 (§7 #56). Seed
+    2 was training normally. Started a watcher (`artifacts/queue/d97_finish.ps1`, 00:25) that
+    retries the failed step through the queue once it exits and then re-runs the `llm_only`
+    seed report; its guards are in §6 item 0a.
 Files touched:
-  - Docs only: this file, `CLAUDE.md`. No code, no config.
+  - Docs only: this file, `CLAUDE.md`. No code, no config. One helper script under
+    `artifacts/queue/` (git-ignored).
 Runs logged:
-  - `179632f5…` : llm_only seed 42, **RUNNING, resumed — no number.**
+  - `179632f5…` : llm_only seed 42, FINISHED, **resumed** (`epoch=6, batch=500, step=4565`).
+  - `72f067d0…` : llm_only seed 1, **FAILED at step ~4200 — no number**; to be continued
+    from `last.pt` (step 4100).
+  - `2c7a7631…` : llm_only seed 2, **RUNNING — no number.**
 Learned:
   - **Brave was open again at the restart** and held 131 MiB dedicated on the NVIDIA
     adapter; the trainer sat at 3,752 MiB dedicated + 542 MiB shared. Close to session 15's
@@ -1989,6 +1998,23 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   (`docs/SecondMachine.md` §4–5). Read the five overfit gates' Top-1 in its `RESULTS.md`
   before anything else from it is used (§7 #52).
 - The two held Q13 questions (rule 8) were raised again and are **still unanswered**.
+- **Wed 7, 00:25 — 7 of 9 FINISHED, one CRASHED, one running.**
+  - `d97-llm_only-seed42` (`179632f5…`) finished at 20:52, 133.6 min over two attempts.
+  - **`d97-llm_only-seed1` (`72f067d0…`) is `[FAIL]`**: `PermissionError [WinError 5]` on the
+    checkpoint rename at 22:47, in epoch 5 (§7 #56). Not a model failure. `last.pt` (step
+    4100, written 22:44:06) and `best.pt` (epoch 2) are intact; a 1.4 GB `last.pt.tmp` is
+    left beside them and is overwritten by the next save.
+  - `d97-llm_only-seed2` (`2c7a7631…`) started 22:58 and had finished epoch 3 at 00:21.
+    Read once at 00:22, just after that epoch boundary: 2,799 MiB dedicated + 78 MiB shared
+    (Brave still open — one reading, not a comparison with the 20:38 one).
+  - **A watcher is waiting in its own console window** (`artifacts/queue/d97_finish.ps1`,
+    transcript `artifacts/queue/d97_finish.out`). When the queue exits it runs
+    `run_queue.py --only d97 --retry-failed`, then re-runs the `llm_only` seed report if all
+    three seeds are `done`. It starts nothing if a `STOP` file exists, if seed 2 ended
+    paused, or if another queue is already running.
+  - **The next session checks:** `--status` shows nine runs `done`; the transcript; and
+    `n_seeds: 3` in `artifacts/phase5/seed_report_fused_finetuned_llm_only.json`. If the
+    report says 2, it is the queue's own early one — re-run it before reading a number.
 
 #### Where it stood — 2026-10-04 21:51 (session 15): PAUSED at the owner's request
 
@@ -2331,6 +2357,7 @@ Things that cost time once and should not cost time twice.
 | 53 | **`train.resume_from` was not a resume.** Until 2026-10-02 it (a) opened a *second* MLflow run, so one training run was two run ids and `report_seeds.py` — which reads the best step from one run's metric history and requires `FINISHED` — would have seen half a curve; (b) built a fresh `EarlyStopping`, so the first post-resume evaluation became "best" whatever it scored and patience restarted; (c) replayed the interrupted epoch from batch 0 on mid-epoch weights, training part of it twice | A resumed run would have reported a best epoch from its second half only, after up to an epoch of extra training, under a new run id. **No logged result ever used it** (§3, session 10: seed 1 was restarted instead) — the only reason no number is wrong | Fixed in `training/loop.py`, `job.py`, `tracking.py`: `last.pt` carries `batch_in_epoch`, the epoch's loss totals, patience and the best metrics; a resume reopens the **same** run, refuses a config that differs from the one it started with, replays the same shuffle (`seed + epoch`) and skips exactly the batches already trained. Checkpoints are written to a temp file and renamed. Pinned by `tests/unit/test_resume.py`: weights after pause+resume **equal** an uninterrupted run's. **Not restored: the dropout RNG** — a resumed run is a replicate, not a bit-identical copy; it carries a `resumed_at` tag, which must be reported beside its number | ✅ Fixed 2026-10-02 |
 | 54 | **A paused run is stranded by any config change.** The resume guard compares every flattened config value except `train.resume_from` against what the run logged at its start | Editing a config file — or adding a group to `defaults` (#38) — while a `d97-*` step shows `[paus]` makes that run un-resumable; its hours are lost | Finish or deliberately discard paused runs first. `run_queue.py --status` shows them | 🟨 By design |
 | 55 | **Loading a checkpoint onto the GPU spills VRAM for the rest of the run.** MEASURED 2026-10-02 on `cb2b1e99…` (D9.7 cross_attention seed 42): `torch.load(map_location=device)` put a second copy of the weights and optimizer state on the card, PyTorch kept the freed blocks cached, and the resumed process held **3,692 MiB dedicated + 1,872 MiB shared** (Windows `GPU Process Memory` counters) | **5.0 s/step against 2.0 s/step before the pause** — 2.5× slower, no exception, and `_check_memory` saw nothing because it reads *allocated* memory once, at the first step, and the spill is in *reserved* | `load_checkpoint` now loads to host memory (`load_state_dict` copies per parameter), and `Trainer._release_cache_if_spilling` calls `empty_cache()` at any optimizer step where `memory_reserved` exceeds the card. Neither changes a number. **To check a live run:** `Get-Counter '\GPU Process Memory(*)\Shared Usage'` — hundreds of MiB shared on the training pid is a spill, whatever `nvidia-smi` says | ✅ Fixed 2026-10-02 |
+| 56 | **Windows can refuse a checkpoint's rename, and the run dies on it.** MEASURED 2026-10-06 22:47 on `72f067d0…` (D9.7 `llm_only` seed 1, epoch 5, 116 min in, the step-4200 periodic checkpoint): `save_checkpoint`'s `partial.replace(path)` raised `PermissionError: [WinError 5] Access is denied` — another process had `last.pt` open. **The holder is not identified.** Defender real-time protection is on and its log shows a quick scan started and stopped at 22:42:57; suggestive, not proof | Exit 1 → `[FAIL]`, and the queue **does not retry a failed step** unless started with `--retry-failed`: it moves to the next step. At its end the arm's seed report runs on the seeds that finished; from the code (`report_seeds.py` writes below `min_seeds` and returns normally) it writes `n_seeds: 2` with a `warning`, exits 0 and is marked `done`, so it is **not** re-run when the missing seed completes later | `run_queue.py --only d97 --retry-failed` continues the step from its intact `last.pt` in the same run (the ≤ 100 steps after that checkpoint are trained again from its weights, and the run carries a `resumed_at` tag). Then re-run the arm's seed report with the command `--dry-run` prints, and **read `n_seeds` before quoting anything**. **Code fix owed once no fine-tuned group is in flight:** retry the rename a few times with a short sleep before raising, in `training/loop.py::save_checkpoint`, with a test | 🟥 Open — worked around 2026-10-07 |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**

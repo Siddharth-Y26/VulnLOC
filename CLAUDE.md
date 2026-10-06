@@ -58,11 +58,15 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
-**2026-10-06 20:33 (session 16): the `d97` queue was RESTARTED and is running** — the
-`llm_only` control resumed in the same run (`179632f5…`, from epoch 6, step 4565), seeds 1
-and 2 and the three seed reports follow. **Trust `run_queue.py --only d97 --status`, not the
-paragraph below, for whether it is still running.** The second laptop's slate is finished
-(the owner's report); nothing is in `artifacts/machine2/` yet.
+**2026-10-07 00:25 (session 16): `d97` restarted Tue 6 at 20:33 — 7 of 9 runs FINISHED, one
+CRASHED, one running.** `llm_only` seed 42 finished (`179632f5…`, resumed); **seed 1
+(`72f067d0…`) died at 22:47 in epoch 5 on a Windows file error, not a model error
+(landmine #56)**; seed 2 is training. A watcher (`artifacts/queue/d97_finish.ps1`, its own
+console window) retries seed 1 with `--retry-failed` when the queue ends and then re-runs
+the `llm_only` seed report. **Until that report says `n_seeds: 3`, the control is still 0
+of 3 for writing purposes. Trust `run_queue.py --only d97 --status`, not this paragraph or
+the one below.** The second laptop's slate is finished (the owner's report); nothing is in
+`artifacts/machine2/` yet.
 
 **2026-10-04 (session 15): ADR-009 D9.7 — 6 of 9 runs FINISHED; the queue is PAUSED (21:51,
 the owner's request).** The six runs the ADR specifies are in and aggregated: **fine-tuned,
@@ -390,6 +394,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 53 | **Until 2026-10-02 `train.resume_from` was a restart wearing a resume's name.** It opened a *second* MLflow run, reset early stopping (so the first post-resume epoch became "best" whatever it scored), and replayed the interrupted epoch from its start on mid-epoch weights. No logged result ever used it, which is the only reason none is wrong. Now a resume reopens the **same** run, restores patience and the best metrics, and skips exactly the batches already trained — pinned in `tests/unit/test_resume.py` by weight equality with an uninterrupted run. What is **not** restored is the dropout RNG: a resumed run is a replicate, not a bit-identical copy. Resumed runs carry a `resumed_at` tag; **report it beside any number from one.** |
 | 54 | **A resumed run's config must equal the one it started with**, and `tracking.start_run` refuses otherwise — every flattened param except `train.resume_from`. So a config change mid-sweep (#38) now also strands every *paused* run: finish or discard paused runs before touching a config file. `run_queue.py --status` shows them as `[paus]`. |
 | 55 | **`nvidia-smi` cannot show a VRAM spill; the Windows counters can.** A resumed fine-tuned run sat at 3,692 MiB dedicated **plus 1,872 MiB shared** and ran 2.5× slower (5.0 vs 2.0 s/step) because the checkpoint had been loaded straight onto the card. Fixed: checkpoints load to host memory, and the loop releases PyTorch's cache whenever *reserved* memory exceeds the card. The baseline to compare a live D9.7 run against is **~2.0 s per optimizer step**; check with `Get-Counter '\GPU Process Memory(*)\Shared Usage'`. **A hardware-accelerated browser takes dedicated VRAM on the NVIDIA adapter (Brave: 162 MiB, measured 2026-10-04) — close it before a fine-tuned run.** |
+| 56 | **Windows can refuse the checkpoint rename, and that kills a fine-tuned run.** `save_checkpoint` writes `last.pt.tmp` and renames it over `last.pt`; on 2026-10-06 22:47 the rename raised `PermissionError: [WinError 5]` two hours into `72f067d0…` because something else had `last.pt` open (holder **not identified** — Defender real-time scanning is the suspect, unproven). Exit 1 is `[FAIL]`, which **the queue does not retry without `--retry-failed`**; it moves on, and the arm's seed report then runs on the seeds that did finish and is marked `done`. Recover with `run_queue.py --only d97 --retry-failed` (continues from the intact `last.pt`, same run id), then re-run that arm's seed report by hand and **check `n_seeds` in the report before quoting it**. The code fix — retry the rename before raising — is owed once no fine-tuned group is in flight. |
 
 
 ---
