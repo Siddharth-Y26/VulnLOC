@@ -1360,6 +1360,42 @@ Next:
 
 ---
 
+### 2026-10-06 (session 16) — the queue restarted after two idle days; the second machine reported finished
+
+Phase: 5 (criterion 5: the scaffold control is running; the gate is unsigned).
+
+Did:
+  - Session-start `--status`: 6 done, `d97-llm_only-seed42` `[paus]`, 5 pending — the card
+    had been idle since Sun 4, 21:51.
+  - Checked before restarting: tree clean at `de1fa21`; `git diff 0ce5d96..HEAD` touches
+    nothing under `src/vulnloc` or `configs/` (only `scripts/run_queue.py`, from `782ea98`,
+    which the paused run already started under); `last.pt` on disk; Docker not running; D:
+    99% idle over 10 s; 72 MiB in use on the card.
+  - **Restarted `run_queue.py --only d97` at 20:33** in its own console window, at the
+    owner's request. The step resumed at 20:37:02 into the same MLflow run
+    (`earlier_resumes=0`), `resumed_epoch=6 batches_already_trained=500 global_step=4565`;
+    the step-4600 periodic checkpoint landed at 20:38:17 — 35 steps in 75 s, warm-up
+    included, against the ~2.0 s/step baseline (§7 #55).
+  - Told the owner what to bring back from the second machine: one `export_results.py`
+    folder into `artifacts/machine2/`, seed reports run there first, no `mlflow.db`, no
+    checkpoints, no queue state.
+Files touched:
+  - Docs only: this file, `CLAUDE.md`. No code, no config.
+Runs logged:
+  - `179632f5…` : llm_only seed 42, **RUNNING, resumed — no number.**
+Learned:
+  - **Brave was open again at the restart** and held 131 MiB dedicated on the NVIDIA
+    adapter; the trainer sat at 3,752 MiB dedicated + 542 MiB shared. Close to session 15's
+    reading with it open (3,575 + 462) and not slower, but it is a spill: the owner was
+    asked to close it.
+Next:
+  - When the queue ends: `--status`, read the three seed reports, add the `llm_only`
+    control to §1.22 with each run's `resumed_at` tag, put the Phase 5 gate to the owner.
+  - Import the second machine's export when the owner brings it.
+  - Tests not run this session — no code changed.
+
+---
+
 ### 2026-10-04 (session 15) — D9.7's six runs finished: the null survives fine-tuning; queue paused at the owner's request
 
 Phase: 5 (criterion 5: the investigation's six runs are in; the scaffold control and the
@@ -1937,7 +1973,24 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-04 21:51 (session 15): PAUSED at the owner's request
+#### Where it stands — 2026-10-06 20:33 (session 16): RESTARTED, running unattended
+
+- **`run_queue.py --only d97` restarted Tue 6 at 20:33** in its own console window ("VulnLoc
+  d97 queue"), at the owner's request. `d97-llm_only-seed42` resumed at 20:37:02 into the
+  same run (`179632f5…`, `earlier_resumes=0`) from epoch 6, batch 500, step 4565. Seeds 1
+  and 2 and the three seed reports follow: **≈ 5–8 h**. Still **0 of 3** for the control —
+  no number yet (rule 5).
+- **The bullets under "2026-10-04" below describe the pause and are superseded on that one
+  point.** Rule 2 is unchanged: a step is running, so no edits under `src/vulnloc/` or
+  `configs/`.
+- **The second machine's slate is finished (the owner's report, Tue 6).** Nothing is in
+  `artifacts/machine2/` yet; the owner imports it later. What to bring is one
+  `export_results.py` folder, after the nine seed reports are run **there**
+  (`docs/SecondMachine.md` §4–5). Read the five overfit gates' Top-1 in its `RESULTS.md`
+  before anything else from it is used (§7 #52).
+- The two held Q13 questions (rule 8) were raised again and are **still unanswered**.
+
+#### Where it stood — 2026-10-04 21:51 (session 15): PAUSED at the owner's request
 
 - **6 of 9 runs FINISHED.** cross_attention and concat have three seeds each and are
   aggregated (§1.22): **0.6162 ± 0.0184 vs 0.6169 ± 0.0104 Top-5 — no resolvable difference.**

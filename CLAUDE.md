@@ -58,6 +58,12 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-06 20:33 (session 16): the `d97` queue was RESTARTED and is running** — the
+`llm_only` control resumed in the same run (`179632f5…`, from epoch 6, step 4565), seeds 1
+and 2 and the three seed reports follow. **Trust `run_queue.py --only d97 --status`, not the
+paragraph below, for whether it is still running.** The second laptop's slate is finished
+(the owner's report); nothing is in `artifacts/machine2/` yet.
+
 **2026-10-04 (session 15): ADR-009 D9.7 — 6 of 9 runs FINISHED; the queue is PAUSED (21:51,
 the owner's request).** The six runs the ADR specifies are in and aggregated: **fine-tuned,
 cross-attention still does not beat concat on Top-5 — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104,
