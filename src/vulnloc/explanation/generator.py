@@ -3,7 +3,8 @@
 One flagged line in, a few fixed-form sentences out:
 
 1. **What the line's text matches**, from the template library — or, when nothing matches,
-   a plain statement that no cause is named.
+   a plain statement that no cause is named. A line that carries the corpus's
+   comment-terminator tell (``Memory.md`` §1.25) is told so, pattern or no pattern.
 2. **What the model said**: the line's rank and calibrated score.
 3. **Where the model looked**: the other lines its cross-attention weighted most.
 4. **What flows into the line**, from the static data-flow graph.
@@ -26,16 +27,38 @@ from vulnloc.explanation.registry import register_explainer
 from vulnloc.explanation.templates import NO_PATTERN, TemplateMatch, match_lines
 from vulnloc.explanation.types import Evidence, Explanation, Prediction
 from vulnloc.utils.exceptions import ExplanationError
+from vulnloc.utils.text import ends_comment_without_slash
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from vulnloc.representation.units import CodeUnit
 
-__all__ = ["UNCLASSIFIED", "TemplateExplainer", "join_numbers"]
+__all__ = [
+    "FORMATTING_ARTIFACT",
+    "FORMATTING_ARTIFACT_LABEL",
+    "UNCLASSIFIED",
+    "TemplateExplainer",
+    "join_numbers",
+]
 
 UNCLASSIFIED = "Unclassified"
 """The label of a flagged line no template matched."""
+
+FORMATTING_ARTIFACT = "formatting-artifact"
+"""Template id of a flagged line that matches no weakness pattern and carries the
+comment-terminator tell of ``Memory.md`` §1.25."""
+
+FORMATTING_ARTIFACT_LABEL = "Formatting artifact"
+
+_ARTIFACT_SENTENCE = (
+    "This line ends a comment with a bare * where */ belongs. That is a formatting artifact "
+    "of the dataset which marks labelled lines, so this score may rest on the formatting "
+    "rather than on the code."
+)
+"""Said whenever the tell is on the line, pattern or no pattern. It is the one case where
+the explainer can state *why the model scored the line* with measured backing: the nine
+D9.7 checkpoints rank such a line first in most units that have one."""
 
 _MATCH_CACHE_UNITS = 8
 
@@ -112,11 +135,15 @@ class TemplateExplainer:
             )
 
         match = _matches_for(unit.lines).get(line)
+        artifact = ends_comment_without_slash(unit.lines[line - 1])
         sentences: list[str] = []
         cited_lines: list[int] = []
         cited_symbols: list[str] = []
 
-        if match is None:
+        if match is None and artifact:
+            label, cwe, template_id = FORMATTING_ARTIFACT_LABEL, "", FORMATTING_ARTIFACT
+            sentences.append("No known weakness pattern matches this line's text.")
+        elif match is None:
             label, cwe, template_id = UNCLASSIFIED, "", NO_PATTERN
             sentences.append(
                 "No known weakness pattern matches this line's text, so no cause is named."
@@ -127,6 +154,8 @@ class TemplateExplainer:
             cited_symbols.extend(match.symbols)
             if match.related_line is not None:
                 cited_lines.append(match.related_line)
+        if artifact:
+            sentences.append(_ARTIFACT_SENTENCE)
 
         sentences.append(
             f"The model ranks line {line} at position {pred.rank(line)} of "

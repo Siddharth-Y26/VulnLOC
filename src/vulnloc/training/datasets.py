@@ -94,6 +94,9 @@ class LineLabelledDataset(Dataset[EncodedUnit]):
             flagged lines keep their original indentation while every other line is
             stripped, so "line starts with a space" recovers the label at precision
             1.0000 (ADR-006, ``Memory.md`` §1.10). ``False`` reproduces pre-ADR-006 runs.
+        strip_comments: Remove every comment before anything sees the text, keeping the
+            line count (``Memory.md`` §1.25). **Off by default**: every number logged
+            before 2026-10-07 was measured with comments in place.
 
     Raises:
         DataError: If the shard yields no units.
@@ -109,10 +112,12 @@ class LineLabelledDataset(Dataset[EncodedUnit]):
         limit: int = 0,
         line_labelled_only: bool = False,
         normalize_whitespace: bool = True,
+        strip_comments: bool = False,
     ) -> None:
         self.split = split
         self.n_lines = n_lines
         self.normalize_whitespace = normalize_whitespace
+        self.strip_comments = strip_comments
         self.units: list[EncodedUnit] = []
         flagged_lost = 0
 
@@ -123,7 +128,9 @@ class LineLabelledDataset(Dataset[EncodedUnit]):
             if line_labelled_only and not labelled.vulnerable_lines:
                 continue
             unit = CodeUnit.from_labelled_function(
-                labelled, normalize_whitespace=normalize_whitespace
+                labelled,
+                normalize_whitespace=normalize_whitespace,
+                strip_comments=strip_comments,
             )
             encoded = tokenizer.encode(unit)
             labels = [0] * n_lines
@@ -166,6 +173,7 @@ class LineLabelledDataset(Dataset[EncodedUnit]):
                 "flagged_beyond_line_cap": flagged_lost,
                 "n_lines_cap": n_lines,
                 "normalize_whitespace": normalize_whitespace,
+                "strip_comments": strip_comments,
             },
         )
 

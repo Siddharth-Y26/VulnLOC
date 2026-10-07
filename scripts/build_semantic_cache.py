@@ -43,6 +43,7 @@ from vulnloc.training.semantic_cache import (
     write_cache,
 )
 from vulnloc.training.tracking import start_run
+from vulnloc.utils.config import strip_comments_enabled
 from vulnloc.utils.exceptions import ConfigError
 from vulnloc.utils.logging import get_logger, setup_logging
 
@@ -121,6 +122,7 @@ def build(cfg: DictConfig) -> dict[str, Any]:
                 n_lines=n_lines,
                 line_labelled_only=bool(cfg.train.line_labelled_only),
                 normalize_whitespace=bool(cfg.representation.normalize_whitespace),
+                strip_comments=strip_comments_enabled(cfg),
             )
             determinism = assert_deterministic(
                 encoder, dataset.units[:4], n_lines=n_lines, device=device, amp=amp

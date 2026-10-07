@@ -37,6 +37,7 @@ import torch
 
 from vulnloc.models.alignment import align_tokens_to_lines
 from vulnloc.training.datasets import EncodedUnit, collate_units
+from vulnloc.utils.config import strip_comments_enabled
 from vulnloc.utils.exceptions import ConfigError, DataError
 from vulnloc.utils.logging import get_logger
 
@@ -88,8 +89,8 @@ def cache_inputs(
     """Collect every value that can change a cache's contents (ADR-009 §D9.4).
 
     Args:
-        cfg: The composed config. Reads ``llm.*``, ``representation.normalize_whitespace``
-            and ``train.amp``.
+        cfg: The composed config. Reads ``llm.*``, ``representation.normalize_whitespace``,
+            ``representation.strip_comments`` (when present) and ``train.amp``.
         split: The partition this cache describes.
         split_fingerprint: The split assignment's fingerprint (``split_report.json``).
         shard_digest: SHA-256 of this partition's shard (``shards.json``).
@@ -98,7 +99,7 @@ def cache_inputs(
     Returns:
         A flat ``name -> str`` mapping. Stringified so a manifest round-trips exactly.
     """
-    return {
+    inputs = {
         "format_version": str(CACHE_FORMAT_VERSION),
         "llm.model_name": str(cfg.llm.model_name),
         "llm.tokenizer_name": str(cfg.llm.tokenizer_name),
@@ -118,6 +119,12 @@ def cache_inputs(
         "split_fingerprint": split_fingerprint,
         "shard_digest": shard_digest,
     }
+    if strip_comments_enabled(cfg):
+        # Memory.md §1.25. Features computed from text with comments in place must
+        # never be read by a run that strips them. The key is added only when the
+        # option is on, so every cache built before it existed keeps its digest.
+        inputs["representation.strip_comments"] = "True"
+    return inputs
 
 
 def encoder_revision(model_name: str) -> str:

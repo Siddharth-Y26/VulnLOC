@@ -5,7 +5,14 @@ from __future__ import annotations
 import pytest
 from omegaconf import OmegaConf
 
-from vulnloc.utils.config import config_hash, git_sha, provenance, resolve_config, save_config
+from vulnloc.utils.config import (
+    config_hash,
+    git_sha,
+    provenance,
+    resolve_config,
+    save_config,
+    strip_comments_enabled,
+)
 from vulnloc.utils.exceptions import ConfigError
 
 
@@ -80,3 +87,28 @@ def test_save_config_writes_resolved_yaml(tmp_path):
 
     assert path.exists()
     assert OmegaConf.load(path) == {"root": "artifacts", "logs": "artifacts/logs"}
+
+
+# --- representation.strip_comments (Memory.md §1.25) ----------------------------------
+
+
+def test_a_config_without_the_key_does_not_strip_comments():
+    # Every run archived before 2026-10-07: an absent parameter was not enabled.
+    assert strip_comments_enabled(OmegaConf.create({"representation": {}})) is False
+    assert strip_comments_enabled(OmegaConf.create({})) is False
+
+
+@pytest.mark.parametrize(("value", "expected"), [(True, True), (False, False)])
+def test_the_key_decides_when_it_is_present(value, expected):
+    cfg = OmegaConf.create({"representation": {"strip_comments": value}})
+
+    assert strip_comments_enabled(cfg) is expected
+
+
+def test_stripping_comments_changes_the_config_hash():
+    # A run with comments stripped is a different experiment, and the seed report tells
+    # replicates apart by this hash.
+    base = {"representation": {"normalize_whitespace": True}}
+    stripped = {"representation": {"normalize_whitespace": True, "strip_comments": True}}
+
+    assert config_hash(OmegaConf.create(base)) != config_hash(OmegaConf.create(stripped))

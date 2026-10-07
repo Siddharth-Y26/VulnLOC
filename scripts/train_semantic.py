@@ -39,6 +39,7 @@ from vulnloc.training.datasets import LineLabelledDataset, WindowBatchSampler, c
 from vulnloc.training.device import resolve_device
 from vulnloc.training.job import run_training
 from vulnloc.training.seeding import seed_everything
+from vulnloc.utils.config import strip_comments_enabled
 from vulnloc.utils.logging import get_logger, setup_logging
 
 _LOGGER = get_logger(__name__)
@@ -134,6 +135,7 @@ def train(cfg: DictConfig) -> dict[str, Any]:
         limit=int(cfg.train.limit),
         line_labelled_only=bool(cfg.train.line_labelled_only),
         normalize_whitespace=bool(cfg.representation.normalize_whitespace),
+        strip_comments=strip_comments_enabled(cfg),
     )
     eval_split = str(cfg.train.eval_split)
     eval_set = (
@@ -147,6 +149,7 @@ def train(cfg: DictConfig) -> dict[str, Any]:
             limit=int(cfg.train.eval_limit),
             line_labelled_only=bool(cfg.train.line_labelled_only),
             normalize_whitespace=bool(cfg.representation.normalize_whitespace),
+            strip_comments=strip_comments_enabled(cfg),
         )
     )
 

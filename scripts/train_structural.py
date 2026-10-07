@@ -52,6 +52,7 @@ from vulnloc.training.graph_datasets import (
 )
 from vulnloc.training.job import run_training
 from vulnloc.training.seeding import seed_everything
+from vulnloc.utils.config import strip_comments_enabled
 from vulnloc.utils.logging import get_logger, setup_logging
 
 _LOGGER = get_logger(__name__)
@@ -193,6 +194,7 @@ def train(cfg: DictConfig) -> dict[str, Any]:
             limit=limit,
             line_labelled_only=bool(cfg.train.line_labelled_only),
             normalize_whitespace=bool(cfg.representation.normalize_whitespace),
+            strip_comments=strip_comments_enabled(cfg),
         )
 
     train_set = make_dataset(str(cfg.train.train_split), int(cfg.train.limit))

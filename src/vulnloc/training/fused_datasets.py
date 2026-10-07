@@ -194,6 +194,9 @@ class FusedLineDataset(Dataset[FusedUnit]):
         line_labelled_only: Keep only functions carrying line labels.
         normalize_whitespace: Strip edge whitespace from every source line first.
             **On by default: leaving it off leaks the label** (ADR-006).
+        strip_comments: Remove every comment before anything sees the text, keeping the
+            line count (``Memory.md`` §1.25). **Off by default**: every number logged
+            before 2026-10-07 was measured with comments in place.
         semantic_cache: A verified frozen-encoder feature cache (ADR-009). Every joined
             unit then carries its cached line features, and batches carry
             ``sem_line_states`` so the model skips the encoder. Tokenization still runs:
@@ -220,6 +223,7 @@ class FusedLineDataset(Dataset[FusedUnit]):
         limit: int = 0,
         line_labelled_only: bool = False,
         normalize_whitespace: bool = True,
+        strip_comments: bool = False,
         semantic_cache: SemanticFeatureCache | None = None,
     ) -> None:
         self.split = split
@@ -234,6 +238,7 @@ class FusedLineDataset(Dataset[FusedUnit]):
             limit=limit,
             line_labelled_only=line_labelled_only,
             normalize_whitespace=normalize_whitespace,
+            strip_comments=strip_comments,
         )
         structural = GraphLineDataset(
             cache_dir,
@@ -246,6 +251,7 @@ class FusedLineDataset(Dataset[FusedUnit]):
             limit=limit,
             line_labelled_only=line_labelled_only,
             normalize_whitespace=normalize_whitespace,
+            strip_comments=strip_comments,
         )
         self.units = join_branches(semantic, structural)
         if semantic_cache is not None:
@@ -287,6 +293,7 @@ class FusedLineDataset(Dataset[FusedUnit]):
                 "graph_build_failures": structural.build_failures,
                 "n_lines_cap": n_lines,
                 "normalize_whitespace": normalize_whitespace,
+                "strip_comments": strip_comments,
                 "semantic_cache_digest": self.semantic_cache_digest[:12] or None,
             },
         )

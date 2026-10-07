@@ -359,3 +359,28 @@ def test_coverage_reports_what_the_union_recovers(tmp_path, tokenizer) -> None:
     assert counts["flagged_semantic_only"] >= 1
     assert counts["flagged_structural_only"] == 0
     assert counts["recovered_by_union"] == counts["flagged_semantic_only"]
+
+
+# --- representation.strip_comments (Memory.md §1.25) ----------------------------------
+
+# Line 3's comment lost the slash of its terminator, as flagged lines do in the corpus.
+COMMENTED = "int f(int a)\n{\nint b = a;  /* why this is here *\nreturn b;\n}"
+
+
+def test_stripping_comments_reaches_both_branches(tmp_path, tokenizer) -> None:
+    (tmp_path / "plain").mkdir()
+    (tmp_path / "stripped").mkdir()
+    units = [unit("u1", source=COMMENTED, lines=(3,))]
+
+    plain = dataset(tmp_path / "plain", tokenizer, units).units[0]
+    stripped = dataset(tmp_path / "stripped", tokenizer, units, strip_comments=True).units[0]
+
+    def tokens(encoded) -> int:
+        return sum(sum(window.attention_mask) for window in encoded.windows)
+
+    assert tokens(stripped.semantic) < tokens(plain.semantic), "the comment's tokens are gone"
+    # The graph is built from the same stripped text: line 3 no longer carries the nodes
+    # the grammar made of an unterminated comment.
+    on_line_3 = [unit.structural.node_line.tolist().count(3) for unit in (plain, stripped)]
+    assert on_line_3[1] < on_line_3[0]
+    assert stripped.semantic.line_labels == plain.semantic.line_labels, "labels never move"

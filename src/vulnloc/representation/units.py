@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from vulnloc.representation.line_map import LineMap, split_lines
 from vulnloc.utils.text import normalize_source_whitespace
+from vulnloc.utils.text import strip_comments as strip_source_comments
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -70,6 +71,7 @@ class CodeUnit:
         vulnerable_lines: frozenset[int] | None = None,
         metadata: Mapping[str, Any] | None = None,
         normalize_whitespace: bool = True,
+        strip_comments: bool = False,
     ) -> CodeUnit:
         """Build a unit from raw text.
 
@@ -85,10 +87,17 @@ class CodeUnit:
                 Big-Vul's flagged lines keep their original indentation while every other
                 line has been stripped, which recovers the label at precision 1.0
                 (ADR-006). ``False`` reproduces every pre-ADR-006 number.
+            strip_comments: Remove every comment, keeping the line count — the
+                label-blind fix for the second formatting leak (``Memory.md`` §1.25).
+                **Off by default: every number logged before 2026-10-07 was measured with
+                comments in place**, and a run made with this on is a different
+                experiment from one made with it off.
 
         Returns:
             The unit, with its line map built.
         """
+        if strip_comments:
+            source = strip_source_comments(source)
         if normalize_whitespace:
             source = normalize_source_whitespace(source)
         return cls(
@@ -104,7 +113,11 @@ class CodeUnit:
 
     @classmethod
     def from_labelled_function(
-        cls, unit: LabelledFunction, *, normalize_whitespace: bool = True
+        cls,
+        unit: LabelledFunction,
+        *,
+        normalize_whitespace: bool = True,
+        strip_comments: bool = False,
     ) -> CodeUnit:
         """Lift an L0 record into L1.
 
@@ -113,6 +126,7 @@ class CodeUnit:
             normalize_whitespace: See :meth:`from_source`. Defaults to ``True``; this is
                 the boundary where the ADR-006 leak is closed for every consumer, since
                 the shards store the corpus text verbatim.
+            strip_comments: See :meth:`from_source`. Defaults to ``False``.
 
         Returns:
             The corresponding :class:`CodeUnit`.
@@ -125,4 +139,5 @@ class CodeUnit:
             vulnerable_lines=unit.vulnerable_lines,
             metadata=unit.metadata,
             normalize_whitespace=normalize_whitespace,
+            strip_comments=strip_comments,
         )

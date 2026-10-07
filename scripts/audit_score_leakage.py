@@ -25,6 +25,11 @@ text. What this gives is the size of the problem, from files already on disk.
 ``test`` and ``clean_eval`` score files are refused without ``+audit.final=true``
 (``Rules.md`` §5.3).
 
+With ``+representation.strip_comments=true`` it audits the scores in ``scores_stripped/``
+against comment-stripped text — where both tells should fire on nothing, and the groups
+that depend on them should be empty. That is the check that the fix removed the leak
+rather than hid it.
+
 Usage::
 
     python scripts/audit_score_leakage.py
@@ -49,9 +54,10 @@ from vulnloc.data.cache import iter_shard
 from vulnloc.representation.line_map import split_lines
 from vulnloc.training.line_scores import UnitScores, load_scores
 from vulnloc.training.tracking import start_run
+from vulnloc.utils.config import strip_comments_enabled
 from vulnloc.utils.exceptions import ConfigError
 from vulnloc.utils.logging import get_logger, setup_logging
-from vulnloc.utils.text import normalize_source_whitespace
+from vulnloc.utils.text import normalize_source_whitespace, strip_comments
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -203,13 +209,16 @@ def aggregate(per_run: Sequence[dict[str, Any]]) -> dict[str, Any]:
     return summary
 
 
-def load_texts(cache_dir: Path, split: str, *, normalize: bool) -> dict[str, list[str]]:
+def load_texts(
+    cache_dir: Path, split: str, *, normalize: bool, strip: bool = False
+) -> dict[str, list[str]]:
     """The partition's line-labelled units as lists of lines.
 
     Args:
         cache_dir: Directory holding the preprocessed shards.
         split: The partition.
         normalize: Apply ADR-006 normalization, as every reported run did.
+        strip: Strip comments first, as the scores being audited were produced.
 
     Returns:
         ``unit_id -> lines``.
@@ -217,7 +226,8 @@ def load_texts(cache_dir: Path, split: str, *, normalize: bool) -> dict[str, lis
     texts: dict[str, list[str]] = {}
     for unit in iter_shard(cache_dir, split):
         if unit.vulnerable_lines:
-            source = normalize_source_whitespace(unit.source) if normalize else unit.source
+            source = strip_comments(unit.source) if strip else unit.source
+            source = normalize_source_whitespace(source) if normalize else source
             texts[unit.unit_id] = split_lines(source)
     return texts
 
@@ -251,7 +261,10 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
             split=split,
             hint="Rules.md §5.3. Add '+audit.final=true' only when that moment has come.",
         )
-    scores_dir = Path(str(option("scores_dir", "./artifacts/phase6/scores")))
+    # Scores made from comment-stripped text are audited against comment-stripped text.
+    strip = strip_comments_enabled(cfg)
+    variant = "_stripped" if strip else ""
+    scores_dir = Path(str(option("scores_dir", f"./artifacts/phase6/scores{variant}")))
     output_dir = Path(str(option("output_dir", "./artifacts/phase6")))
     wanted = [str(run) for run in option("runs", [])]
 
@@ -272,6 +285,7 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
         Path(cfg.data.cache.output_dir),
         split,
         normalize=bool(cfg.representation.normalize_whitespace),
+        strip=strip,
     )
 
     runs: dict[str, Any] = {}
@@ -307,6 +321,7 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "generated_by": "scripts/audit_score_leakage.py",
         "split": split,
+        "strip_comments": strip,
         "tell": "comment_end_lost_slash",
         "mirror": "comment_end_intact",
         "arms": {arm: aggregate(reports) for arm, reports in sorted(arms.items())},
@@ -317,7 +332,7 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
         ),
     }
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"score_leakage_{split}.json"
+    output_path = output_dir / f"score_leakage_{split}{variant}.json"
     with start_run(cfg, run_name="score-leakage-audit") as run_id:
         payload["run_id"] = run_id
         output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -325,6 +340,7 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
         mlflow.log_params(
             {
                 "score_leakage.split": split,
+                "score_leakage.strip_comments": str(strip),
                 "score_leakage.tell": payload["tell"],
                 "score_leakage.checkpoints": len(runs),
             }

@@ -52,7 +52,6 @@ Usage::
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -67,32 +66,18 @@ from vulnloc.representation.line_map import split_lines
 from vulnloc.training.tracking import start_run
 from vulnloc.utils.exceptions import DataError
 from vulnloc.utils.logging import get_logger, setup_logging
-from vulnloc.utils.text import normalize_source_whitespace
+from vulnloc.utils.text import ends_comment_without_slash, normalize_source_whitespace
 
 _LOGGER = get_logger(__name__)
 
-# Text, then exactly one `*`, at the end of the line. `/**` and `****` do not match: a
-# doc-comment opener and a banner end in `*` in every corpus, flagged or not.
-_BARE_STAR_END = re.compile(r"[^\s*/]\s*\*$")
-
-
-def comment_end_lost_slash(line: str) -> bool:
-    """Whether a line ends a block comment with ``*`` where ``*/`` belongs.
-
-    Args:
-        line: One source line.
-
-    Returns:
-        ``True`` for ``x = 1;  /* note *`` and for a continuation line ``* note *``.
-    """
-    stripped = line.strip()
-    return bool(_BARE_STAR_END.search(stripped)) and ("/*" in stripped or stripped[:1] == "*")
-
+# The tell of Memory.md §1.25 lives in `utils/text.py`, beside the transform that removes
+# it, so the audit and the fix cannot drift apart. Re-exported under the tell's name.
+comment_end_lost_slash = ends_comment_without_slash
 
 # Each tell reads one line of text and returns "I claim this line is flagged". None of
 # them can see the code's meaning, the function, or any label.
 TELLS: dict[str, Callable[[str], bool]] = {
-    "comment_end_lost_slash": comment_end_lost_slash,
+    "comment_end_lost_slash": ends_comment_without_slash,
     "comment_end_intact": lambda line: line.rstrip().endswith("*/"),
     "leading_whitespace": lambda line: line[:1] in (" ", "\t"),
     "trailing_whitespace": lambda line: bool(line) and line[-1:] in (" ", "\t"),

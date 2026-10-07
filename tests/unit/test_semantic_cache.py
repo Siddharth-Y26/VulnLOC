@@ -341,3 +341,28 @@ def test_the_same_encoder_in_eval_mode_passes(tmp_path, tokenizer):
     assert_deterministic(
         encoder, semantic.units[:2], n_lines=512, device=torch.device("cpu"), amp=False
     )
+
+
+# --- representation.strip_comments is part of the key (Memory.md §1.25) ---------------
+
+
+def test_the_strip_comments_key_is_absent_when_off_so_existing_digests_survive() -> None:
+    # The cache of record (`c99764bc…`) was built before the option existed. Adding a
+    # "False" entry would change its digest and strand every frozen run that reads it.
+    assert "representation.strip_comments" not in inputs()
+
+
+def test_a_run_that_strips_comments_cannot_read_features_cached_with_them() -> None:
+    cfg = config()
+    cfg.representation.strip_comments = True
+
+    values = cache_inputs(
+        cfg,
+        split="train",
+        split_fingerprint="0ade7483",
+        shard_digest="8c1cccdd",
+        encoder_revision="rev1",
+    )
+
+    assert values["representation.strip_comments"] == "True"
+    assert values != inputs()

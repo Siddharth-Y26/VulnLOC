@@ -249,6 +249,9 @@ class GraphLineDataset(Dataset[GraphUnit]):
             task requires (24.4% of Big-Vul's positives have none).
         normalize_whitespace: Strip edge whitespace from every source line before
             parsing. **On by default: leaving it off leaks the label** (ADR-006).
+        strip_comments: Remove every comment before anything sees the text, keeping the
+            line count (``Memory.md`` §1.25). **Off by default**: every number logged
+            before 2026-10-07 was measured with comments in place.
 
     Raises:
         DataError: If the shard yields no usable units.
@@ -267,6 +270,7 @@ class GraphLineDataset(Dataset[GraphUnit]):
         limit: int = 0,
         line_labelled_only: bool = False,
         normalize_whitespace: bool = True,
+        strip_comments: bool = False,
     ) -> None:
         self.split = split
         self.n_lines = n_lines
@@ -288,7 +292,9 @@ class GraphLineDataset(Dataset[GraphUnit]):
                 continue
             considered += 1
             unit = CodeUnit.from_labelled_function(
-                labelled, normalize_whitespace=normalize_whitespace
+                labelled,
+                normalize_whitespace=normalize_whitespace,
+                strip_comments=strip_comments,
             )
             try:
                 parsed = parser.parse_with_policy(
@@ -381,6 +387,7 @@ class GraphLineDataset(Dataset[GraphUnit]):
                 ),
                 "n_lines_cap": n_lines,
                 "normalize_whitespace": normalize_whitespace,
+                "strip_comments": strip_comments,
             },
         )
 

@@ -42,7 +42,12 @@ from vulnloc.explanation.evidence import (
     line_nodes,
     top_tokens,
 )
-from vulnloc.explanation.generator import UNCLASSIFIED, join_numbers
+from vulnloc.explanation.generator import (
+    FORMATTING_ARTIFACT,
+    FORMATTING_ARTIFACT_LABEL,
+    UNCLASSIFIED,
+    join_numbers,
+)
 from vulnloc.explanation.templates import NO_PATTERN
 from vulnloc.explanation.verifier import mentioned_lines, quoted_fragments
 from vulnloc.representation import CodeUnit, TreeSitterParser, build_ast_graph, build_dfg_graph
@@ -569,3 +574,51 @@ def test_a_unit_with_no_scoreable_line_reports_zero_risk(unit):
 
     assert contract["risk_score"] == 0.0
     assert contract["is_vulnerable"] is False
+
+
+# ── The comment-terminator tell (Memory.md §1.25) ────────────────────────────────────
+
+ARTIFACT_SOURCE = (
+    "void f(struct ctx *c)\n"  # 1
+    "{\n"  # 2
+    "qio_channel_wait(c->ioc);  /* needed by nbd_reply_ready.  *\n"  # 3  tell, no pattern
+    "memcpy(c->buf, c->src, c->n);  /* copy it *\n"  # 4  tell and a pattern
+    "}"  # 5
+)
+
+
+def _artifact_case(line: int):
+    unit = CodeUnit.from_source("u2", ARTIFACT_SOURCE, language="C", target=1)
+    pred = Prediction("u2", (0.01, 0.01, 0.9, 0.8, 0.01), (True,) * 5, 0.5)
+    evidence = extract_evidence(unit, pred, line, settings=SETTINGS)
+    explanation = TemplateExplainer(max_context_lines=2).explain(unit, pred, evidence)
+    return unit, pred, evidence, explanation
+
+
+def test_a_flagged_line_carrying_the_tell_is_told_its_score_may_rest_on_formatting():
+    unit, pred, evidence, explanation = _artifact_case(3)
+
+    assert explanation.template_id == FORMATTING_ARTIFACT
+    assert explanation.label == FORMATTING_ARTIFACT_LABEL
+    assert "formatting artifact of the dataset" in explanation.text
+    verify(explanation, unit, pred, evidence)
+
+
+def test_a_pattern_on_a_tell_line_keeps_its_label_and_still_carries_the_warning():
+    unit, pred, evidence, explanation = _artifact_case(4)
+
+    assert explanation.template_id == "memcpy-length"
+    assert explanation.label == "Out-of-bounds write"
+    assert "formatting artifact of the dataset" in explanation.text
+    verify(explanation, unit, pred, evidence)
+
+
+def test_stripped_text_has_no_tell_left_to_warn_about():
+    unit = CodeUnit.from_source("u2", ARTIFACT_SOURCE, language="C", target=1, strip_comments=True)
+    pred = Prediction("u2", (0.01, 0.01, 0.9, 0.8, 0.01), (True,) * 5, 0.5)
+    evidence = extract_evidence(unit, pred, 3, settings=SETTINGS)
+
+    explanation = TemplateExplainer(max_context_lines=2).explain(unit, pred, evidence)
+
+    assert explanation.template_id == NO_PATTERN
+    assert "formatting artifact" not in explanation.text

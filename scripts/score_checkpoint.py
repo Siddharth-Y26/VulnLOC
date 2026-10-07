@@ -22,11 +22,21 @@ that is not the scores the run reported is worse than no dump.
 partitions are evaluated once, at the end, on the frozen configuration. They need
 ``+score.final=true``, and the run this script logs is then tagged ``held_out``.
 
+**One thing it does on request, and says so in everything it writes: score a
+checkpoint on text it was not trained on.** ``+representation.strip_comments=true``
+strips every comment from the partition before scoring (``Memory.md`` §1.25: with
+comments in place the corpus text carries a formatting leak the checkpoints read). For
+a run trained with comments this is *evaluation-time* stripping: the metrics are not
+expected to reproduce the run's own, so that check is skipped, the manifest records
+``strip_comments`` and ``strip_comments_at_training`` separately, and the files go to
+``scores_stripped/`` so they can never be mistaken for the scores the run reported.
+
 Usage::
 
     python scripts/score_checkpoint.py +score.run_id=80fc5238fd6f4e3e852db9e6c604d930
     python scripts/score_checkpoint.py +score.run_id=80fc5238 +score.split=val
     python scripts/score_checkpoint.py +score.run_id=80fc5238 +score.split=test +score.final=true
+    python scripts/score_checkpoint.py +score.run_id=80fc5238 +representation.strip_comments=true
 """
 
 from __future__ import annotations
@@ -58,6 +68,7 @@ from vulnloc.training.semantic_cache import (
     encoder_revision,
 )
 from vulnloc.training.tracking import start_run
+from vulnloc.utils.config import strip_comments_enabled
 from vulnloc.utils.exceptions import ConfigError, ModelError
 from vulnloc.utils.logging import get_logger, setup_logging
 
@@ -197,12 +208,34 @@ def load_run_config(run_id: str) -> DictConfig:
     return loaded
 
 
+def evaluation_config(run_cfg: DictConfig, cfg: DictConfig) -> tuple[DictConfig, bool]:
+    """The config a partition is built from, and whether its text differs from training.
+
+    Args:
+        run_cfg: The run's archived config.
+        cfg: This invocation's config.
+
+    Returns:
+        ``(config, text_changed)``. The run's own config, unchanged, unless this
+        invocation asks for comments to be stripped and the run was trained with them
+        in place — then a copy with ``representation.strip_comments`` set, and ``True``.
+    """
+    if not strip_comments_enabled(cfg) or strip_comments_enabled(run_cfg):
+        return run_cfg, False
+    stripped = OmegaConf.merge(run_cfg, {"representation": {"strip_comments": True}})
+    assert isinstance(stripped, DictConfig)
+    return stripped, True
+
+
 def build_dataset(run_cfg: DictConfig, split: str, train_fused: Any) -> FusedLineDataset:
     """Build ``split`` exactly as the run's own evaluation set was built.
 
     Mirrors ``scripts/train_fused.py::train`` line for line, from the run's config: same
     tokenizer, vocabularies, graph builder, line cap and population filter, and the same
-    semantic cache if the run read one.
+    semantic cache if the run read one. ``representation.strip_comments`` is read from
+    the same config — pass :func:`evaluation_config`'s result to strip at evaluation —
+    and it is part of the semantic cache's key, so features cached from text with
+    comments are never joined to graphs built without them.
 
     Args:
         run_cfg: The run's resolved config.
@@ -255,6 +288,7 @@ def build_dataset(run_cfg: DictConfig, split: str, train_fused: Any) -> FusedLin
         limit=0,
         line_labelled_only=bool(run_cfg.train.line_labelled_only),
         normalize_whitespace=bool(run_cfg.representation.normalize_whitespace),
+        strip_comments=strip_comments_enabled(run_cfg),
         semantic_cache=semantic_cache,
     )
 
@@ -344,7 +378,7 @@ def score(cfg: DictConfig) -> dict[str, Any]:
         raise ConfigError("no run to score", hint="Pass '+score.run_id=<run id>'.")
     final = bool(OmegaConf.select(cfg, "score.final"))
     tolerance = float(OmegaConf.select(cfg, "score.tolerance") or DEFAULT_TOLERANCE)
-    output_dir = Path(str(OmegaConf.select(cfg, "score.output_dir") or "./artifacts/phase6/scores"))
+    requested_output = OmegaConf.select(cfg, "score.output_dir")
 
     checkpoint_root = Path(
         str(OmegaConf.select(cfg, "score.checkpoint_dir") or "./artifacts/checkpoints")
@@ -354,7 +388,11 @@ def score(cfg: DictConfig) -> dict[str, Any]:
     run_id = resolve_run_id(str(requested), checkpoint_root)
     run = mlflow.get_run(run_id)
     refuse_unusable_run(run)
-    run_cfg = load_run_config(run_id)
+    trained_cfg = load_run_config(run_id)
+    run_cfg, text_changed = evaluation_config(trained_cfg, cfg)
+    output_dir = Path(
+        str(requested_output or f"./artifacts/phase6/scores{'_stripped' if text_changed else ''}")
+    )
     split = str(OmegaConf.select(cfg, "score.split") or run_cfg.train.eval_split)
     require_scoreable_split(split, final=final)
 
@@ -395,7 +433,8 @@ def score(cfg: DictConfig) -> dict[str, Any]:
     )
 
     reproduced: bool | None = None
-    if split == str(run_cfg.train.eval_split):
+    # On text the run was not trained on there is nothing logged to reproduce.
+    if split == str(run_cfg.train.eval_split) and not text_changed:
         summary = json.loads((checkpoint_dir / "summary.json").read_text(encoding="utf-8"))
         problems = compare_metrics(
             metrics, summary.get("best") or {}, REPRODUCED_KEYS, tolerance=tolerance
@@ -420,6 +459,8 @@ def score(cfg: DictConfig) -> dict[str, Any]:
         "frozen": bool(run_cfg.llm.frozen),
         "split": split,
         "held_out": split in HELD_OUT_SPLITS,
+        "strip_comments": strip_comments_enabled(run_cfg),
+        "strip_comments_at_training": strip_comments_enabled(trained_cfg),
         "checkpoint": str(checkpoint),
         "units": len(units),
         "lines": int(sum(unit.logits.shape[0] for unit in units)),
@@ -446,6 +487,8 @@ def score(cfg: DictConfig) -> dict[str, Any]:
                 "score.seed": manifest["seed"],
                 "score.units": manifest["units"],
                 "score.reproduces_logged_metrics": str(reproduced),
+                "score.strip_comments": str(manifest["strip_comments"]),
+                "score.strip_comments_at_training": str(manifest["strip_comments_at_training"]),
             }
         )
         mlflow.log_metrics({f"score/{key}": float(value) for key, value in metrics.items()})

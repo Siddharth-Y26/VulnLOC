@@ -126,3 +126,49 @@ def test_every_reason_is_reported_not_just_the_first():
         score_checkpoint.refuse_unusable_run(run)
 
     assert len(refusal.value.details["why"]) == 3
+
+
+# --- scoring on comment-stripped text (Memory.md §1.25) -------------------------------
+
+
+def _cfg(**representation: bool):
+    from omegaconf import OmegaConf
+
+    return OmegaConf.create({"representation": {"normalize_whitespace": True, **representation}})
+
+
+def test_a_run_is_scored_on_the_text_it_was_trained_on_unless_asked_otherwise():
+    trained = _cfg()
+
+    config, text_changed = score_checkpoint.evaluation_config(trained, _cfg())
+
+    assert config is trained
+    assert text_changed is False
+
+
+def test_stripping_at_evaluation_is_flagged_as_a_change_of_text():
+    trained = _cfg()
+
+    config, text_changed = score_checkpoint.evaluation_config(trained, _cfg(strip_comments=True))
+
+    assert text_changed is True
+    assert config.representation.strip_comments is True
+    assert "strip_comments" not in trained.representation, "the run's own config is not edited"
+
+
+def test_a_run_trained_on_stripped_text_is_not_a_change_of_text():
+    trained = _cfg(strip_comments=True)
+
+    config, text_changed = score_checkpoint.evaluation_config(trained, _cfg(strip_comments=True))
+
+    assert config is trained
+    assert text_changed is False
+
+
+def test_a_run_trained_on_stripped_text_is_never_scored_with_comments_put_back():
+    trained = _cfg(strip_comments=True)
+
+    config, text_changed = score_checkpoint.evaluation_config(trained, _cfg())
+
+    assert config.representation.strip_comments is True
+    assert text_changed is False

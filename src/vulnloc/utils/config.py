@@ -18,7 +18,33 @@ from omegaconf import DictConfig, OmegaConf
 
 from vulnloc.utils.exceptions import ConfigError
 
-__all__ = ["config_hash", "git_sha", "provenance", "resolve_config", "save_config"]
+__all__ = [
+    "config_hash",
+    "git_sha",
+    "provenance",
+    "resolve_config",
+    "save_config",
+    "strip_comments_enabled",
+]
+
+
+def strip_comments_enabled(cfg: DictConfig) -> bool:
+    """Whether a config asks for comments to be stripped from source (``Memory.md`` §1.25).
+
+    The key is ``representation.strip_comments`` and it is **absent from
+    ``configs/config.yaml`` on purpose**: adding a key there changes every run's
+    ``config_hash`` (``CLAUDE.md`` landmine #38). A config without it — every run
+    archived before 2026-10-07 — did not strip, which is what an absent parameter
+    means everywhere else in this repository (landmine #39). Turn it on with
+    ``+representation.strip_comments=true``.
+
+    Args:
+        cfg: A composed config, or a run's archived one.
+
+    Returns:
+        ``True`` only when the key is present and true.
+    """
+    return bool(OmegaConf.select(cfg, "representation.strip_comments"))
 
 
 def resolve_config(cfg: DictConfig) -> dict[str, Any]:

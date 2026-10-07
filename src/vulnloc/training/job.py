@@ -46,7 +46,7 @@ from vulnloc.training.loop import (
 )
 from vulnloc.training.losses import LineLoss
 from vulnloc.training.tracking import start_run
-from vulnloc.utils.config import git_sha
+from vulnloc.utils.config import git_sha, strip_comments_enabled
 from vulnloc.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -232,6 +232,10 @@ def run_training(
                     # Logged as a parameter because it is the difference between a real
                     # number and the ADR-006 leak; a run without it is not comparable.
                     "normalize_whitespace": bool(cfg.representation.normalize_whitespace),
+                    # Memory.md §1.25: with comments in place the text carries a
+                    # second formatting leak. Logged on every run from 2026-10-07; a
+                    # run without it was made with comments in place (landmine #39).
+                    "strip_comments": strip_comments_enabled(cfg),
                     # The device actually used, not the one requested. `auto` and `cuda`
                     # resolve to the same card, so comparing the request refuses
                     # replicates that differ in nothing; comparing this compares what

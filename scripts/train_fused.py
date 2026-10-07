@@ -68,6 +68,7 @@ from vulnloc.training.semantic_cache import (
     corpus_fingerprints,
     encoder_revision,
 )
+from vulnloc.utils.config import strip_comments_enabled
 from vulnloc.utils.exceptions import ConfigError
 from vulnloc.utils.logging import get_logger, setup_logging
 
@@ -330,6 +331,7 @@ def train(cfg: DictConfig) -> dict[str, Any]:
             limit=limit,
             line_labelled_only=bool(cfg.train.line_labelled_only),
             normalize_whitespace=bool(cfg.representation.normalize_whitespace),
+            strip_comments=strip_comments_enabled(cfg),
             semantic_cache=load_cache(split),
         )
 
