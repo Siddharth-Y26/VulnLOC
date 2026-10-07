@@ -74,9 +74,18 @@ fusion arm beats `llm_only`" holds **only with the encoder frozen**. **All three
 runs are resumed runs** (a pause, a file-rename crash, a GPU driver fault — landmines #56,
 #57); quote their `resumed_at` tags with the number. **What Phase 5 still needs is the
 owner's signature on the gate.** With no `d97-*` step running or paused, `src/vulnloc/` and
-`configs/` may be edited again. The second laptop's slate is finished (the owner's report);
-nothing is in `artifacts/machine2/` yet. Owner deadline: the whole project in about a week;
+`configs/` may be edited again. Owner deadline: the whole project in about a week;
 `Memory.md` §6 item 0a is the handoff.
+
+**2026-10-07 09:15: the second laptop's results are imported** at
+`artifacts/machine2/Sujal_20261005-224401/` and written up in `Memory.md` §1.23 — RTX 4050
+Laptop 6 GB, **torch 2.14.1** (this machine: 2.13.0), 33 steps done, 9 seed reports at three
+seeds, five overfit gates passed. **Machine-2 numbers, never pooled with this laptop's.** No
+ablation (A4 GAT/GGNN in fusion, A8 line-only, A9 BCE variants, A5 GraphCodeBERT) resolves
+at three seeds; fine-tuned GraphCodeBERT does not beat CodeBERT (0.6169 ± 0.0098 vs
+0.6272 ± 0.0073 Top-5); weighted BCE (+0.0304, 1.96 pooled sd, frozen) is the one candidate
+worth more seeds. **Do not read an overfit gate off the export's `RESULTS.md`** — it prints
+the selected epoch, not the last; read the metric history in `mlflow_Sujal.db`.
 
 **Costs to plan with (measured):** a fine-tuned fused run is 114–211 min by the queue's
 clock (six D9.7 runs);

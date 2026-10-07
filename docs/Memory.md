@@ -1362,6 +1362,76 @@ selected steps 3 / 5 / 4. Queue wall clock 134 / 210 / 170 min, two attempts eac
 
 ---
 
+## 1.23 Machine 2's slate — imported 2026-10-07, read beside this machine's, never pooled
+
+**Where:** `artifacts/machine2/Sujal_20261005-224401/` (git-ignored) — `RESULTS.md`,
+`manifest.json`, 32 run summaries, 33 logs, 9 seed reports, `queue_state.json` and
+`mlflow_Sujal.db` (a copy to *read*; never this machine's tracking store). Unpacked from the
+owner's `transfer.zip`; 78 files, no checkpoints.
+
+**What produced it:** host `Sujal`, **NVIDIA GeForce RTX 4050 Laptop GPU, 6,141 MiB**, commit
+`782ea98` (clean), Python 3.12.10, **torch 2.14.1+cu130 — this machine runs 2.13.0+cu130**.
+Exported 2026-10-05 22:44. All 33 steps of `m2check` / `m2` / `m2ftcheck` / `m2ft` are
+`done`; every one of its 9 seed reports has `n_seeds: 3`, no accepted source drift and no
+run with uncommitted changes. **A different GPU and a different torch are two more reasons
+no number below joins a comparison with this laptop's** (§7 #49). Cite as *"machine 2
+(RTX 4050 Laptop, 6 GB)"* with the run ids.
+
+**The five overfit gates pass** (§7 #52) — read from the imported store's full metric
+history, not from `RESULTS.md`: `eval/line/top_1_accuracy` reaches 1.0000 and holds it
+through epoch 150 in all five (first at epoch 18 GAT `0d6f8971`, 33 GGNN `28c3188a`, 28
+frozen GraphCodeBERT `eccda2c9`, 11 fine-tuned CodeBERT `9bb37c75`, 8 fine-tuned
+GraphCodeBERT `b4383ffc`). **`RESULTS.md` shows 0.9032 / 0.9677 for three of them because it
+prints the *selected* epoch's metrics — Top-5 was already 1.0000 there — not the last
+epoch's.** Never read a gate off that table.
+
+**Held-out `val`, validation-selected, n = 3 per arm, machine 2 only.** Each row changes
+one thing against its group's reference; Δ is against that reference, in Top-5.
+
+| Arm (ablation) | Top-5 | Δ, pooled sd | paired Δ 42 / 1 / 2 | Top-1 | Runs (42 / 1 / 2) |
+|---|---|---|---|---|---|
+| **frozen reference** — A1 cross_attention, CodeBERT, GCN, focal | 0.5498 ± 0.0219 | — | — | 0.2531 ± 0.0150 | `f4d81b36` `513d9d6b` `45de097a` |
+| GAT (A4 in fusion) | 0.5456 ± 0.0165 | −0.0041, −0.21 | −0.015 / +0.023 / −0.021 | 0.2552 ± 0.0145 | `a911fd6c` `6a44ead4` `e1d8f15c` |
+| GGNN (A4 in fusion) | 0.5692 ± 0.0098 | +0.0194, +1.14 | −0.015 / +0.044 / +0.029 | 0.2669 ± 0.0079 | `08e08a0c` `7d32adac` `06292067` |
+| weighted BCE (A9) | 0.5802 ± 0.0024 | +0.0304, +1.96 | +0.006 / +0.050 / +0.035 | 0.2697 ± 0.0157 | `b69fbf3c` `347fe5e6` `8a69db1a` |
+| plain BCE (A9) | 0.5747 ± 0.0162 | +0.0249, +1.29 | −0.006 / +0.035 / +0.046 | 0.2642 ± 0.0122 | `499a5fd4` `195b9b99` `27d5a848` |
+| line-only, `function_weight=0` (A8) | 0.5456 ± 0.0220 | −0.0041, −0.19 | −0.044 / +0.008 / +0.023 | 0.2580 ± 0.0312 | `c5ea524f` `31a608af` `fc0ad7ba` |
+| GraphCodeBERT, frozen (A5) | 0.5747 ± 0.0187 | +0.0249, +1.22 | +0.021 / +0.046 / +0.008 | 0.2898 ± 0.0067 | `12f58c9c` `edae7f99` `6fee9b17` |
+| **fine-tuned reference** — D9.7's cross_attention config, CodeBERT | 0.6272 ± 0.0073 | — | — | 0.3568 ± 0.0108 | `57df8cff` `77268204`‡ `3a953045`‡ |
+| GraphCodeBERT, fine-tuned (A5) | 0.6169 ± 0.0098 | −0.0104, −1.20 | −0.010 / 0.000 / −0.021 | 0.3520 ± 0.0228 | `b04a6b82`‡ `7d785c26`‡ `fb445d65` |
+
+‡ resumed (§7 #53): `77268204` `epoch=2,batch=1028,step=1962`; `3a953045`
+`epoch=7,batch=424,step=5257`; `b04a6b82` `epoch=2,batch=436,step=1659` (three attempts —
+the tag holds only the last resume); `7d785c26` `epoch=4,batch=1236,step=3502`.
+
+### What this supports
+
+1. **No ablation resolves at three seeds.** Every Top-5 difference from its reference is
+   under 2 pooled sd. In four of the seven comparisons the paired sign flips across seeds.
+2. **Fine-tuned, GraphCodeBERT does not beat CodeBERT** (A5): −0.0104 Top-5, −1.20 pooled
+   sd; Top-1 −0.0048, −0.27 pooled sd, paired −0.029 / +0.015 / 0.000.
+3. **Both reproductions land close, as `SecondMachine.md` predicted — side by side, not
+   pooled.** Frozen cross_attention: machine 2 0.5498 ± 0.0219 against this machine's
+   0.5408 ± 0.0181 (§1.21), 0.45 pooled sd apart. Fine-tuned cross_attention: 0.6272 ± 0.0073
+   against 0.6162 ± 0.0184 (§1.22), 0.79 pooled sd apart.
+
+### What it does not support — three things that look like results
+
+- **Weighted BCE over focal (A9), +0.0304 Top-5.** All three seeds positive and the
+  tightest spread in the table (± 0.0024), but 1.96 pooled sd against a reference whose own
+  spread is ± 0.0219, on a frozen encoder. **The one candidate here worth more seeds** —
+  cheap, 4–9 min a frozen run on machine 2 — before Phase 6 fixes a loss. Its line F1 @ 0.5 (0.2599 against
+  0.0759) is the threshold moving, as everywhere else.
+- **Frozen GraphCodeBERT's Top-1, +0.0367 (3.16 pooled sd, all three seeds positive).** A
+  secondary metric, with the encoder frozen — and it is **gone fine-tuned** (point 2), the
+  same fate as §1.21's frozen secondary signals in §1.22. Not a finding.
+- **GGNN or GAT over GCN.** GGNN is +1.14 pooled sd with a flipped seed; GAT is −0.21.
+  Neither ranks the convolutions; Phase 4 could not rank them alone either (one seed each).
+- **Nothing about `test` or `clean_eval`, and nothing fine-tuned except A5.** A4, A8 and A9
+  were run frozen only.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -1450,6 +1520,12 @@ Did:
     shell; none worked. Chose **not** to pause-and-resume the run: earlier runs' slow
     patches had cleared themselves, and this one did at the epoch boundary (01:57).
   - Wrote the control into §1.22, the ledger, `Phases.md` and `CLAUDE.md`.
+  - **Wed 7, 09:15 — imported the second machine's export.** The owner had put
+    `transfer.zip` in `artifacts/machine 2/` (with a space); listed its 79 entries before
+    unpacking (one top-level folder, no absolute or `..` paths, no checkpoints), then
+    extracted to `artifacts/machine2/Sujal_20261005-224401/`. This machine's `mlflow.db` was
+    not touched. Read the five gates from the imported store's metric history, computed
+    every comparison from the nine seed reports, and **wrote §1.23.**
 Files touched:
   - Docs only: this file, `CLAUDE.md`, `docs/Phases.md`. No code, no config. One helper
     script under `artifacts/queue/` (git-ignored).
@@ -1470,6 +1546,12 @@ Learned:
   - **A failed step is not retried, and a seed report does not wait for its seeds** (§7 #56).
   - **An unattended Windows laptop defragments its hard disk, faults its GPU driver and
     spills VRAM, and `--status` shows none of it** (§7 #57).
+  - **`export_results.py`'s `RESULTS.md` is not where to read an overfit gate.** It prints
+    the selected epoch's Top-1 (0.9032 for a GGNN gate that reaches 1.0000 at epoch 33 and
+    holds it). Read the metric history in the exported store (§1.23).
+  - **Machine 2 ran torch 2.14.1, this machine 2.13.0.** Why is not established — its
+    setup ran days later than this one's. It is in the manifest; one more reason its numbers
+    stay beside ours.
   - **A background wait is not a guaranteed wake-up.** The 02:18 one reached the session at
     06:59. Anything that must happen overnight belongs in a process on the machine (the
     watcher), not in the session's intention to check.
@@ -1477,7 +1559,7 @@ Next:
   - **Put the Phase 5 gate to the owner** — criterion 5's investigation is complete.
   - With the source unfrozen: the rename retry (§7 #56) and the spill guard (§7 #57), each
     with a test; then the Mon 5 daytime list in §6 item 0a, now two days late.
-  - Import the second machine's export when the owner brings it.
+  - Decide whether weighted BCE gets more seeds before Phase 6 fixes a loss (§1.23).
   - The two held Q13 questions are still unanswered.
   - Tests not run this session — no code changed.
 
@@ -1975,6 +2057,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| **MACHINE 2** — `f4d81b36…` `513d9d6b…` `45de097a…` (reference) and 18 more frozen; `57df8cff…` `77268204…` `3a953045…` / `b04a6b82…` `7d785c26…` `fb445d65…` (fine-tuned). Every id is in §1.23 | 2026-10-03 → 05 | `run_queue.py --only m2 m2ft` on the **second laptop** (RTX 4050 Laptop 6 GB, torch 2.14.1+cu130, commit `782ea98`), imported as files at `artifacts/machine2/Sujal_20261005-224401/` — **not in this machine's MLflow store** | 42, 1, 2 | cross_attention | fused | 1.000 *(degenerate)* | frozen reference **0.5498 ± 0.0219**; GAT 0.5456, GGNN 0.5692, weighted BCE 0.5802, plain BCE 0.5747, line-only 0.5456, GraphCodeBERT 0.5747. Fine-tuned CodeBERT **0.6272 ± 0.0073** / GraphCodeBERT **0.6169 ± 0.0098** | 12.48 (ref) / 11.54 / 11.53 | **MACHINE 2 — NEVER POOLED WITH THIS LAPTOP'S RUNS (§7 #49).** A4 in fusion, A8 line-only, A9, A5. **No ablation resolves at three seeds** (largest: weighted BCE +0.0304, 1.96 pooled sd). Fine-tuned GraphCodeBERT − CodeBERT = −0.0104 (−1.20 pooled sd). Four of the six fine-tuned runs are resumed (tags in §1.23). Five overfit gates passed (Top-1 1.0000, read from the store's history). Validation-selected, `val`. §1.23 |
 | `179632f5…` `72f067d0…` `2c7a7631…` | 2026-10-04 → 07 | `run_queue.py --only d97` — as the row below with `+fusion=llm_only`: **D9.7's scaffold control** | 42, 1, 2 | llm_only | fused | 1.000 *(degenerate)* | **0.6169 ± 0.0048** | 11.13 | **NEITHER FUSED ARM BEATS FINE-TUNED LLM-ONLY IN THE SAME SCAFFOLD** (cross_attention −0.0007, concat 0.0000 on Top-5). Top-1 0.3527 ± 0.0021, line F1 0.3726 ± 0.0157. Per seed Top-5 0.6141, 0.6141, 0.6224. **All three are resumed**: `resumed_at=epoch=6,batch=500,step=4565` (owner's pause) / `epoch=5,batch=976,step=4100` (WinError 5 crash, §7 #56) / `epoch=6,batch=946,step=4800` (GPU driver fault, §7 #57); seed 1's selected epoch 5 was completed after its resume. Validation-selected, `val`. 134, 210, 170 min over two attempts each. §1.22 |
 | `80fc5238…` `c193e3bc…` `829c3555…` / `fbf65554…` `633ea97b…` `a0c42d6f…` | 2026-10-02 → 04 | `run_queue.py --only d97` — `train_fused.py train=fused llm.frozen=false train.semantic_cache.enabled=false +gnn=gcn gnn.use_subtokens=true`, **ADR-009 D9.7**, `src/vulnloc` as of `af4af6a` (logged shas `70824ec` / `0ce5d96` / `782ea98` differ in docs, scripts and tests only) | 42, 1, 2 | cross_attention / concat | fused | 1.000 *(degenerate)* | **0.6162 ± 0.0184 / 0.6169 ± 0.0104** | 11.26 / 11.46 | **D9.7: THE NULL SURVIVES FINE-TUNING (−0.0007, 0.05 pooled sd; paired signs flip).** Top-1 0.3444 ± 0.0293 / 0.3645 ± 0.0073 and IFA are not resolvable either; line F1 0.2954 ± 0.0855 / 0.3811 ± 0.0159 is the threshold moving. Per seed Top-5 0.6224, 0.6307, 0.5954 / 0.6058, 0.6183, 0.6266. `633ea97b` is **resumed** (`resumed_at=epoch=5,batch=418,step=3821`); its selected checkpoint predates the pause. Validation-selected, `val`. 118, 168, 114 / 123, 183, 211 min. §1.22 |
 | `d3dbd7e9…` `b4998f5c…` `ad9f36e8…` | 2026-10-02 | `run_queue.py --only d97check` — overfit, **D9.7 config**, encoder training | 42 | cross_attention / concat / llm_only | fused | — | Top-1 1.000 ×3 | — | **The D9.7 overfit gate. Never cite as a result.** Top-1 = 1.000 in 141 / 134 / 141 of 150 epochs; first-step peak 2,532.6 MiB |
@@ -2071,9 +2154,16 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
 - **Phase 5 now waits only on the owner's signature.** Then Phase 6.
 - **Before the next long run the owner should stop Windows defragmenting D: on its own**
   (§7 #57) — it needs an administrator.
-- Still open: the two held Q13 questions (rule 8); the second machine's export, which the
-  owner imports later.
-- The bullets below are the night's log, kept for the record.
+- **The second machine's export is IN (Wed 7, 09:15):**
+  `artifacts/machine2/Sujal_20261005-224401/`, written up in **§1.23**. All 33 steps done,
+  9 seed reports at three seeds, five overfit gates passed. No ablation resolves at three
+  seeds; fine-tuned GraphCodeBERT does not beat CodeBERT; **weighted BCE (+1.96 pooled sd on
+  the frozen screen) is the one candidate worth more seeds before Phase 6 fixes a loss.**
+  That takes A4 (GAT/GGNN in fusion), A8 line-only, A9 and A5 off this GPU's list — as
+  machine-2 numbers, never pooled with this laptop's.
+- Still open: the two held Q13 questions (rule 8).
+- The bullets below are the night's log, kept for the record. **Where they say nothing is
+  in `artifacts/machine2/` yet, they predate the import.**
 
 #### How the night went — 2026-10-06 20:33 → 2026-10-07 03:15
 
