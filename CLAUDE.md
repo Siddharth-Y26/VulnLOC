@@ -58,7 +58,7 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
-**2026-10-07 15:40 — A SECOND FORMATTING LEAK, FOUND IN SESSION 16. READ `Memory.md` §1.25
+**2026-10-07 15:30 — A SECOND FORMATTING LEAK, FOUND IN SESSION 16. READ `Memory.md` §1.25
 BEFORE QUOTING ANY LINE-LEVEL NUMBER.** In the corpus text a flagged line that ended a
 block comment has lost the slash of its `*/`. "Ends a comment with a bare `*`" is flagged
 at precision 1.0000 on `val`, 0.9744 on `test`, 0.9882 on `train`; "ends with `*/`" is never
@@ -68,6 +68,22 @@ the three arms tie on the other units too. Frozen, structural, Phase 3, A6 and m
 numbers are unaudited. **Open decision Q14: strip comments and retrain, or repair at
 evaluation. Do not run the held-out evaluation on the shards as they are** — `test` carries
 the tell on 13.4% of its units. Every number below this paragraph was measured on that text.
+
+**The same evening: the fix is built and measured, not yet accepted.**
+`+representation.strip_comments=true` strips every comment label-blind and keeps the line
+count (ADR-010, **Proposed**; identical to the grammar's own comment nodes on 6,586 of
+6,586 clean units). The nine D9.7 checkpoints on comment-stripped `val`: **Top-5 0.5353 ±
+0.0200 / 0.5415 ± 0.0090 / 0.5546 ± 0.0084** (cross_attention / concat / `llm_only`), line
+F1 0.2355 / 0.2338 / 0.2362 — against 0.616–0.617 and 0.39 as shipped; the arms still tie.
+Those are models *trained with* comments, so they are not the leak-free numbers either:
+**queue group `d97r` retrains the nine on stripped text** (`d97rcheck` first). If a `d97r-*`
+step is running or paused, **do not edit `configs/` or anything training imports** — it
+was started pending Q14 and `run_queue.py --stop` pauses it. 8–12% of the labelled lines
+are comment-only lines and become blank: a ceiling that was always there.
+
+**A6 (attention direction) is done** (`Memory.md` §1.26, frozen, on leaky text):
+bidirectional 0.5408 ± 0.0181 Top-5, `sem_from_str` 0.5166 ± 0.0095, `str_from_sem`
+0.5498 ± 0.0231 — no one-way arm differs resolvably from the design.
 
 **2026-10-07 03:15 (session 16): ADR-009 D9.7 is COMPLETE — 9 of 9 runs FINISHED, all three
 seed reports at `n_seeds: 3`, nothing running or paused.** Fine-tuned, on `val`, 3 seeds each
@@ -127,7 +143,7 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 4 | ✅ **DONE — gate signed by the owner 2026-09-15.** Overfit test PASSED (`8b0a3c1d…`). **Best structural config: gcn depth 4 + subtokens, Top-5 0.4302 ± 0.0372 over 3 seeds** (ADR-002 §D2.5's second half, +0.066 over node-type-only — §1.15). Far below the semantic arm's 0.6141. **The depth sweep 2/4/6 shows NO resolvable effect at 3 seeds each** (every pairwise gap <0.6 sd, §1.16) — an earlier one-seed over-smoothing reading was retracted. |
 | Phase 5 | ✅ **DONE — 5 / 5, gate signed by the owner 2026-10-07** (`Memory.md` §1.1c). ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6"): **D9.7's fine-tuned confirmation agrees — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104 (`Memory.md` §1.22).** **The `llm_only` scaffold control is in (2026-10-07): 0.6169 ± 0.0048 — no fused arm beats it.** |
 | Phase 6 | ✅ **DONE — 4 / 4, gate signed by the owner 2026-10-07** (`Memory.md` §1.1d). Full-model configuration frozen by the owner's decision (the designed cross-attention model, D9.7's runs). **Calibrated and thresholded on `val` (`Memory.md` §1.24, run `569c9701…`): ECE 0.1704 ± 0.0330 → 0.0137 ± 0.0104; line F1 0.2954 ± 0.0855 at the logged 0.5 → 0.3898 ± 0.0190 out of fold, 3 seeds. Concat (0.3908 ± 0.0030) and `llm_only` (0.3936 ± 0.0072) tie with it at their own thresholds — the F1 gap every run logged at 0.5 was the threshold.** Thresholds are per checkpoint (0.1686 / 0.1083 / 0.2159) — never average a calibrator across seeds. Still over-confident above p = 0.8 (observed 0.67–0.81). **Q5 is closed: the owner deferred the learned CWE-type classifier — Phase 7a names a template-derived category and says so.** Unit-level aggregation is deferred in writing. |
-| Phase 7 | 🟨 **Current phase since 2026-10-07 — 7a only, 0 / 4.** 7b is deferred in writing (`Phases.md`). |
+| Phase 7 | 🟨 **Current phase since 2026-10-07 — 7a built, 3 / 4, gate answers prepared (`Memory.md` §1.1e), NOT signed.** Every flagged line on `val` gets a verified explanation (13,908 of 13,908, three seeds, `Memory.md` §1.27); a weakness pattern names a cause for about one in twelve, and the rest say so. **Owed: the owner reads the 19 template sentences for attack instructions, and approves `docs/HumanEvalProtocol.md`.** A pilot rater pack (100 `val` samples) is at `artifacts/phase7/rater_pack_stripped/`. 7b is deferred in writing. |
 | Phases 8–10 | ⬜ Not started. The function-level parts of Phase 8 are deferred in writing. **The single `test` / `clean_eval` evaluation is authorised by the owner for the start of Phase 8 — after the Phase 7 gate is signed and the evaluation protocol is committed** (`Memory.md` §2). |
 | Tests | **1,045 passing, 2 skipped** (2026-10-07). ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
@@ -158,8 +174,15 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
   that cannot reorder lines, reliability bins, ECE, the max-F1 threshold — at L2 so serving
   can apply it) and **`training/line_scores.py`** (per-line scores on disk: every later
   metric is computed from these files, not from a re-run)
-- `evaluation/`, `explanation/`, `serving/` — **empty packages with registries only.**
-  Nothing built ahead.
+- Phase 7a (2026-10-07): **`explanation/{types,evidence,templates,generator,verifier,contract}.py`**
+  — evidence for a flagged line (the model's cross-attention; a name-based data-flow
+  path and AST nodes, which are static analysis and worded as such), 19 weakness
+  templates, the deterministic explainer (`EXPLAINER_REGISTRY` key `template`), a
+  verifier that checks the finished text against the prediction (FR-15), and the
+  `PRD.md` §5.4 contract. **A template is never the model's reasoning.**
+- `utils/text.py` also holds **`strip_comments`** — the label-blind fix for the second
+  formatting leak — and `ends_comment_without_slash`, the tell itself. Off by default.
+- `evaluation/`, `serving/` — **empty packages with registries only.** Nothing built ahead.
 
 Outside the package: `frontend/` has two tabs. **Findings** (owner decision 2026-09-15)
 ranks a pasted function's lines with the Phase 3 semantic model, seed 42 (`fc902107…`, on
@@ -248,6 +271,7 @@ python scripts/probe_vram.py                                # what fits in 4 GiB
 
 python scripts/audit_label_leakage.py                       # ADR-006 guard: is the label readable off the formatting?
 python scripts/audit_score_leakage.py                       # ...and did the scored checkpoints read it? (Memory.md §1.25)
+python scripts/report_comment_stripping.py                  # what stripping comments does to the corpus (ADR-010's evidence)
 
 python scripts/train_semantic.py train=overfit              # RUN FIRST: 32-sample sanity
 python scripts/train_semantic.py train=semantic seed=42     # the LLM-only baseline (~3 h 55 m)
@@ -282,6 +306,15 @@ python scripts/score_checkpoint.py +score.run_id=80fc5238   # Phase 6: every lin
                                                             #   the run's logged metrics; refuses test / clean_eval
                                                             #   without +score.final=true (Rules.md §5.3 — once, at the end)
 python scripts/calibrate.py '+calibrate.runs=[<run>,...]'   # Platt calibration + max-F1 threshold, val ONLY; quote out_of_fold
+
+python scripts/score_checkpoint.py +score.run_id=80fc5238 +representation.strip_comments=true
+                                                            # the same checkpoint on comment-stripped text -> scores_stripped/
+python scripts/explain_checkpoint.py +explainer=template +explain.run_id=80fc5238 +representation.strip_comments=true
+                                                            # Phase 7a: explain and verify every flagged line
+python scripts/make_rater_pack.py +pack.run_id=80fc5238 +representation.strip_comments=true
+                                                            # the human-evaluation sample (docs/HumanEvalProtocol.md)
+python scripts/run_queue.py --only d97rcheck                # the leak-free rerun: overfit on stripped text — READ Top-1 first
+python scripts/run_queue.py --only d97r                     # ...then D9.7's nine runs on stripped text, arm by arm (17–32 h)
 
 python scripts/run_queue.py --only a6check                  # A6 (attention direction): overfit the two one-way arms — READ Top-1 first
 python scripts/run_queue.py --only a6                       # A6: both / sem_from_str / str_from_sem × 3 seeds, frozen, + 3 seed reports

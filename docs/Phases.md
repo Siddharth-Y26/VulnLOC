@@ -237,10 +237,24 @@ The hyperparameter sweep is frozen-encoder only.
 - `[RECOMMENDATION]` prefer a local model over an API to keep evaluation deterministic (see `Rules.md` §2)
 
 **Exit criteria**
-- [ ] 7a produces a valid explanation for every positive prediction
-- [ ] Grounding test suite passes (no explanation names an unflagged line)
+- [x] 7a produces a valid explanation for every positive prediction
+  - *2026-10-07:* 13,908 of 13,908 flagged lines on comment-stripped `val`, the full
+    model's three seeds, each explained and verified; 0 rejected (`Memory.md` §1.27).
+    "Valid" is not "names a cause": a weakness pattern matches 8.2–8.9% of flagged
+    lines, and the rest say in words that no cause is named.
+- [x] Grounding test suite passes (no explanation names an unflagged line)
+  - *2026-10-07:* `tests/unit/test_explanation.py`, including a property test over
+    arbitrary scores and thresholds; the verifier re-checks every finished text.
 - [ ] Explanations reviewed for absence of attack instructions (`Rules.md` §7.2)
-- [ ] Human evaluation protocol defined (rubric, raters, sample size) — see `ResearchPlan.md` §4.3
+  - *2026-10-07:* the automatic half is in place — every template sentence and every
+    finished text is scanned for that vocabulary. **The review itself is a person
+    reading the 19 sentences in `explanation/templates.py`: the owner's.**
+- [x] Human evaluation protocol defined (rubric, raters, sample size) — see `ResearchPlan.md` §4.3
+  - *2026-10-07:* `docs/HumanEvalProtocol.md` — three raters, 100 functions drawn by
+    content hash from `test`, four 1–5 dimensions, Krippendorff's α. Its approval is
+    part of the gate. A pilot pack on `val` is drawn.
+
+Gate answers prepared in `Memory.md` §1.1e — **not signed**.
 
 ---
 

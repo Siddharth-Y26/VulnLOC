@@ -152,6 +152,15 @@ class Explainer(Protocol):
     def explain(self, unit: CodeUnit, pred: Prediction, evidence: Evidence) -> Explanation: ...
 ```
 
+**`Prediction`, `Evidence` and `Explanation` are defined in `explanation/types.py`
+(Phase 7a, 2026-10-07)** as frozen dataclasses with no tensors in them — L5 re-runs no
+inference. A `Prediction` is one unit's calibrated line probabilities and the threshold;
+it is the only definition of "flagged" the layer has. An `Explanation` is about **one**
+flagged line and states structurally which line it claims and which it merely cites, so
+`explanation/verifier.py` can check the text instead of trusting it. `explain()` is
+called once per flagged line; `explanation/contract.py` assembles the unit-level
+`PRD.md` §5.4 object.
+
 ### 4.3 The line-alignment bridge
 
 Both branches must be projected onto the **same line axis** before fusion:

@@ -69,8 +69,8 @@
       "id": "explain",
       "phase": 7,
       "name": "Explanation",
-      "state": "planned",
-      "does": "Says why a line was flagged, from what the model looked at."
+      "state": "trained",
+      "does": "Says why a line was flagged: a known weakness pattern, plus what the model looked at. Measured on the dataset only; not run on your code."
     },
     {
       "id": "evaluate",
