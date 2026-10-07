@@ -226,6 +226,25 @@ def aggregate(per_run: Sequence[dict[str, Any]]) -> dict[str, Any]:
     return summary
 
 
+def arm_name(manifest: Mapping[str, Any]) -> str:
+    """The group a checkpoint's seeds are averaged in.
+
+    Args:
+        manifest: A score file's manifest.
+
+    Returns:
+        The fusion kind, with the attention direction when the run named one (ablation
+        A6's arms share a kind) and ``_frozen`` for a frozen encoder — so a frozen run is
+        never averaged with a fine-tuned one, nor one direction with another.
+    """
+    direction = str(manifest.get("fusion_direction") or "")
+    return (
+        f"{manifest['fusion_kind']}"
+        f"{'_' + direction if direction else ''}"
+        f"{'_frozen' if manifest['frozen'] else ''}"
+    )
+
+
 def load_texts(
     cache_dir: Path, split: str, *, normalize: bool, strip: bool = False
 ) -> dict[str, list[str]]:
@@ -319,7 +338,7 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
             }
         )
         runs[run_id] = report
-        arm = f"{manifest['fusion_kind']}{'_frozen' if manifest['frozen'] else ''}"
+        arm = arm_name(manifest)
         arms.setdefault(arm, []).append(report)
         _LOGGER.info(
             "Checkpoint audited",

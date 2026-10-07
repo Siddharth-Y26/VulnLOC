@@ -456,6 +456,8 @@ def score(cfg: DictConfig) -> dict[str, Any]:
         "source_run": run_id,
         "seed": int(run_cfg.seed),
         "fusion_kind": str(run_cfg.fusion.kind),
+        # Ablation A6's arms share a fusion kind and differ only here.
+        "fusion_direction": str(OmegaConf.select(run_cfg, "fusion.args.direction") or ""),
         "frozen": bool(run_cfg.llm.frozen),
         "split": split,
         "held_out": split in HELD_OUT_SPLITS,

@@ -153,6 +153,17 @@ def test_aggregate_reports_mean_and_sample_standard_deviation():
     assert summary["top1_is_tell_line"] == [1, 0]
 
 
+def test_arms_keep_frozen_runs_and_attention_directions_apart():
+    fine_tuned = {"fusion_kind": "cross_attention", "frozen": False}
+    frozen = {"fusion_kind": "cross_attention", "frozen": True}
+    one_way = {"fusion_kind": "cross_attention", "frozen": True, "fusion_direction": "sem_from_str"}
+
+    assert audit.arm_name(fine_tuned) == "cross_attention"
+    assert audit.arm_name(frozen) == "cross_attention_frozen"
+    assert audit.arm_name(one_way) == "cross_attention_sem_from_str_frozen"
+    assert audit.arm_name({**frozen, "fusion_direction": ""}) == "cross_attention_frozen"
+
+
 def test_a_single_seed_has_no_standard_deviation():
     summary = audit.aggregate([audit.audit_run(SCORED, TEXTS, tell=lost_slash, mirror=intact)])
 
