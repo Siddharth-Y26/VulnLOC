@@ -204,7 +204,7 @@ iex "$q --only a1rcheck --status"
 
 ```powershell
 iex "$q --only a1r"           # six arms x three seeds, then six seed reports in artifacts\adr010\
-.\.venv\Scripts\python.exe scripts\export_results.py --groups a1rcheck a1r --out <USB>\results
+.\.venv\Scripts\python.exe scripts\export_results.py --groups a1rcheck a1r --reports-dir artifacts\adr010 --out <USB>\results
 ```
 
 The stripped cache never goes into `artifacts\semantic_cache\`: a directory holds one
