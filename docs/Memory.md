@@ -1238,7 +1238,7 @@ CodeBERT read from cache `77f7b07e…`, GCN depth 4 over AST with identifier sub
 
 ---
 
-## 1.22 D9.7 — fine-tuned, cross-attention still does not beat concatenation (control arm pending)
+## 1.22 D9.7 — fine-tuned, cross-attention still does not beat concatenation, and neither beats LLM-only
 
 The six runs ADR-009 D9.7 specifies: cross_attention and concat × seeds 42/1/2 with the
 **encoder training** (`llm.frozen=false train.semantic_cache.enabled=false`), otherwise A1's
@@ -1282,11 +1282,10 @@ the run stopped, not what it reports.
 
 ### What it does not support
 
-- **Nothing about fusion vs fine-tuned LLM-only.** Both fused arms sit within noise of
-  Phase 3's 0.6141 ± 0.0055 (§1.14), but that number is from a different scaffold (ADR-008
-  §D8.6) and is not the control. The control — `llm_only` fine-tuned in the fused scaffold —
-  has **0 of 3 seeds FINISHED** (seed 42, `179632f5…`, paused at epoch 6). **Do not write
-  "fusion adds" or "fusion adds nothing" over a fine-tuned LLM until it has three** (§7 #37).
+- ~~**Nothing about fusion vs fine-tuned LLM-only.**~~ **Superseded 2026-10-07 — the control
+  has its three seeds; see "The scaffold control" below.** (As written on 2026-10-04: both
+  fused arms sat within noise of Phase 3's 0.6141 ± 0.0055, §1.14, but that number is from a
+  different scaffold, ADR-008 §D8.6, and was not the control.)
 - **Not line F1.** concat's 0.3811 against cross_attention's 0.2954 is 1.39 pooled sd, and
   cross_attention's recall at the 0.5 threshold swings 0.12–0.28 across seeds while its
   precision stays at 0.56–0.65 — the threshold moving, as in §1.14. F1 means something only
@@ -1301,6 +1300,65 @@ the run stopped, not what it reports.
 - The first 79 steps after `633ea97b`'s resume took 156 s (~1.97 s/step, warm-up included)
   at 3,575 MiB dedicated + 462 MiB shared — session 14's residual spill, with a
   hardware-accelerated browser (Brave) holding 162 MiB on the NVIDIA adapter (§3 session 15).
+
+### The scaffold control — added 2026-10-07 (session 16)
+
+`llm_only` fine-tuned **in the fused scaffold** × seeds 42/1/2 — the same queue group, the
+same laptop, the same command with `+fusion=llm_only`. Aggregated 2026-10-07 03:14 by the
+command above with `fusion_kind: llm_only`; `n_seeds: 3`, every comparable parameter
+identical, no run with uncommitted changes, every run cross-checks `agrees`. Logged shas
+`782ea98` / `ce04fb1` (and `de1fa21` / `85aa177` at the resumes) differ in docs only —
+`report_seeds.py` compared `src/vulnloc` and accepted no drift. **Held-out `val`,
+validation-selected, n = 3.**
+
+| Arm | Top-5 (headline) | Top-1 | IFA ↓ | Line F1 @ 0.5 | Runs (42 / 1 / 2) |
+|---|---|---|---|---|---|
+| cross_attention | 0.6162 ± 0.0184 | 0.3444 ± 0.0293 | 11.26 ± 1.45 | 0.2954 ± 0.0855 | as above |
+| concat | 0.6169 ± 0.0104 | 0.3645 ± 0.0073 | 11.46 ± 0.68 | 0.3811 ± 0.0159 | as above |
+| **llm_only** | **0.6169 ± 0.0048** | 0.3527 ± 0.0021 | 11.13 ± 0.33 | 0.3726 ± 0.0157 | `179632f5`‡ `72f067d0`‡ `2c7a7631`‡ |
+
+Per seed, `llm_only`: Top-5 0.6141 / 0.6141 / 0.6224, Top-1 0.3527 / 0.3506 / 0.3548,
+selected steps 3 / 5 / 4. Queue wall clock 134 / 210 / 170 min, two attempts each.
+
+‡ **All three are resumed runs** (§7 #53) — a replicate each, not a bit-identical copy:
+
+| Run | `resumed_at` | Why it stopped | Selected checkpoint |
+|---|---|---|---|
+| `179632f5` (42) | `epoch=6,batch=500,step=4565` | paused by the owner, 2026-10-04 21:51 | epoch 3 — **before** the pause |
+| `72f067d0` (1) | `epoch=5,batch=976,step=4100` | crashed 2026-10-06 22:47, `WinError 5` on the checkpoint rename (§7 #56); continued from the step-4100 `last.pt`, the ~100 steps after it trained again | epoch 5 — **completed after the resume** (steps 4101–4331) |
+| `2c7a7631` (2) | `epoch=6,batch=946,step=4800` | crashed 2026-10-07 01:12, `CUDA error: unspecified launch failure` (§7 #57) | epoch 4 — **before** the fault |
+
+**What it supports.**
+
+1. **Fine-tuned, neither fused arm outperforms LLM-only in the same scaffold on Top-5.**
+   cross_attention − llm_only = −0.0007 (0.05 pooled sd), paired by seed +0.008 / +0.017 /
+   −0.027; concat − llm_only = 0.0000 to four decimals (0.61687 both), paired −0.008 /
+   +0.004 / +0.004. The admissible phrasing is *"with the semantic encoder fine-tuned,
+   adding the structural branch — by cross-attention or by concatenation — did not improve
+   Top-5 over the LLM-only control (0.6162 ± 0.0184 and 0.6169 ± 0.0104 vs 0.6169 ± 0.0048,
+   3 seeds each)"*.
+2. **§1.21's "every fusion arm beats `llm_only`" is a frozen-encoder result.** Frozen, every
+   fused arm beat `llm_only` on every seed, by +0.032 to +0.051 Top-5 in the mean;
+   fine-tuned, the lead is gone. Whatever the structural branch supplied to a fixed semantic representation, an
+   adapting encoder reaches the same Top-5 without it.
+3. **The scaffold is not the difference.** `llm_only` in the fused scaffold (0.6169 ± 0.0048)
+   and Phase 3's LLM-only in its own (0.6141 ± 0.0055, §1.14) are 0.0028 apart, 0.54 pooled
+   sd. Different scaffolds, so read side by side, not pooled.
+
+**What it does not support.**
+
+- **Not "concat beats LLM-only on Top-1".** concat's Top-1 is above `llm_only`'s on all
+  three seeds (+0.004 / +0.015 / +0.017; 0.0118 = 2.2 pooled sd). It is one of several
+  secondary metrics, at three seeds, and the frozen screen's own all-three-seeds secondary
+  signals did not survive fine-tuning (point 3 above). Something to re-test with more
+  seeds, recorded so it is not rediscovered; **not a finding.** cross_attention's
+  Top-1 against `llm_only` flips sign across seeds (−0.013 / +0.025 / −0.037).
+- **Not line F1** (threshold-dependent, as above) **and not IFA** (11.13 ± 0.33 against
+  11.26 ± 1.45 and 11.46 ± 0.68).
+- **Not `test` or `clean_eval`.** Every number here is `val`.
+- **Not that the structural branch is useless.** It carries signal alone (§1.15) and helps
+  a frozen encoder (§1.21). What is measured is that it adds nothing resolvable on Top-5 to
+  a fine-tuned CodeBERT in this configuration — AST only, GCN depth 4, one corpus.
 
 ---
 
@@ -1360,9 +1418,9 @@ Next:
 
 ---
 
-### 2026-10-06 (session 16) — the queue restarted after two idle days; the second machine reported finished
+### 2026-10-06 → 07 (session 16) — D9.7 finished: no fused arm beats fine-tuned LLM-only; two crashes survived overnight
 
-Phase: 5 (criterion 5: the scaffold control is running; the gate is unsigned).
+Phase: 5 (criterion 5: the investigation is complete, control included; the gate is unsigned).
 
 Did:
   - Session-start `--status`: 6 done, `d97-llm_only-seed42` `[paus]`, 5 pending — the card
@@ -1384,23 +1442,43 @@ Did:
     2 was training normally. Started a watcher (`artifacts/queue/d97_finish.ps1`, 00:25) that
     retries the failed step through the queue once it exits and then re-runs the `llm_only`
     seed report; its guards are in §6 item 0a.
+  - **01:12 — seed 2 crashed on a GPU driver fault** (§7 #57). The queue ended at 01:15; the
+    watcher's `--retry-failed` continued seed 1, then seed 2, then re-ran the `llm_only`
+    report at 03:14 (`n_seeds: 3`). All twelve `d97` steps are `done`.
+  - 01:49 — found seed 1 at 5.4 s/step, the trainer spilling 792 MiB, and
+    `ScheduledDefrag` running on D:. Tried to stop the defrag three ways from a non-admin
+    shell; none worked. Chose **not** to pause-and-resume the run: earlier runs' slow
+    patches had cleared themselves, and this one did at the epoch boundary (01:57).
+  - Wrote the control into §1.22, the ledger, `Phases.md` and `CLAUDE.md`.
 Files touched:
-  - Docs only: this file, `CLAUDE.md`. No code, no config. One helper script under
-    `artifacts/queue/` (git-ignored).
+  - Docs only: this file, `CLAUDE.md`, `docs/Phases.md`. No code, no config. One helper
+    script under `artifacts/queue/` (git-ignored).
 Runs logged:
-  - `179632f5…` : llm_only seed 42, FINISHED, **resumed** (`epoch=6, batch=500, step=4565`).
-  - `72f067d0…` : llm_only seed 1, **FAILED at step ~4200 — no number**; to be continued
-    from `last.pt` (step 4100).
-  - `2c7a7631…` : llm_only seed 2, **RUNNING — no number.**
+  - `179632f5…` / `72f067d0…` / `2c7a7631…` : llm_only seeds 42 / 1 / 2, all FINISHED, all
+    **resumed** — **Top-5 0.6169 ± 0.0048** (§1.22).
+  - One `report_seeds.py` run →
+    `artifacts/phase5/seed_report_fused_finetuned_llm_only.json` (`n_seeds: 3`). The queue's
+    own 2-seed and 1-seed passes wrote the same file earlier and were overwritten.
 Learned:
   - **Brave was open again at the restart** and held 131 MiB dedicated on the NVIDIA
     adapter; the trainer sat at 3,752 MiB dedicated + 542 MiB shared. Close to session 15's
     reading with it open (3,575 + 462) and not slower, but it is a spill: the owner was
-    asked to close it.
+    asked to close it. **Correction:** "not slower" was judged against the fused arms'
+    ~2.0 s/step; `llm_only` runs at ~1.2 s/step when healthy, so 2.1 s/step was already a
+    spill slowing it.
+  - **Fusion's lead over `llm_only` exists only with the encoder frozen** (§1.22).
+  - **A failed step is not retried, and a seed report does not wait for its seeds** (§7 #56).
+  - **An unattended Windows laptop defragments its hard disk, faults its GPU driver and
+    spills VRAM, and `--status` shows none of it** (§7 #57).
+  - **A background wait is not a guaranteed wake-up.** The 02:18 one reached the session at
+    06:59. Anything that must happen overnight belongs in a process on the machine (the
+    watcher), not in the session's intention to check.
 Next:
-  - When the queue ends: `--status`, read the three seed reports, add the `llm_only`
-    control to §1.22 with each run's `resumed_at` tag, put the Phase 5 gate to the owner.
+  - **Put the Phase 5 gate to the owner** — criterion 5's investigation is complete.
+  - With the source unfrozen: the rename retry (§7 #56) and the spill guard (§7 #57), each
+    with a test; then the Mon 5 daytime list in §6 item 0a, now two days late.
   - Import the second machine's export when the owner brings it.
+  - The two held Q13 questions are still unanswered.
   - Tests not run this session — no code changed.
 
 ---
@@ -1897,7 +1975,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
-| `179632f5…` | 2026-10-04 | `run_queue.py --only d97` — as the row below with `+fusion=llm_only`: **D9.7's scaffold control** | 42 | llm_only | fused | — | — | — | **PAUSED at epoch 6, batch 500, step 4565 (21:51, the owner's request) — no number until FINISHED, and no arm-level statement until seeds 1 and 2 are FINISHED too** (§7 #37). 114 min so far. MLflow shows a paused run as `FAILED` until it resumes |
+| `179632f5…` `72f067d0…` `2c7a7631…` | 2026-10-04 → 07 | `run_queue.py --only d97` — as the row below with `+fusion=llm_only`: **D9.7's scaffold control** | 42, 1, 2 | llm_only | fused | 1.000 *(degenerate)* | **0.6169 ± 0.0048** | 11.13 | **NEITHER FUSED ARM BEATS FINE-TUNED LLM-ONLY IN THE SAME SCAFFOLD** (cross_attention −0.0007, concat 0.0000 on Top-5). Top-1 0.3527 ± 0.0021, line F1 0.3726 ± 0.0157. Per seed Top-5 0.6141, 0.6141, 0.6224. **All three are resumed**: `resumed_at=epoch=6,batch=500,step=4565` (owner's pause) / `epoch=5,batch=976,step=4100` (WinError 5 crash, §7 #56) / `epoch=6,batch=946,step=4800` (GPU driver fault, §7 #57); seed 1's selected epoch 5 was completed after its resume. Validation-selected, `val`. 134, 210, 170 min over two attempts each. §1.22 |
 | `80fc5238…` `c193e3bc…` `829c3555…` / `fbf65554…` `633ea97b…` `a0c42d6f…` | 2026-10-02 → 04 | `run_queue.py --only d97` — `train_fused.py train=fused llm.frozen=false train.semantic_cache.enabled=false +gnn=gcn gnn.use_subtokens=true`, **ADR-009 D9.7**, `src/vulnloc` as of `af4af6a` (logged shas `70824ec` / `0ce5d96` / `782ea98` differ in docs, scripts and tests only) | 42, 1, 2 | cross_attention / concat | fused | 1.000 *(degenerate)* | **0.6162 ± 0.0184 / 0.6169 ± 0.0104** | 11.26 / 11.46 | **D9.7: THE NULL SURVIVES FINE-TUNING (−0.0007, 0.05 pooled sd; paired signs flip).** Top-1 0.3444 ± 0.0293 / 0.3645 ± 0.0073 and IFA are not resolvable either; line F1 0.2954 ± 0.0855 / 0.3811 ± 0.0159 is the threshold moving. Per seed Top-5 0.6224, 0.6307, 0.5954 / 0.6058, 0.6183, 0.6266. `633ea97b` is **resumed** (`resumed_at=epoch=5,batch=418,step=3821`); its selected checkpoint predates the pause. Validation-selected, `val`. 118, 168, 114 / 123, 183, 211 min. §1.22 |
 | `d3dbd7e9…` `b4998f5c…` `ad9f36e8…` | 2026-10-02 | `run_queue.py --only d97check` — overfit, **D9.7 config**, encoder training | 42 | cross_attention / concat / llm_only | fused | — | Top-1 1.000 ×3 | — | **The D9.7 overfit gate. Never cite as a result.** Top-1 = 1.000 in 141 / 134 / 141 of 150 epochs; first-step peak 2,532.6 MiB |
 | `cb2b1e99…` · `1ab2fd03…` | 2026-10-02 | `cb2b1e99`: first `d97-cross_attention-seed42` attempt · `1ab2fd03`: `train_structural.py train.limit=300` on CPU | 42 | cross_attention · — | fused · structural | — | — | — | **Both VOID / probes, never results.** `cb2b1e99` was the live pause/resume test vehicle and found §7 #55 (tagged `void`, checkpoints deleted). `1ab2fd03` proved pause → resume end to end through Hydra (§3 session 14) |
@@ -1982,7 +2060,22 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-06 20:33 (session 16): RESTARTED, running unattended
+#### Where it stands — 2026-10-07 03:15 (session 16): D9.7 COMPLETE, nothing running
+
+- **9 of 9 runs FINISHED; all three seed reports say `n_seeds: 3`.** `--status` shows twelve
+  steps `done`. The control is in §1.22: **`llm_only` 0.6169 ± 0.0048 Top-5 — neither fused
+  arm beats it.** All three `llm_only` runs are resumed; the tags are in §1.22.
+- **Rule 2 is lifted**: no `d97-*` step is running or paused, so `src/vulnloc/` and
+  `configs/` may change. The code owed first: retry the checkpoint rename (§7 #56) and the
+  spill guard (§7 #57).
+- **Phase 5 now waits only on the owner's signature.** Then Phase 6.
+- **Before the next long run the owner should stop Windows defragmenting D: on its own**
+  (§7 #57) — it needs an administrator.
+- Still open: the two held Q13 questions (rule 8); the second machine's export, which the
+  owner imports later.
+- The bullets below are the night's log, kept for the record.
+
+#### How the night went — 2026-10-06 20:33 → 2026-10-07 03:15
 
 - **`run_queue.py --only d97` restarted Tue 6 at 20:33** in its own console window ("VulnLoc
   d97 queue"), at the owner's request. `d97-llm_only-seed42` resumed at 20:37:02 into the
@@ -2015,6 +2108,17 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   - **The next session checks:** `--status` shows nine runs `done`; the transcript; and
     `n_seeds: 3` in `artifacts/phase5/seed_report_fused_finetuned_llm_only.json`. If the
     report says 2, it is the queue's own early one — re-run it before reading a number.
+- **Wed 7, 01:12 — seed 2 crashed too, on a GPU driver fault** (`CUDA error: unspecified
+  launch failure`; §7 #57), 144 min in, epoch 6. The queue ran its three reports — the
+  `llm_only` one on **one** seed, flagged non-citable — and exited at 01:15.
+- **01:15 → 03:15 — the watcher did what it was built for.** `--retry-failed` continued seed
+  1 from step 4100 (early-stopped after epoch 8, 02:48) and seed 2 from step 4800
+  (early-stopped after epoch 7, 03:14), then re-ran the `llm_only` report: `n_seeds: 3`.
+- **01:32 → 02:32 — Windows defragmented D: under the run** and a VRAM spill slowed seed 1
+  to 536 s per 100 steps; both cleared without intervention (§7 #57).
+- **The session's own checks stopped at 02:18**: the background wait that should have woken
+  it then was only delivered at 06:59, with the owner's next message. The run finished
+  unwatched for its last hour — the watcher, not the session, carried it.
 
 #### Where it stood — 2026-10-04 21:51 (session 15): PAUSED at the owner's request
 
@@ -2357,7 +2461,8 @@ Things that cost time once and should not cost time twice.
 | 53 | **`train.resume_from` was not a resume.** Until 2026-10-02 it (a) opened a *second* MLflow run, so one training run was two run ids and `report_seeds.py` — which reads the best step from one run's metric history and requires `FINISHED` — would have seen half a curve; (b) built a fresh `EarlyStopping`, so the first post-resume evaluation became "best" whatever it scored and patience restarted; (c) replayed the interrupted epoch from batch 0 on mid-epoch weights, training part of it twice | A resumed run would have reported a best epoch from its second half only, after up to an epoch of extra training, under a new run id. **No logged result ever used it** (§3, session 10: seed 1 was restarted instead) — the only reason no number is wrong | Fixed in `training/loop.py`, `job.py`, `tracking.py`: `last.pt` carries `batch_in_epoch`, the epoch's loss totals, patience and the best metrics; a resume reopens the **same** run, refuses a config that differs from the one it started with, replays the same shuffle (`seed + epoch`) and skips exactly the batches already trained. Checkpoints are written to a temp file and renamed. Pinned by `tests/unit/test_resume.py`: weights after pause+resume **equal** an uninterrupted run's. **Not restored: the dropout RNG** — a resumed run is a replicate, not a bit-identical copy; it carries a `resumed_at` tag, which must be reported beside its number | ✅ Fixed 2026-10-02 |
 | 54 | **A paused run is stranded by any config change.** The resume guard compares every flattened config value except `train.resume_from` against what the run logged at its start | Editing a config file — or adding a group to `defaults` (#38) — while a `d97-*` step shows `[paus]` makes that run un-resumable; its hours are lost | Finish or deliberately discard paused runs first. `run_queue.py --status` shows them | 🟨 By design |
 | 55 | **Loading a checkpoint onto the GPU spills VRAM for the rest of the run.** MEASURED 2026-10-02 on `cb2b1e99…` (D9.7 cross_attention seed 42): `torch.load(map_location=device)` put a second copy of the weights and optimizer state on the card, PyTorch kept the freed blocks cached, and the resumed process held **3,692 MiB dedicated + 1,872 MiB shared** (Windows `GPU Process Memory` counters) | **5.0 s/step against 2.0 s/step before the pause** — 2.5× slower, no exception, and `_check_memory` saw nothing because it reads *allocated* memory once, at the first step, and the spill is in *reserved* | `load_checkpoint` now loads to host memory (`load_state_dict` copies per parameter), and `Trainer._release_cache_if_spilling` calls `empty_cache()` at any optimizer step where `memory_reserved` exceeds the card. Neither changes a number. **To check a live run:** `Get-Counter '\GPU Process Memory(*)\Shared Usage'` — hundreds of MiB shared on the training pid is a spill, whatever `nvidia-smi` says | ✅ Fixed 2026-10-02 |
-| 56 | **Windows can refuse a checkpoint's rename, and the run dies on it.** MEASURED 2026-10-06 22:47 on `72f067d0…` (D9.7 `llm_only` seed 1, epoch 5, 116 min in, the step-4200 periodic checkpoint): `save_checkpoint`'s `partial.replace(path)` raised `PermissionError: [WinError 5] Access is denied` — another process had `last.pt` open. **The holder is not identified.** Defender real-time protection is on and its log shows a quick scan started and stopped at 22:42:57; suggestive, not proof | Exit 1 → `[FAIL]`, and the queue **does not retry a failed step** unless started with `--retry-failed`: it moves to the next step. At its end the arm's seed report runs on the seeds that finished; from the code (`report_seeds.py` writes below `min_seeds` and returns normally) it writes `n_seeds: 2` with a `warning`, exits 0 and is marked `done`, so it is **not** re-run when the missing seed completes later | `run_queue.py --only d97 --retry-failed` continues the step from its intact `last.pt` in the same run (the ≤ 100 steps after that checkpoint are trained again from its weights, and the run carries a `resumed_at` tag). Then re-run the arm's seed report with the command `--dry-run` prints, and **read `n_seeds` before quoting anything**. **Code fix owed once no fine-tuned group is in flight:** retry the rename a few times with a short sleep before raising, in `training/loop.py::save_checkpoint`, with a test | 🟥 Open — worked around 2026-10-07 |
+| 56 | **Windows can refuse a checkpoint's rename, and the run dies on it.** MEASURED 2026-10-06 22:47 on `72f067d0…` (D9.7 `llm_only` seed 1, epoch 5, 116 min in, the step-4200 periodic checkpoint): `save_checkpoint`'s `partial.replace(path)` raised `PermissionError: [WinError 5] Access is denied` — another process had `last.pt` open. **The holder is not identified.** Two suspects, neither proven: Windows' scheduled defragmentation of D: (#57) — a pass was cancelled at 23:26, and if it ran the full hour the 01:32 pass did, it was moving files at 22:47; and Defender, whose log shows a quick scan started and stopped at 22:42:57 with real-time protection on | Exit 1 → `[FAIL]`, and the queue **does not retry a failed step** unless started with `--retry-failed`: it moves to the next step. At its end the arm's seed report runs on the seeds that finished; from the code (`report_seeds.py` writes below `min_seeds` and returns normally) it writes `n_seeds: 2` with a `warning`, exits 0 and is marked `done`, so it is **not** re-run when the missing seed completes later | `run_queue.py --only d97 --retry-failed` continues the step from its intact `last.pt` in the same run (the ≤ 100 steps after that checkpoint are trained again from its weights, and the run carries a `resumed_at` tag). Then re-run the arm's seed report with the command `--dry-run` prints, and **read `n_seeds` before quoting anything**. **Code fix owed once no fine-tuned group is in flight:** retry the rename a few times with a short sleep before raising, in `training/loop.py::save_checkpoint`, with a test | 🟥 Open — worked around 2026-10-07 |
+| 57 | **Three things an unattended night did to a fine-tuned run, none visible in a morning `--status`.** MEASURED 2026-10-06/07. **(a) Windows defragments D: when nobody is at the keyboard.** Automatic Maintenance ran `ScheduledDefrag` on the hard disk the run checkpoints to: `Microsoft-Windows-Defrag` logs passes cancelled at 21:20, 22:26, 23:26 and 02:32 and one completed at 04:31; the 01:32 pass was watched — `defrag.exe` started 01:32:19 and was cancelled at 02:32:20. During it D: read 0% idle and a 32 MB write-through took 1.6 s (20 MB/s). It runs as SYSTEM: `Stop-ScheduledTask`, `schtasks /End` and `MSchedExe.exe Stop` from a non-admin shell each reported success and stopped nothing. **(b) A GPU driver fault.** 01:12:13–01:12:52: 20 × `nvlddmkm` id 13 ("Graphics FECS Exception: Logging error 0x2") and 2 × id 153; `2c7a7631…` died with `torch.AcceleratorError: CUDA error: unspecified launch failure`. No `nvlddmkm` event between 2026-10-02 and that minute; the GPU read 76 °C under load ten minutes later. Cause unknown. **(c) A VRAM spill the guard does not see.** From 01:34 `72f067d0…` climbed to 3,810 MiB dedicated + 792 MiB shared and slowed to 248 s, then 536 s, per 100 steps (median that night ~150 s; the previous worst, 504 s, was `179632f5…` on 2026-10-04); GPU power fell to 30–40 W. It cleared at the epoch boundary (2,773 + 78 MiB) with no intervention | (a) slower checkpoint writes, and a candidate for #56's lock. (b) exit 1 → `[FAIL]`, not retried (#56's queue behaviour). (c) a run that takes hours longer and says nothing. Across the 143 hundred-step intervals the three `llm_only` runs had logged by 01:56, the p90 is 205–248 s against a median of 123–152 s per run, so slow patches are routine, not rare | (a) **The owner turns off scheduled optimisation for D:** (Optimize Drives → Change settings — administrator) or lets it finish before a long run; it completed on 2026-10-07 04:31. (b) `--retry-failed`; if it recurs, look at the driver and at heat before blaming code. (c) **Code fix owed** — the "residual spill guard" already on §6's list: `_release_cache_if_spilling` fires when PyTorch's *reserved* memory exceeds the card's total. Session 16's reading, not verified in a debugger: a pool just under the total still spills by whatever the CUDA context adds, so the threshold should be the dedicated budget actually available, not `total_memory` | 🟥 Open |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**

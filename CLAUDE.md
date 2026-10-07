@@ -58,24 +58,25 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
-**2026-10-07 00:25 (session 16): `d97` restarted Tue 6 at 20:33 — 7 of 9 runs FINISHED, one
-CRASHED, one running.** `llm_only` seed 42 finished (`179632f5…`, resumed); **seed 1
-(`72f067d0…`) died at 22:47 in epoch 5 on a Windows file error, not a model error
-(landmine #56)**; seed 2 is training. A watcher (`artifacts/queue/d97_finish.ps1`, its own
-console window) retries seed 1 with `--retry-failed` when the queue ends and then re-runs
-the `llm_only` seed report. **Until that report says `n_seeds: 3`, the control is still 0
-of 3 for writing purposes. Trust `run_queue.py --only d97 --status`, not this paragraph or
-the one below.** The second laptop's slate is finished (the owner's report); nothing is in
-`artifacts/machine2/` yet.
+**2026-10-07 03:15 (session 16): ADR-009 D9.7 is COMPLETE — 9 of 9 runs FINISHED, all three
+seed reports at `n_seeds: 3`, nothing running or paused.** Fine-tuned, on `val`, 3 seeds each
+(`Memory.md` §1.22):
 
-**2026-10-04 (session 15): ADR-009 D9.7 — 6 of 9 runs FINISHED; the queue is PAUSED (21:51,
-the owner's request).** The six runs the ADR specifies are in and aggregated: **fine-tuned,
-cross-attention still does not beat concat on Top-5 — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104,
-0.05 sd, 3 seeds each (`Memory.md` §1.22)**, agreeing with the frozen screen. The added
-scaffold control, `llm_only` fine-tuned × seeds 42/1/2, is **0 of 3** — seed 42 paused at
-epoch 6, two pending — **so nothing about fusion vs fine-tuned LLM-only may be written yet.**
-`python scripts/run_queue.py --only d97` resumes it (≈ 5–8 h, then the seed reports). Owner
-deadline: the whole project in about a week. `Memory.md` §6 item 0a is the handoff.
+| Arm | Top-5 | Top-1 |
+|---|---|---|
+| cross_attention | 0.6162 ± 0.0184 | 0.3444 ± 0.0293 |
+| concat | 0.6169 ± 0.0104 | 0.3645 ± 0.0073 |
+| `llm_only` (the scaffold control) | 0.6169 ± 0.0048 | 0.3527 ± 0.0021 |
+
+**Cross-attention does not beat concat, and neither fused arm beats fine-tuned LLM-only in
+the same scaffold** — the three Top-5 means are within 0.0007. The frozen screen's "every
+fusion arm beats `llm_only`" holds **only with the encoder frozen**. **All three `llm_only`
+runs are resumed runs** (a pause, a file-rename crash, a GPU driver fault — landmines #56,
+#57); quote their `resumed_at` tags with the number. **What Phase 5 still needs is the
+owner's signature on the gate.** With no `d97-*` step running or paused, `src/vulnloc/` and
+`configs/` may be edited again. The second laptop's slate is finished (the owner's report);
+nothing is in `artifacts/machine2/` yet. Owner deadline: the whole project in about a week;
+`Memory.md` §6 item 0a is the handoff.
 
 **Costs to plan with (measured):** a fine-tuned fused run is 114–211 min by the queue's
 clock (six D9.7 runs);
@@ -91,7 +92,7 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
 | Phase 3 | ✅ **DONE — gate signed by the owner 2026-09-15.** **LLM-only over three seeds on normalized text: Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60** (§1.14). Top-5 varies by under a point across seeds while P/R swing ±0.04 in opposite directions — the threshold moving, not the model. Run `1843412a…` remains VOID (ADR-006); `function/f1` = 1.000 is degenerate and must never be quoted. |
 | Phase 4 | ✅ **DONE — gate signed by the owner 2026-09-15.** Overfit test PASSED (`8b0a3c1d…`). **Best structural config: gcn depth 4 + subtokens, Top-5 0.4302 ± 0.0372 over 3 seeds** (ADR-002 §D2.5's second half, +0.066 over node-type-only — §1.15). Far below the semantic arm's 0.6141. **The depth sweep 2/4/6 shows NO resolvable effect at 3 seeds each** (every pairwise gap <0.6 sd, §1.16) — an earlier one-seed over-smoothing reading was retracted. |
-| Phase 5 | 🟨 **A1 frozen screen DONE; 4 / 5 criteria, the fifth half met.** ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6"): **D9.7's fine-tuned confirmation agrees — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104 (`Memory.md` §1.22).** Still owed before the gate: the `llm_only` scaffold control (0 / 3 seeds) and the owner's signature. |
+| Phase 5 | 🟨 **A1 frozen screen DONE; 4 / 5 criteria, the fifth half met.** ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6"): **D9.7's fine-tuned confirmation agrees — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104 (`Memory.md` §1.22).** **The `llm_only` scaffold control is in (2026-10-07): 0.6169 ± 0.0048 — no fused arm beats it.** Still owed before the gate: the owner's signature. |
 | Phases 6–10 | ⬜ Not started. |
 | Tests | **937 passing, 2 skipped.** ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
@@ -394,7 +395,8 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 53 | **Until 2026-10-02 `train.resume_from` was a restart wearing a resume's name.** It opened a *second* MLflow run, reset early stopping (so the first post-resume epoch became "best" whatever it scored), and replayed the interrupted epoch from its start on mid-epoch weights. No logged result ever used it, which is the only reason none is wrong. Now a resume reopens the **same** run, restores patience and the best metrics, and skips exactly the batches already trained — pinned in `tests/unit/test_resume.py` by weight equality with an uninterrupted run. What is **not** restored is the dropout RNG: a resumed run is a replicate, not a bit-identical copy. Resumed runs carry a `resumed_at` tag; **report it beside any number from one.** |
 | 54 | **A resumed run's config must equal the one it started with**, and `tracking.start_run` refuses otherwise — every flattened param except `train.resume_from`. So a config change mid-sweep (#38) now also strands every *paused* run: finish or discard paused runs before touching a config file. `run_queue.py --status` shows them as `[paus]`. |
 | 55 | **`nvidia-smi` cannot show a VRAM spill; the Windows counters can.** A resumed fine-tuned run sat at 3,692 MiB dedicated **plus 1,872 MiB shared** and ran 2.5× slower (5.0 vs 2.0 s/step) because the checkpoint had been loaded straight onto the card. Fixed: checkpoints load to host memory, and the loop releases PyTorch's cache whenever *reserved* memory exceeds the card. The baseline to compare a live D9.7 run against is **~2.0 s per optimizer step**; check with `Get-Counter '\GPU Process Memory(*)\Shared Usage'`. **A hardware-accelerated browser takes dedicated VRAM on the NVIDIA adapter (Brave: 162 MiB, measured 2026-10-04) — close it before a fine-tuned run.** |
-| 56 | **Windows can refuse the checkpoint rename, and that kills a fine-tuned run.** `save_checkpoint` writes `last.pt.tmp` and renames it over `last.pt`; on 2026-10-06 22:47 the rename raised `PermissionError: [WinError 5]` two hours into `72f067d0…` because something else had `last.pt` open (holder **not identified** — Defender real-time scanning is the suspect, unproven). Exit 1 is `[FAIL]`, which **the queue does not retry without `--retry-failed`**; it moves on, and the arm's seed report then runs on the seeds that did finish and is marked `done`. Recover with `run_queue.py --only d97 --retry-failed` (continues from the intact `last.pt`, same run id), then re-run that arm's seed report by hand and **check `n_seeds` in the report before quoting it**. The code fix — retry the rename before raising — is owed once no fine-tuned group is in flight. |
+| 56 | **Windows can refuse the checkpoint rename, and that kills a fine-tuned run.** `save_checkpoint` writes `last.pt.tmp` and renames it over `last.pt`; on 2026-10-06 22:47 the rename raised `PermissionError: [WinError 5]` two hours into `72f067d0…` because something else had `last.pt` open (holder **not identified** — the prime suspect is Windows' scheduled defragmentation of D:, landmine #57; Defender real-time scanning is the other; neither is proven). Exit 1 is `[FAIL]`, which **the queue does not retry without `--retry-failed`**; it moves on, and the arm's seed report then runs on the seeds that did finish and is marked `done`. Recover with `run_queue.py --only d97 --retry-failed` (continues from the intact `last.pt`, same run id), then re-run that arm's seed report by hand and **check `n_seeds` in the report before quoting it**. The code fix — retry the rename before raising — is owed once no fine-tuned group is in flight. |
+| 57 | **An unattended laptop is not an idle laptop to us, but it is to Windows.** With nobody at the keyboard, Automatic Maintenance defragments D: — the hard disk the run checkpoints to — in passes Windows cancels after an hour (measured for one: 01:32 → 02:32). Four ended during training on the night of 2026-10-06 (21:20, 22:26, 23:26, 02:32). Measured during the 01:32 pass: D: 0% idle, a 32 MB write at 20 MB/s. It runs as SYSTEM; `Stop-ScheduledTask`, `schtasks /End` and `MSchedExe Stop` from a non-admin shell all reported success and stopped nothing. **Before a long run, the owner turns off scheduled optimisation for D: (Optimize Drives → Change settings), or runs it to completion first.** Same night, two more things a morning `--status` hides: a **GPU driver fault** (`nvlddmkm` 13 × 20, 153 × 2 at 01:12 → `CUDA error: unspecified launch failure`, exit 1, `[FAIL]`; the first since 2026-10-02), and a **VRAM spill that never trips the guard** — 3,810 MiB dedicated + 792 MiB shared, 536 s per 100 steps against a median of ~150, cleared by itself at the epoch boundary. Session 16's reading, not verified in a debugger: the guard compares PyTorch's *reserved* memory with the card's total, so a pool just under the total still spills by whatever the CUDA context adds. |
 
 
 ---
@@ -433,8 +435,9 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    2026-09-15, built and verified.** A1 reports in the qualified "fixed semantic
    representation" form; the fine-tuned confirmation (D9.7) is triggered by the margin.
 5a. **Q11 — run ADR-009 D9.7's fine-tuned confirmation of A1?** (~18–24 h; closes Phase 5's
-   fifth criterion) — **6 of 9 runs FINISHED, paused 2026-10-04; the two fused arms agree
-   with the frozen screen (`Memory.md` §1.22), the `llm_only` control is pending**; Q12
+   fifth criterion) — **run: 9 of 9 FINISHED 2026-10-07; the two fused arms agree with the
+   frozen screen and neither beats the `llm_only` control (`Memory.md` §1.22). What remains
+   is the owner's signature on the Phase 5 gate**; Q12
    (commit the A1 write-up) closed 2026-10-02. `Memory.md` §5.
 5b. **Review the Findings tab's fix templates.** Written in session 13, tested for what
    they match, not reviewed by a human for what they advise.

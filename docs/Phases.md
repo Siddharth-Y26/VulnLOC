@@ -172,6 +172,10 @@ most likely to be underestimated.** CFG/DFG construction is real compiler work.
     (`Memory.md` §1.22): cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5,
     3 seeds each, agreeing with the frozen screen. The box stays open until the added
     `llm_only` scaffold control (0 of 3 seeds) is in and the owner signs the gate.
+  - *2026-10-07:* **the control is in — 0.6169 ± 0.0048 Top-5, 3 seeds, all three runs
+    resumed (`Memory.md` §1.22).** Neither fused arm beats fine-tuned LLM-only in the same
+    scaffold. The investigation is complete; the box stays open only for the owner's
+    signature.
 
 ---
 
