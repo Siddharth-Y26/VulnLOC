@@ -577,6 +577,57 @@ def test_each_a6_seed_report_selects_exactly_one_direction():
         assert "frozen: True" in where and "fusion_kind: cross_attention" in where
 
 
+# --- d97r: D9.7 again on comment-stripped text (Memory.md §1.25) -------------------------
+
+STRIP = "+representation.strip_comments=true"
+
+
+def test_d97r_is_d97_with_exactly_one_more_override():
+    """A second difference would be what the leak-free rerun measured instead of the leak."""
+    for arm in ("cross_attention", "concat", "llm_only"):
+        for seed in (42, 1, 2):
+            original = next(s for s in _group("d97") if s.name == f"d97-{arm}-seed{seed}")
+            rerun = next(s for s in _group("d97r") if s.name == f"d97r-{arm}-seed{seed}")
+
+            assert _overrides(rerun) - _overrides(original) == {STRIP}
+            assert _overrides(original) - _overrides(rerun) == set()
+            assert rerun.resumable
+
+
+def test_d97r_runs_arm_by_arm_and_reports_each_arm_as_soon_as_it_is_complete():
+    names = [s.name for s in _group("d97r")]
+
+    expected = []
+    for arm in ("cross_attention", "llm_only", "concat"):
+        expected += [f"d97r-{arm}-seed{seed}" for seed in (42, 1, 2)]
+        expected.append(f"d97r-seed-report-{arm}")
+    assert names == expected
+
+
+def test_the_stripped_text_path_is_overfit_checked_before_it_is_trained_for_a_day():
+    (check,) = _group("d97rcheck")
+
+    assert "train=overfit_fused" in check.args
+    assert STRIP in check.args
+    assert "llm.frozen=false" in check.args
+    plan = [s.group for s in run_queue.build_plan() if s.group in {"d97rcheck", "d97r"}]
+    assert plan == sorted(plan, key=lambda group: group != "d97rcheck")
+
+
+def test_the_two_sets_of_fine_tuned_seed_reports_cannot_read_each_others_runs():
+    """Same arm, same `frozen`: only `strip_comments` tells a D9.7 run from its rerun."""
+    for arm in ("cross_attention", "concat", "llm_only"):
+        old = next(s for s in _group("d97") if s.name == f"d97-seed-report-{arm}")
+        new = next(s for s in _group("d97r") if s.name == f"d97r-seed-report-{arm}")
+        old_where = next(a for a in old.args if "seeds.where" in a)
+        new_where = next(a for a in new.args if "seeds.where" in a)
+
+        assert "strip_comments: False" in old_where
+        assert "strip_comments: True" in new_where
+        assert run_queue.REQUIRE_SUFFICIENT in new.args
+        assert "+seeds.output_dir=./artifacts/adr010" in new.args
+
+
 # --- a fresh machine must name its groups -----------------------------------------------
 
 

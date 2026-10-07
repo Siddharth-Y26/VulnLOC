@@ -16,6 +16,10 @@ and reports, per checkpoint and per arm:
 * ``tell_lines_withheld`` — every unit again, with the lines either comment tell fires on
   removed from the ranking and from the labels. A unit left with no flagged line drops
   out. This is what the checkpoint ranks when it cannot be handed those lines.
+* ``blank_lines_withheld`` — the same with blank lines removed instead. On comment-stripped
+  text a flagged line that held only a comment is blank: still labelled, impossible to
+  find. ``all`` counts such a unit as a miss; this group does not count it at all. The
+  report also gives ``flagged_lines_blank`` and how many units have nothing else flagged.
 * three rule-only baselines that never see a model: source order, the tell first, and the
   tell first with intact comment ends last.
 
@@ -67,7 +71,7 @@ _LOGGER = get_logger(__name__)
 REPO = Path(__file__).resolve().parent.parent
 HELD_OUT_SPLITS = frozenset({"test", "clean_eval"})
 TOP_KS = (1, 5)
-GROUPS = ("all", "tell_units", "other_units", "tell_lines_withheld")
+GROUPS = ("all", "tell_units", "other_units", "tell_lines_withheld", "blank_lines_withheld")
 BASELINES = ("source_order", "tell_first", "tell_first_intact_last")
 
 
@@ -151,6 +155,7 @@ def audit_run(
     """
     tallies = {name: _Tally() for name in (*GROUPS, *BASELINES)}
     top1_is_tell = 0
+    flagged_lines = flagged_blank = only_blank = 0
     for unit in scored:
         lines = texts.get(unit.unit_id)
         n = int(unit.logits.shape[0])
@@ -171,6 +176,11 @@ def audit_run(
         answered = bool((fires & labels & usable).any())
         tallies["tell_units" if answered else "other_units"].add(logits, labels, usable)
         tallies["tell_lines_withheld"].add(logits, labels, usable & ~fires & ~intact)
+        blank = np.array([not text.strip() for text in lines[:n]], dtype=bool)
+        tallies["blank_lines_withheld"].add(logits, labels, usable & ~blank)
+        flagged_blank += int((labels & blank).sum())
+        flagged_lines += int(labels.sum())
+        only_blank += bool(labels.any()) and not bool((labels & ~blank).any())
 
         position = -np.arange(n, dtype=np.float64)
         tallies["source_order"].add(position, labels, usable)
@@ -182,6 +192,11 @@ def audit_run(
             top1_is_tell += bool(fires[best])
     report: dict[str, Any] = {name: tally.to_dict() for name, tally in tallies.items()}
     report["top1_is_tell_line"] = top1_is_tell
+    # After comment stripping a flagged line that held only a comment is blank: it is still
+    # labelled and can no longer be found. These are the size of that ceiling.
+    report["flagged_lines"] = flagged_lines
+    report["flagged_lines_blank"] = flagged_blank
+    report["units_whose_flagged_lines_are_all_blank"] = only_blank
     return report
 
 
@@ -206,6 +221,8 @@ def aggregate(per_run: Sequence[dict[str, Any]]) -> dict[str, Any]:
             }
         summary[group] = section
     summary["top1_is_tell_line"] = [run["top1_is_tell_line"] for run in per_run]
+    for key in ("flagged_lines", "flagged_lines_blank", "units_whose_flagged_lines_are_all_blank"):
+        summary[key] = [run[key] for run in per_run]
     return summary
 
 

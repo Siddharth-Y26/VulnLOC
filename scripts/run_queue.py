@@ -70,6 +70,10 @@ POLL_SECONDS = 15.0
 SEED_REPORT_SCRIPT = "scripts/report_seeds.py"
 REQUIRE_SUFFICIENT = "+seeds.require_sufficient=true"
 
+STRIP_COMMENTS = "+representation.strip_comments=true"
+"""The override that removes the second formatting leak (``Memory.md`` §1.25). The key is
+absent from ``configs/config.yaml`` on purpose, hence the ``+``."""
+
 DEFAULT_RETRIES = 2
 """How often a crashed step is continued from its checkpoint before the queue moves on.
 
@@ -584,7 +588,10 @@ def build_plan() -> list[Step]:
                 script="scripts/report_seeds.py",
                 args=[
                     "train=fused",
-                    f"+seeds.where={{fusion_kind: {arm}, frozen: False}}",
+                    # `strip_comments: False` also matches a run that never logged it
+                    # (landmine #39), which is every D9.7 run; without it the report
+                    # would be handed the `d97r` runs as well.
+                    f"+seeds.where={{fusion_kind: {arm}, frozen: False, " "strip_comments: False}",
                     f"+seeds.tag=finetuned_{arm}",
                     "+seeds.output_dir=./artifacts/phase5",
                 ],
@@ -656,6 +663,60 @@ def build_plan() -> list[Step]:
                     f"fusion_direction: {direction}}}",
                     f"+seeds.tag=a6_{direction}",
                     "+seeds.output_dir=./artifacts/phase6",
+                ],
+            )
+        )
+
+    # --- Memory.md §1.25 / open decision Q14: D9.7 again, on comment-stripped text ----
+    # Added 2026-10-07. The corpus text carries a second formatting leak — a flagged line
+    # that ended a block comment lost the slash of its `*/` — and all nine D9.7 checkpoints
+    # read it. Stripping comments at evaluation gives a number the tell cannot inflate, but
+    # from models that were trained with it in view; these runs are the same nine with the
+    # comments stripped at training as well, which is the only leak-free form of the
+    # headline. Exactly one override is added to D9.7's constants.
+    #
+    # One overfit gate, not three: the arms' own mechanics passed `d97check`, and what is
+    # new here is the text every arm reads, which one arm exercises completely.
+    #
+    # Arm by arm rather than seed by seed, unlike `d97`: with two days left, an arm with
+    # three seeds is reportable and three arms with two seeds each are not. The designed
+    # model first, then its control, then concat.
+    d97r_constants = [*d97_constants, STRIP_COMMENTS]
+    steps.append(
+        Step(
+            name="d97r-overfit-cross_attention",
+            group="d97rcheck",
+            why="Sanity: cross_attention must memorise 32 functions with the encoder training "
+            "on comment-stripped text. Never a result.",
+            script="scripts/train_fused.py",
+            args=["+fusion=cross_attention", "train=overfit_fused", *d97r_constants],
+        )
+    )
+    d97r_arms = ("cross_attention", "llm_only", "concat")
+    for arm in d97r_arms:
+        for seed in (42, 1, 2):
+            steps.append(
+                Step(
+                    name=f"d97r-{arm}-seed{seed}",
+                    group="d97r",
+                    why=f"D9.7 on comment-stripped text (Memory.md §1.25): {arm}, fine-tuned "
+                    f"encoder, seed {seed} of 3.",
+                    script="scripts/train_fused.py",
+                    args=[f"+fusion={arm}", "train=fused", f"seed={seed}", *d97r_constants],
+                    resumable=True,
+                )
+            )
+        steps.append(
+            Step(
+                name=f"d97r-seed-report-{arm}",
+                group="d97r",
+                why=f"Aggregate the fine-tuned, comment-stripped {arm} seeds (needs all 3).",
+                script="scripts/report_seeds.py",
+                args=[
+                    "train=fused",
+                    f"+seeds.where={{fusion_kind: {arm}, frozen: False, strip_comments: True}}",
+                    f"+seeds.tag=finetuned_stripped_{arm}",
+                    "+seeds.output_dir=./artifacts/adr010",
                 ],
             )
         )
@@ -1031,7 +1092,7 @@ def main() -> int:
         default=None,
         metavar="GROUP",
         help="Run only these groups, in plan order (phase3, phase4, p5check, phase5, "
-        "d97check, d97, m2check, m2, m2ftcheck, m2ft, a6check, a6).",
+        "d97check, d97, m2check, m2, m2ftcheck, m2ft, a6check, a6, d97rcheck, d97r).",
     )
     parser.add_argument(
         "--until",

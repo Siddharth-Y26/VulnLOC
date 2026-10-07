@@ -97,6 +97,20 @@ def test_withholding_the_tell_lines_drops_a_unit_whose_only_flagged_line_was_one
     assert report["tell_lines_withheld"] == {"units": 1, "top_1": 0.0, "top_5": 1.0}
 
 
+def test_blank_flagged_lines_are_counted_and_can_be_withheld():
+    # Comment-stripped text: unit "gone" has one flagged line and it is blank.
+    texts = {"gone": ["a();", "", "b();"], "kept": ["c();", "d();", ""]}
+    scored = [scores("gone", [0.5, 0.1, 0.9], {2}), scores("kept", [0.2, 0.9, 0.1], {2, 3})]
+
+    report = audit.audit_run(scored, texts, tell=lost_slash, mirror=intact)
+
+    assert report["all"] == {"units": 2, "top_1": 0.5, "top_5": 1.0}
+    assert report["blank_lines_withheld"] == {"units": 1, "top_1": 1.0, "top_5": 1.0}
+    assert report["flagged_lines"] == 3
+    assert report["flagged_lines_blank"] == 2
+    assert report["units_whose_flagged_lines_are_all_blank"] == 1
+
+
 def test_the_rule_only_baselines_never_read_a_score():
     report = audit.audit_run(SCORED, TEXTS, tell=lost_slash, mirror=intact)
 
