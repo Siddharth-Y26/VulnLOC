@@ -23,6 +23,7 @@ __all__ = [
     "git_sha",
     "provenance",
     "resolve_config",
+    "run_id_text",
     "save_config",
     "strip_comments_enabled",
 ]
@@ -45,6 +46,35 @@ def strip_comments_enabled(cfg: DictConfig) -> bool:
         ``True`` only when the key is present and true.
     """
     return bool(OmegaConf.select(cfg, "representation.strip_comments"))
+
+
+def run_id_text(value: Any) -> str:
+    """A run id as the caller typed it — or a refusal if the config parser ate it.
+
+    A run id is hexadecimal, so a prefix can be all digits around a single ``e``:
+    ``920989e5`` is one of ablation A6's runs, and Hydra reads it as the float
+    ``92098900000.0``. The original text cannot be recovered from that, so the only honest
+    thing to do is say what happened.
+
+    Args:
+        value: The option's value as the config holds it.
+
+    Returns:
+        The run id or prefix.
+
+    Raises:
+        ConfigError: If no run id was given, or it arrived as a number.
+    """
+    if value is None or value == "":
+        raise ConfigError("no run id was given")
+    if not isinstance(value, str):
+        raise ConfigError(
+            "the run id was parsed as a number, not as text",
+            parsed=repr(value),
+            hint="A prefix such as 920989e5 is a float to the config parser. Pass the full "
+            "32-character run id, or more of it.",
+        )
+    return value
 
 
 def resolve_config(cfg: DictConfig) -> dict[str, Any]:

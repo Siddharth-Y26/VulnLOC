@@ -34,7 +34,7 @@ from omegaconf import DictConfig, OmegaConf
 from vulnloc.data.cache import iter_shard
 from vulnloc.representation import CodeUnit
 from vulnloc.training.tracking import start_run
-from vulnloc.utils.config import strip_comments_enabled
+from vulnloc.utils.config import run_id_text, strip_comments_enabled
 from vulnloc.utils.exceptions import ConfigError
 from vulnloc.utils.hashing import stable_sample
 from vulnloc.utils.logging import get_logger, setup_logging
@@ -209,9 +209,7 @@ def build_pack(cfg: DictConfig) -> dict[str, Any]:
         value = OmegaConf.select(cfg, f"pack.{name}")
         return default if value is None else value
 
-    requested = option("run_id", "")
-    if not requested:
-        raise ConfigError("no run to draw from", hint="Pass '+pack.run_id=<run id>'.")
+    requested = run_id_text(option("run_id", ""))
     split = str(option("split", "val"))
     if split in HELD_OUT_SPLITS and not bool(option("final", False)):
         raise ConfigError(

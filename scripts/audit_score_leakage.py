@@ -60,7 +60,7 @@ from vulnloc.data.cache import iter_shard
 from vulnloc.representation.line_map import split_lines
 from vulnloc.training.line_scores import UnitScores, load_scores
 from vulnloc.training.tracking import start_run
-from vulnloc.utils.config import strip_comments_enabled
+from vulnloc.utils.config import run_id_text, strip_comments_enabled
 from vulnloc.utils.exceptions import ConfigError
 from vulnloc.utils.logging import get_logger, setup_logging
 from vulnloc.utils.text import normalize_source_whitespace, strip_comments
@@ -309,7 +309,7 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
     variant = "_stripped" if strip else ""
     scores_dir = Path(str(option("scores_dir", f"./artifacts/phase6/scores{variant}")))
     output_dir = Path(str(option("output_dir", "./artifacts/phase6")))
-    wanted = [str(run) for run in option("runs", [])]
+    wanted = [run_id_text(run) for run in option("runs", [])]
 
     manifests = []
     for path in sorted(scores_dir.glob(f"*_{split}.manifest.json")):

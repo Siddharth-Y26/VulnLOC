@@ -68,7 +68,7 @@ from vulnloc.training.semantic_cache import (
     encoder_revision,
 )
 from vulnloc.training.tracking import start_run
-from vulnloc.utils.config import strip_comments_enabled
+from vulnloc.utils.config import run_id_text, strip_comments_enabled
 from vulnloc.utils.exceptions import ConfigError, ModelError
 from vulnloc.utils.logging import get_logger, setup_logging
 
@@ -393,7 +393,7 @@ def score(cfg: DictConfig) -> dict[str, Any]:
     )
 
     mlflow.set_tracking_uri(str(cfg.mlflow.tracking_uri))
-    run_id = resolve_run_id(str(requested), checkpoint_root)
+    run_id = resolve_run_id(run_id_text(requested), checkpoint_root)
     run = mlflow.get_run(run_id)
     refuse_unusable_run(run)
     trained_cfg = load_run_config(run_id)

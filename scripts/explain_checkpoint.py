@@ -76,7 +76,7 @@ from vulnloc.training.device import resolve_device
 from vulnloc.training.graph_datasets import load_node_vocab, load_subtoken_vocab
 from vulnloc.training.line_scores import UnitScores, load_scores
 from vulnloc.training.tracking import start_run
-from vulnloc.utils.config import strip_comments_enabled
+from vulnloc.utils.config import run_id_text, strip_comments_enabled
 from vulnloc.utils.exceptions import (
     ConfigError,
     ExplanationError,
@@ -571,7 +571,7 @@ def explain(cfg: DictConfig) -> dict[str, Any]:
 
     scoring = _load_script("score_checkpoint")
     mlflow.set_tracking_uri(str(cfg.mlflow.tracking_uri))
-    run_id = scoring.resolve_run_id(str(requested), checkpoint_root)
+    run_id = scoring.resolve_run_id(run_id_text(requested), checkpoint_root)
     run = mlflow.get_run(run_id)
     scoring.refuse_unusable_run(run)
     trained_cfg = scoring.load_run_config(run_id)

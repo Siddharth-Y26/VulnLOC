@@ -10,6 +10,7 @@ from vulnloc.utils.config import (
     git_sha,
     provenance,
     resolve_config,
+    run_id_text,
     save_config,
     strip_comments_enabled,
 )
@@ -112,3 +113,28 @@ def test_stripping_comments_changes_the_config_hash():
     stripped = {"representation": {"normalize_whitespace": True, "strip_comments": True}}
 
     assert config_hash(OmegaConf.create(base)) != config_hash(OmegaConf.create(stripped))
+
+
+# --- a run id is text, whatever the config parser thinks -------------------------------
+
+
+def test_a_run_id_prefix_that_reads_as_a_float_is_refused_with_the_reason():
+    # Happened on 2026-10-07: `+score.run_id=920989e5` arrived as 92098900000.0 and was
+    # searched for as that.
+    parsed = OmegaConf.from_dotlist(["score.run_id=920989e5"]).score.run_id
+    assert isinstance(parsed, float), "the trap this test exists for"
+
+    with pytest.raises(ConfigError, match="parsed as a number") as refusal:
+        run_id_text(parsed)
+
+    assert "full 32-character run id" in refusal.value.details["hint"]
+
+
+def test_an_ordinary_run_id_passes_through_unchanged():
+    assert run_id_text("80fc5238") == "80fc5238"
+
+
+@pytest.mark.parametrize("missing", [None, ""])
+def test_a_missing_run_id_is_refused(missing):
+    with pytest.raises(ConfigError, match="no run id"):
+        run_id_text(missing)
