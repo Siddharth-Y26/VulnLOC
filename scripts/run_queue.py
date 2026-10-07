@@ -695,6 +695,15 @@ def build_plan() -> list[Step]:
         )
     )
     d97r_arms = ("cross_attention", "llm_only", "concat")
+    # `allow_source_drift` on ONE report, and it is required: between this arm's seed 42
+    # (`0a4843c`) and seed 1 (`d5e5dda`) commit `7ea7a9c` changed
+    # `src/vulnloc/explanation/generator.py` — the explainer's list of fixed sentences. That
+    # is layer 5; training is layer 3 and the import-linter contract forbids it from
+    # importing upward, so no training run can execute that file. The seed report compares
+    # all of `src/vulnloc`, correctly refuses, and the override writes the changed file
+    # into the report's provenance instead of hiding it. The other two arms start after
+    # that commit and get no override: a change under them is still refused.
+    d97r_source_drift = {"cross_attention": ["+seeds.allow_source_drift=true"]}
     for arm in d97r_arms:
         for seed in (42, 1, 2):
             steps.append(
@@ -719,6 +728,7 @@ def build_plan() -> list[Step]:
                     f"+seeds.where={{fusion_kind: {arm}, frozen: False, strip_comments: True}}",
                     f"+seeds.tag=finetuned_stripped_{arm}",
                     "+seeds.output_dir=./artifacts/adr010",
+                    *d97r_source_drift.get(arm, []),
                 ],
             )
         )

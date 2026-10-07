@@ -2848,9 +2848,10 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   day**: six D9.7 runs took 114–211 min each.
   - `python scripts/run_queue.py --only d97rcheck d97r --status` shows where it is.
   - `python scripts/run_queue.py --stop` pauses it cleanly; `--only d97r` continues it.
-  - **While it runs or is paused: no edits to `configs/` or to anything training imports**
-    (`utils`, `data`, `representation`, `models`, `training`). `evaluation/`,
-    `explanation/`, `serving/`, `scripts/` and docs are fine, committed at once.
+  - **While it runs or is paused: no edits to `configs/` or to ANY file under
+    `src/vulnloc/`** — corrected 2026-10-07 22:10, §7 #62: the seed report compares the
+    whole package between an arm's seeds, not only what training imports. `scripts/`,
+    `tests/`, `frontend/` and docs are fine, committed at once.
   - If the owner decides against retraining (Q14), stop it and tag its runs; nothing else
     depends on it.
 - **The frozen screen was audited too (§1.25, last subsection).** Frozen `llm_only` does
@@ -2866,9 +2867,22 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   runs by itself after seed 2. Seed 1 started at 20:13. The GPU read 85–87 °C for most of
   the run: if the laptop can be given more air, give it.
 - **22:02 — the second is FINISHED:** `d97r-cross_attention-seed1`, run `8afbf7da…`,
-  109.1 min, one attempt, not resumed, clean `d5e5dda` (between `0a4843c` and `d5e5dda`
-  nothing under `configs/` or anything training imports changed — `git diff` is empty
-  there). Seed 2 started at 22:02. Still two seeds: nothing is quoted.
+  109.1 min, one attempt, not resumed, clean `d5e5dda`. Seed 2 started at 22:02. Still
+  two seeds: nothing is quoted.
+- **22:10 — this arm's seed report needs, and now has, the source-drift override.**
+  Between seed 42 (`0a4843c`) and seed 1 (`d5e5dda`) nothing under `configs/` or on
+  the training path changed, but commit `7ea7a9c` changed
+  `src/vulnloc/explanation/generator.py`, and `report_seeds.py` compares all of
+  `src/vulnloc` (§7 #62). `explanation` is layer 5; training is layer 3 and the
+  import-linter contract, checked on every commit, forbids it from importing upward
+  — so no training run can execute that file. `run_queue.py` therefore passes
+  `+seeds.allow_source_drift=true` to `d97r-seed-report-cross_attention` **only**; the
+  report lists the changed file under `provenance.src_vulnloc_drift_accepted`. **The
+  queue process that is running was started before this change and still holds the
+  old plan: its own attempt at this report will be `[FAIL]` ("runs were produced by
+  different source trees") — expected, harmless.** The report is then made by hand
+  with the new plan's exact command, and `d97r_after.ps1` re-runs the failed step
+  through the queue at the end so the slate records it `done`.
 - **Started the same evening — what happens after the nine, without a session:**
   `artifacts/queue/d97r_after.ps1` runs in its own window (transcript
   `artifacts/queue/d97r_after.out`). It waits for the queue to end; if a step is
@@ -2911,9 +2925,9 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   GPU-h). `artifacts/queue/d97r_chain.ps1` runs gate then runs. **If it is running when
   you read this, it was started by session 16 pending Q14** — `python scripts/run_queue.py
   --stop` pauses it cleanly, and `--only d97r` continues it. While it runs or is paused:
-  **no edits to `configs/` or to anything training imports** (`utils`, `data`,
-  `representation`, `models`, `training`); new code in `evaluation/`, `explanation/`,
-  `serving/` and `scripts/` is fine, committed at once.
+  **no edits to `configs/` or to ANY file under `src/vulnloc/`** (corrected 22:10, §7
+  #62 — the seed report compares the whole package); `scripts/`, `tests/`, `frontend/`
+  and docs are fine, committed at once.
 - **Do not run the held-out evaluation on the shards as they are.** When it runs, it runs
   with `+representation.strip_comments=true`, on checkpoints trained that way.
 - Still the owner's: Q14; the Phase 7 gate; the template review; scheduled optimisation of
@@ -3386,6 +3400,7 @@ Things that cost time once and should not cost time twice.
 | 59 | **A semantic-cache directory holds one cache per partition, so building a second text variant into it replaces the first.** Found 2026-10-07 before it happened: `build_semantic_cache.py +representation.strip_comments=true` would have written the stripped features over `artifacts/semantic_cache/{train,val}.pt`, the cache of record (`c99764bc…`) that every frozen run was logged against | The loss would have been loud, not silent — `SemanticFeatureCache.load` checks the digest and would refuse every frozen run — but the cache of record is reproducible only to 1.9e-6 (§7 #50), not bitwise | `write_cache` refuses to replace a partition's cache with the other text variant; evaluation-time stripping reads `<dir>_stripped`; build the stripped cache with `train.semantic_cache.dir=./artifacts/semantic_cache_stripped`. Tests in `test_semantic_cache.py`, `test_score_checkpoint.py` | ✅ Guarded 2026-10-07 |
 | 60 | **A run-id prefix can be a number to the config parser.** `+score.run_id=920989e5` — one of A6's runs — reached the script as the float `92098900000.0`. FOUND 2026-10-07: the scoring step failed on "no checkpoint directory", the chain went on, and the audit that followed reported an arm at `n=2` where three checkpoints existed | Nothing wrong was written — a run id that matches nothing is refused — but a batch script that does not stop on a non-zero exit leaves a hole, and an aggregate over two seeds looks like one over three unless `n_seeds` is read | `utils/config.py::run_id_text` refuses a run id that is not text and says why; all four scripts that take one use it. **Pass full 32-character run ids from scripts**, and read `n_seeds` in every audit before quoting it | ✅ Fixed 2026-10-07 |
 | 61 | **A run trained on comment-stripped text is "not a change of text" — so its scores defaulted into the directory of record.** `score_checkpoint.py` sent scores to `scores_stripped/` only when the text differed from training; a `d97r` checkpoint is scored on the text it was trained on, so it would have been written into `artifacts/phase6/scores/` beside the nine comment-trained D9.7 checkpoints. FOUND 2026-10-07 by reading the defaults before the first `d97r` checkpoint was scored | Nothing wrong was written. Had it been: `audit_score_leakage.py` averages every seed of an arm it finds in a directory, so `cross_attention` would have been reported at `n=6` — three models that learned the artefact and three that never saw a comment — against comment-bearing text, with no error, because stripping keeps the line count (same family as #39, #40, #49) | Three populations, three default directories: `scores/`, `scores_stripped/` (trained with comments, evaluated without), `scores_retrained/` (trained without); `explain_checkpoint.py` follows the same three. The audit refuses score files made from the text variant it is not reading, and a checkpoint trained on stripped text is its own arm, `<arm>_retrained`. **`calibrate.py` writes `calibration_report.json` wherever `calibrate.output_dir` points and replaces what is there — always name a directory for anything but the full model of record** | ✅ Fixed 2026-10-07 |
+| 62 | **"Training cannot import it" is not "safe to edit while a comparison group runs".** `report_seeds.py` compares all of `src/vulnloc` between the commits of an arm's seeds and refuses on any difference. FOUND 2026-10-07 22:08, two hours before it would have fired: commit `7ea7a9c` changed `src/vulnloc/explanation/generator.py` between `d97r` cross-attention's seed 42 (`0a4843c`) and seed 1 (`d5e5dda`), under a session rule that allowed `explanation/` edits because training does not import them | The arm's seed report would have been `[FAIL]` at midnight with nobody awake, the arm would have had no report in the morning, and the script that scores complete arms would have skipped it | `run_queue.py` passes `+seeds.allow_source_drift=true` to that one report, justified in a comment by the layer rule (L3 cannot import L5) and pinned by a test that the other two arms get no override; the changed file is written into the report's provenance — **quote it with the arm's numbers**. The rule is corrected everywhere it was written: **while a group runs, nothing under `src/vulnloc/` changes** | ✅ Fixed 2026-10-07; the running queue's own attempt at that report still fails once (it holds the old plan) |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**

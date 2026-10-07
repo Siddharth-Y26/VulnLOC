@@ -628,6 +628,17 @@ def test_the_two_sets_of_fine_tuned_seed_reports_cannot_read_each_others_runs():
         assert "+seeds.output_dir=./artifacts/adr010" in new.args
 
 
+def test_only_the_arm_that_crossed_an_explainer_commit_accepts_source_drift():
+    """One arm's seeds straddle a change to `explanation/`; the other two must still refuse."""
+    drift = "+seeds.allow_source_drift=true"
+    accepts = {
+        arm: drift in next(s for s in _group("d97r") if s.name == f"d97r-seed-report-{arm}").args
+        for arm in ("cross_attention", "llm_only", "concat")
+    }
+
+    assert accepts == {"cross_attention": True, "llm_only": False, "concat": False}
+
+
 # --- a1r: the frozen A1 screen again on comment-stripped text (Memory.md §1.25) ----------
 
 STRIPPED_CACHE = "train.semantic_cache.dir=./artifacts/semantic_cache_stripped"
