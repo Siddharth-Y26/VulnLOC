@@ -1,8 +1,8 @@
 """Explainer registry (``docs/Architecture.md`` §9, extension point 5).
 
-Phase 0 note:
-    Empty by design. Populated in Phase 7 with the template explainer (7a) and the
-    constrained generative explainer (7b).
+Holds ``template`` — the deterministic template explainer of Phase 7a
+(``explanation/generator.py``). The constrained generative explainer (7b) is deferred in
+writing (``docs/Phases.md``) and has no key.
 """
 
 from __future__ import annotations

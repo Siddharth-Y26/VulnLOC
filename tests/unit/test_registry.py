@@ -36,7 +36,6 @@ ALL_REGISTRIES = [
 # an entry appearing in one of these is a real failure, not a stale test. Move a
 # registry out of this list only when its phase legitimately lands.
 UNPOPULATED_REGISTRIES = [
-    EXPLAINER_REGISTRY,  # Phase 7
     METRIC_REGISTRY,  # Phase 8
 ]
 
@@ -172,6 +171,13 @@ def test_fusion_registry_holds_exactly_the_strategies_that_exist():
         "llm_only",
         "sum",
     ]
+
+
+def test_explainer_registry_holds_exactly_the_explainers_that_exist():
+    # Phase 7a. One deterministic template explainer. The generative variant (7b) is
+    # deferred in writing; a `generative` key here would make an explainer selectable
+    # against code that does not exist — and against a verifier it has never passed.
+    assert EXPLAINER_REGISTRY.keys() == ["template"]
 
 
 def test_head_registry_holds_exactly_the_heads_that_exist():

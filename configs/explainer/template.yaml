@@ -1,0 +1,34 @@
+# Phase 7a: the deterministic template explainer (`src/vulnloc/explanation/generator.py`).
+#
+# Select it with `+explainer=template` — with the leading `+`, like `+fusion=` and `+gnn=`.
+# The group is deliberately NOT in `config.yaml`'s `defaults`: adding one there changes
+# every run's `config_hash` (CLAUDE.md landmine #38).
+#
+# Nothing here is tuned against a metric. These are limits on how much one explanation
+# carries, chosen for a reader; none of them changes which lines are flagged.
+name: template
+
+args:
+  # Attended lines the explanation text names. More than a few and the sentence stops
+  # being readable; the full ranked list stays in the evidence either way.
+  max_context_lines: 2
+
+evidence:
+  # Attended lines kept per attention direction (sem_from_str, str_from_sem), heaviest
+  # first, the flagged line itself excluded.
+  top_k_attended: 3
+
+  # Attended lines below this head-averaged weight are dropped. 0.0 keeps every line that
+  # received any weight; an attention row sums to 1 over the lines the other branch covers.
+  min_attention_weight: 0.0
+
+  # Longest definition-to-use chain followed back from the flagged line, in edges. The
+  # data-flow graph is name-based (Memory.md §7 #19): a longer chain compounds its
+  # over-approximation.
+  max_dataflow_hops: 2
+
+  # AST nodes on the flagged line reported as `graph_nodes`.
+  max_graph_nodes: 5
+
+  # Identifiers reported as `attention_top_tokens`.
+  max_tokens: 6
