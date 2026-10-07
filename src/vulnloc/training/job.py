@@ -35,6 +35,7 @@ import torch
 from mlflow.tracking import MlflowClient
 from omegaconf import DictConfig, OmegaConf
 
+from vulnloc.training.device import accelerator_info
 from vulnloc.training.loop import (
     PAUSED_EXIT_CODE,
     EarlyStopping,
@@ -236,6 +237,11 @@ def run_training(
                     # replicates that differ in nothing; comparing this compares what
                     # happened.
                     "resolved_device": str(device),
+                    # Which card, because "cuda:0" is every card: two laptops' seeds were
+                    # indistinguishable to the seed report (Memory.md §7 #49). A parameter
+                    # and not a tag, so runs from two GPUs are refused as replicates; runs
+                    # logged before it existed stay comparable (§7 #40).
+                    "resolved_gpu": str(accelerator_info(device).get("gpu_name", "none")),
                     **dict(extra_params or {}),
                 }
             )

@@ -30,6 +30,7 @@ import importlib.util
 import json
 import platform
 import shutil
+import sqlite3
 import subprocess
 import sys
 from datetime import datetime
@@ -114,6 +115,43 @@ def _metrics(summary_path: Path) -> dict[str, float]:
     return {short: float(best[key]) for short, key in HEADLINE.items() if key in best}
 
 
+def last_epoch_top1(store: Path, run_id: str) -> float | None:
+    """A run's Top-1 at its **final** evaluated epoch, read from the tracking store.
+
+    ``summary.json`` holds the *selected* epoch, and for an overfit gate that is the wrong
+    one to read: selection follows Top-5, which saturates first, so a GGNN gate that reached
+    Top-1 = 1.0000 at epoch 33 and held it to epoch 150 was exported as 0.9032
+    (``Memory.md`` §1.23). The gate's question is where the run *ended*.
+
+    Args:
+        store: The machine's MLflow SQLite store.
+        run_id: The run.
+
+    Returns:
+        The last logged ``eval/line/top_1_accuracy``, or ``None`` when the store cannot
+        answer — the table then shows a dash, never a guess.
+    """
+    if not store.is_file():
+        return None
+    try:
+        connection = sqlite3.connect(f"{store.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            row = connection.execute(
+                "select value from metrics where run_uuid = ? and key = ? "
+                "order by step desc, timestamp desc limit 1",
+                (run_id, "eval/line/top_1_accuracy"),
+            ).fetchone()
+        finally:
+            connection.close()
+    except sqlite3.Error as error:
+        print(
+            f"  warning: {store.name} could not be read for run {run_id[:8]}: {error}",
+            file=sys.stderr,
+        )
+        return None
+    return float(row[0]) if row else None
+
+
 def export(
     groups: list[str],
     out: Path,
@@ -174,6 +212,9 @@ def export(
         if run_id:
             summary = checkpoints / run_id / "summary.json"
             entry.update(_metrics(summary))
+            final_top1 = last_epoch_top1(repo / "artifacts" / "mlflow.db", run_id)
+            if final_top1 is not None:
+                entry["top1_last"] = final_top1
             if summary.is_file():
                 target = folder / "runs" / run_id
                 target.mkdir(parents=True, exist_ok=True)
@@ -238,14 +279,18 @@ def _table(manifest: dict[str, Any]) -> str:
         "",
         f"> {manifest['note']}",
         "",
-        "| Step | Status | Run | Min | Attempts | Top-5 | Top-1 | Line F1 | IFA |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "> Top-5, Top-1, Line F1 and IFA are each run's **selected** epoch. **For an overfit "
+        "gate read `Top-1 last`** — the final epoch — which is what the gate asks about.",
+        "",
+        "| Step | Status | Run | Min | Attempts | Top-5 | Top-1 | Top-1 last | Line F1 | IFA |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for step in manifest["steps"]:
         lines.append(
             f"| {step['name']} | {step['status']} | {(step['run_id'] or '—')[:8]} | "
             f"{cell(step['minutes'], 1)} | {step['attempts']} | {cell(step.get('top5'))} | "
-            f"{cell(step.get('top1'))} | {cell(step.get('line_f1'))} | {cell(step.get('ifa'), 2)} |"
+            f"{cell(step.get('top1'))} | {cell(step.get('top1_last'))} | "
+            f"{cell(step.get('line_f1'))} | {cell(step.get('ifa'), 2)} |"
         )
     return "\n".join(lines) + "\n"
 

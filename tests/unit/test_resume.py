@@ -200,6 +200,66 @@ def test_a_checkpoint_is_renamed_into_place_not_written_in_place(tmp_path):
     assert not (tmp_path / "last.pt.tmp").exists()
 
 
+def _refuse_renames(monkeypatch, times):
+    """Make ``Path.replace`` raise the Windows sharing violation ``times`` times, then work.
+
+    Returns:
+        ``(attempts, waits)`` — lists filled as the code under test calls and sleeps.
+    """
+    from pathlib import Path
+
+    from vulnloc.training import loop
+
+    real_replace = Path.replace
+    attempts: list[str] = []
+    waits: list[float] = []
+
+    def replace(self, target):
+        attempts.append(Path(target).name)
+        if len(attempts) <= times:
+            raise PermissionError(5, "Access is denied", str(self), 5, str(target))
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace)
+    monkeypatch.setattr(loop.time, "sleep", waits.append)
+    return attempts, waits
+
+
+def test_a_locked_checkpoint_is_waited_for_not_died_on(tmp_path, monkeypatch):
+    """§7 #56: a scanner holding last.pt for a moment cost a run two hours in."""
+    trainer = _trainer(tmp_path, TinyModel())
+    trainer.save_checkpoint(tmp_path / "last.pt", {})
+    attempts, waits = _refuse_renames(monkeypatch, times=3)
+
+    trainer.state.global_step = 7
+    trainer.save_last("periodic")
+
+    payload = torch.load(tmp_path / "last.pt", map_location="cpu", weights_only=False)
+    assert payload["state"]["global_step"] == 7
+    assert len(attempts) == 4
+    assert waits == [1.0, 2.0, 4.0]
+    assert not (tmp_path / "last.pt.tmp").exists()
+
+
+def test_a_checkpoint_locked_for_good_still_fails_and_keeps_the_previous_one(tmp_path, monkeypatch):
+    """Waiting is bounded, and what it gives up on is the new file, never the old one."""
+    from vulnloc.training import loop
+
+    trainer = _trainer(tmp_path, TinyModel())
+    trainer.state.global_step = 3
+    trainer.save_checkpoint(tmp_path / "last.pt", {})
+    attempts, waits = _refuse_renames(monkeypatch, times=10_000)
+
+    trainer.state.global_step = 9
+    with pytest.raises(PermissionError):
+        trainer.save_last("periodic")
+
+    assert len(attempts) == len(loop._RENAME_RETRY_DELAYS_S) + 1
+    assert waits == list(loop._RENAME_RETRY_DELAYS_S)
+    payload = torch.load(tmp_path / "last.pt", map_location="cpu", weights_only=False)
+    assert payload["state"]["global_step"] == 3
+
+
 def test_the_rolling_checkpoint_carries_the_callers_provenance(tmp_path):
     trainer = _trainer(tmp_path, TinyModel())
     trainer.provenance = {"run_id": "abc", "seed": 7}
@@ -354,6 +414,53 @@ def test_a_resumed_job_is_the_same_run_with_the_same_result(job_cfg, tmp_path, m
     assert run.info.status == "FINISHED"
     assert run.data.tags["resumed_at"].startswith("epoch=2,batch=2,")
     assert run.data.params["train.resume_from"] == ""
+
+
+def test_a_run_records_which_card_it_ran_on(job_cfg, tmp_path, monkeypatch):
+    """§7 #49: "cuda:0" is every card, so two laptops' seeds would have been averaged."""
+    _scripted_evaluate(monkeypatch)
+
+    summary = _run(job_cfg, TinyModel(), FakeLoader())
+
+    params = mlflow.get_run(summary["run_id"]).data.params
+    assert params["resolved_device"] == "cpu"
+    assert params["resolved_gpu"] == "none"
+
+
+def test_runs_from_two_cards_are_not_replicates():
+    """The guard this parameter exists for, exercised through the seed report's own check."""
+    import importlib.util
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    script = Path(__file__).resolve().parents[2] / "scripts" / "report_seeds.py"
+    spec = importlib.util.spec_from_file_location("vulnloc_scripts_report_seeds_gpu", script)
+    assert spec is not None and spec.loader is not None
+    report_seeds = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = report_seeds
+    spec.loader.exec_module(report_seeds)
+
+    def run(run_id, seed, gpu):
+        return SimpleNamespace(
+            info=SimpleNamespace(run_id=run_id, start_time=0, end_time=1),
+            data=SimpleNamespace(
+                params={
+                    "seed": str(seed),
+                    "normalize_whitespace": "True",
+                    "train.name": "fused",
+                    "resolved_device": "cuda:0",
+                    "resolved_gpu": gpu,
+                },
+                tags={"config_hash": "c", "git_sha": "abc1234"},
+            ),
+        )
+
+    first = run("a" * 32, 42, "NVIDIA GeForce RTX 3050 Ti Laptop GPU")
+    second = run("b" * 32, 1, "NVIDIA GeForce RTX 4050 Laptop GPU")
+
+    with pytest.raises(ConfigError, match="do not share a configuration"):
+        report_seeds._check_comparable([first, second])
 
 
 def test_a_paused_run_is_not_finished(job_cfg, tmp_path, monkeypatch):

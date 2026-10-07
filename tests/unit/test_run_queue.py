@@ -280,6 +280,110 @@ def test_a_first_attempt_gets_no_resume_argument(queue, tmp_path):
     assert (tmp_path / "fake_step.argv").read_text(encoding="utf-8") == ""
 
 
+# --- a crash is the machine's until proven otherwise (Memory.md §7 #56, #57) ------------
+
+CRASH_THEN_SUCCEED = """
+import sys
+from pathlib import Path
+counter = Path(sys.argv[0]).with_suffix(".attempts")
+attempt = int(counter.read_text()) + 1 if counter.exists() else 1
+counter.write_text(str(attempt))
+if {announce}:
+    print("Checkpoint written path=artifacts/checkpoints/{run_id}/last.pt", flush=True)
+resumed = any(argument.startswith("train.resume_from=") for argument in sys.argv[1:])
+sys.exit(0 if resumed and attempt >= {succeed_on} else 1)
+"""
+
+
+def _crashing_step(tmp_path, *, succeed_on, announce=True, resumable=True):
+    body = CRASH_THEN_SUCCEED.format(run_id=RUN_ID, succeed_on=succeed_on, announce=announce)
+    return _step(tmp_path, body, resumable=resumable)
+
+
+def _attempts(tmp_path) -> int:
+    return int((tmp_path / "fake_step.attempts").read_text())
+
+
+def test_a_run_that_crashed_after_a_checkpoint_is_continued_not_abandoned(queue, tmp_path):
+    """Both overnight crashes were survivable; the queue walked past both."""
+    _leave_checkpoint(tmp_path)
+    state: dict[str, Any] = {"steps": {}}
+
+    outcome = queue.run_with_retries(_crashing_step(tmp_path, succeed_on=2), state, retries=2)
+
+    assert outcome == "done"
+    assert _attempts(tmp_path) == 2
+    assert state["steps"]["fake"]["attempts"] == 2
+    assert state["steps"]["fake"]["run_id"] == RUN_ID
+
+
+def test_retries_are_bounded(queue, tmp_path):
+    """A run that dies three times running is saying something a fourth would not."""
+    _leave_checkpoint(tmp_path)
+    state: dict[str, Any] = {"steps": {}}
+
+    outcome = queue.run_with_retries(_crashing_step(tmp_path, succeed_on=99), state, retries=2)
+
+    assert outcome == "failed"
+    assert _attempts(tmp_path) == 3
+    assert state["steps"]["fake"]["status"] == "failed"
+
+
+def test_a_run_that_died_before_its_first_checkpoint_is_not_retried(queue, tmp_path):
+    """Nothing to continue from: a second start would meet whatever killed the first."""
+    state: dict[str, Any] = {"steps": {}}
+
+    outcome = queue.run_with_retries(
+        _crashing_step(tmp_path, succeed_on=2, announce=False), state, retries=2
+    )
+
+    assert outcome == "failed"
+    assert _attempts(tmp_path) == 1
+
+
+def test_a_step_that_cannot_resume_is_not_retried(queue, tmp_path):
+    _leave_checkpoint(tmp_path)
+    state: dict[str, Any] = {"steps": {}}
+
+    outcome = queue.run_with_retries(
+        _crashing_step(tmp_path, succeed_on=2, resumable=False), state, retries=2
+    )
+
+    assert outcome == "failed"
+    assert _attempts(tmp_path) == 1
+
+
+def test_a_stop_request_ends_the_retries(queue, tmp_path):
+    """Someone who asked the queue to stop does not want a crashed run restarted."""
+    _leave_checkpoint(tmp_path)
+    queue.QUEUE_DIR.mkdir(parents=True)
+    state: dict[str, Any] = {"steps": {}}
+    step = _crashing_step(tmp_path, succeed_on=2)
+    real_run_step = queue.run_step
+
+    def run_then_stop(*args, **kwargs):
+        outcome = real_run_step(*args, **kwargs)
+        queue.STOP_PATH.write_text("stop", encoding="utf-8")
+        return outcome
+
+    queue.run_step = run_then_stop
+    try:
+        outcome = queue.run_with_retries(step, state, retries=2)
+    finally:
+        queue.run_step = real_run_step
+
+    assert outcome == "failed"
+    assert _attempts(tmp_path) == 1
+
+
+def test_every_seed_report_in_the_slate_fails_when_a_seed_is_missing():
+    """`d97-seed-report-llm_only` was recorded done on one seed of three."""
+    reports = [s for s in run_queue.build_plan() if s.script == run_queue.SEED_REPORT_SCRIPT]
+
+    assert len(reports) >= 6
+    assert all(run_queue.REQUIRE_SUFFICIENT in step.args for step in reports)
+
+
 def test_status_reports_a_finished_runs_result(queue, tmp_path):
     summary = tmp_path / "checkpoints" / RUN_ID / "summary.json"
     summary.parent.mkdir(parents=True)

@@ -125,6 +125,47 @@ def test_a_finished_run_carries_its_summary_and_headline_metrics(machine, tmp_pa
     assert "top5" not in pending
 
 
+def _real_store(repo: Path, history: list[tuple[int, float]]) -> None:
+    """Replace the fixture's placeholder store with a SQLite one holding a Top-1 curve."""
+    import sqlite3
+
+    store = repo / "artifacts" / "mlflow.db"
+    store.unlink()
+    connection = sqlite3.connect(store)
+    connection.execute(
+        "create table metrics "
+        "(key text, value real, timestamp integer, run_uuid text, step integer)"
+    )
+    connection.executemany(
+        "insert into metrics values ('eval/line/top_1_accuracy', ?, ?, ?, ?)",
+        [(value, step, RUN_ID, step) for step, value in history],
+    )
+    connection.commit()
+    connection.close()
+
+
+def test_an_overfit_gate_is_exported_with_the_epoch_it_ended_on(machine, tmp_path):
+    """Memory.md §1.23: a gate that ended at 1.0000 was exported as its selected 0.9032."""
+    _real_store(machine[0], [(0, 0.2), (33, 1.0), (149, 1.0)])
+
+    folder = _export(machine, tmp_path / "out")
+    finished = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))["steps"][0]
+    table = (folder / "RESULTS.md").read_text(encoding="utf-8")
+
+    assert finished["top1"] == pytest.approx(0.35)
+    assert finished["top1_last"] == pytest.approx(1.0)
+    assert "Top-1 last" in table
+    assert "| 0.3500 | 1.0000 |" in table
+
+
+def test_a_store_that_cannot_be_read_leaves_a_dash_not_a_number(machine, tmp_path, capsys):
+    folder = _export(machine, tmp_path / "out")
+    finished = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))["steps"][0]
+
+    assert "top1_last" not in finished
+    assert "could not be read" in capsys.readouterr().err
+
+
 def test_checkpoints_travel_only_when_asked_for(machine, tmp_path):
     without = _export(machine, tmp_path / "a")
     with_them = _export(machine, tmp_path / "b", with_checkpoints=True)

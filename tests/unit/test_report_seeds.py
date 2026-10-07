@@ -328,6 +328,28 @@ def test_a_metric_no_run_logged_is_absent_rather_than_zero() -> None:
     assert report_seeds._aggregate([{"eval/line/f1": 0.38}], "eval/line/ifa_mean") is None
 
 
+# --- an under-seeded report is written, but it is not a success -------------------
+
+
+def test_an_under_seeded_report_fails_the_step_that_asked_for_enough() -> None:
+    """Memory.md §7 #56: a queue recorded "seed report: done" on one seed of three."""
+    report = {"sufficient_for_phase_3": False, "n_seeds": 1, "min_seeds": 3}
+    with pytest.raises(ConfigError, match="fewer seeds than seeds.min_seeds"):
+        report_seeds.ensure_sufficient(report, required=True)
+
+
+def test_an_under_seeded_report_is_still_allowed_while_a_sweep_is_in_flight() -> None:
+    """By hand, mid-sweep, a two-seed report is the point — it only must not be asked for."""
+    report = {"sufficient_for_phase_3": False, "n_seeds": 2, "min_seeds": 3}
+    report_seeds.ensure_sufficient(report, required=False)
+
+
+def test_a_full_report_passes_either_way() -> None:
+    report = {"sufficient_for_phase_3": True, "n_seeds": 3, "min_seeds": 3}
+    report_seeds.ensure_sufficient(report, required=True)
+    report_seeds.ensure_sufficient(report, required=False)
+
+
 # --- what the report must always carry --------------------------------------------
 
 

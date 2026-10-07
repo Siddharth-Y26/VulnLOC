@@ -57,6 +57,7 @@ __all__ = [
     "TrainState",
     "Trainer",
     "TrainingPaused",
+    "cache_release_reason",
     "evaluate",
 ]
 
@@ -72,6 +73,84 @@ and whether the laptop is needed at eight in the morning is not part of an exper
 
 PAUSED_EXIT_CODE = 75
 """Exit status of a run that paused on request (``EX_TEMPFAIL``): not done, not broken."""
+
+_RENAME_RETRY_DELAYS_S = (1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 30.0, 30.0)
+"""Waits between attempts to rename a checkpoint into place — about two minutes in all.
+
+Sized to the one lock that has been measured (``Memory.md`` §7 #56): something else holding a
+1.4 GB ``last.pt`` on a hard disk that was writing 20 MB/s at the time.
+"""
+
+_MIN_DRIVER_FREE_BYTES = 32 * 1024**2
+"""Below this much driver-reported free VRAM, the next allocation is paid for in host RAM."""
+
+_MIN_RELEASABLE_CACHE_BYTES = 64 * 1024**2
+"""Less cached-but-unused memory than this is not worth a release: nothing would come back."""
+
+
+def _replace_with_retry(partial: Path, path: Path) -> None:
+    """Rename ``partial`` over ``path``, waiting out a lock someone else holds on ``path``.
+
+    On Windows a rename onto a file another process has open raises ``PermissionError``,
+    and a 1.4 GB checkpoint written every hundred steps is exactly what a defragmenter or
+    a virus scanner opens. Two hours into a run that is a reason to wait, not to die
+    (``Memory.md`` §7 #56). The previous ``path`` stays intact throughout.
+
+    Args:
+        partial: The fully written temporary file.
+        path: The destination it replaces.
+
+    Raises:
+        PermissionError: If ``path`` is still locked after every wait.
+    """
+    for attempt, delay in enumerate((*_RENAME_RETRY_DELAYS_S, None), start=1):
+        try:
+            partial.replace(path)
+        except PermissionError as error:
+            if delay is None:
+                raise
+            _LOGGER.warning(
+                "Checkpoint rename refused; another process holds the target. Retrying",
+                extra={
+                    "path": str(path),
+                    "attempt": attempt,
+                    "retry_in_s": delay,
+                    "error": str(error),
+                },
+            )
+            time.sleep(delay)
+        else:
+            return
+
+
+def cache_release_reason(*, reserved: int, allocated: int, driver_free: int, total: int) -> str:
+    """Why the allocator's cache should go back to the driver now — or ``""`` if it should not.
+
+    Two conditions, because the first alone was measured to miss most of the damage
+    (``Memory.md`` §7 #57, ``scripts/probe_vram_spill.py``). On this project's 4 GiB card
+    under Windows a process starts paging to host RAM once its pool passes the dedicated
+    budget the driver grants it, which is well short of the card's total and is not a
+    constant: two probes forty minutes apart put it at 3,520 and 3,780 MiB reserved. A pool
+    between there and 4,096 MiB spilled hundreds of MiB while "reserved exceeds the card"
+    stayed false. The driver reported no free memory from about 3,290 MiB in both probes —
+    earlier than the spill, never later — which is the signal used here: it moves with
+    whatever else is on the card, where a threshold written down would not.
+
+    Args:
+        reserved: Bytes PyTorch holds from the driver (allocated plus cache).
+        allocated: Bytes in live tensors.
+        driver_free: Free bytes as the driver reports them (``torch.cuda.mem_get_info``).
+        total: The card's physical memory in bytes.
+
+    Returns:
+        ``"reserved_over_total"``, ``"driver_out_of_free_memory"`` or ``""``.
+    """
+    if reserved > total:
+        return "reserved_over_total"
+    cache = reserved - allocated
+    if driver_free < _MIN_DRIVER_FREE_BYTES and cache >= _MIN_RELEASABLE_CACHE_BYTES:
+        return "driver_out_of_free_memory"
+    return ""
 
 
 class TrainingPaused(Exception):  # noqa: N818 - a request honoured, not an error
@@ -319,28 +398,36 @@ class Trainer:
             )
 
     def _release_cache_if_spilling(self) -> None:
-        """Hand cached blocks back to the driver once PyTorch holds more than the card has.
+        """Hand cached blocks back to the driver before PyTorch's pool pages to host RAM.
 
         ``_check_memory`` looks once, at the first step, at what is *allocated*. What pages
         to host RAM on Windows is what is *reserved* — allocated plus the allocator's cache
         — and that grows later: after the one oversized unit an epoch contains
-        (``Memory.md`` §1.17), or after a checkpoint is loaded. Releasing the cache costs
-        a few re-allocations and changes no number; not releasing it costs every later
-        step, silently.
+        (``Memory.md`` §1.17), or after a checkpoint is loaded. Releasing the cache changes
+        no number and was measured at under 90 ms for a 3 GiB pool; not releasing it cost
+        one run 536 s per hundred steps against a median of 150 (``Memory.md`` §7 #57).
         """
         if self.device.type != "cuda":
             return
         total = torch.cuda.get_device_properties(self.device).total_memory
         reserved = torch.cuda.memory_reserved(self.device)
-        if reserved <= total:
+        allocated = torch.cuda.memory_allocated(self.device)
+        driver_free, _ = torch.cuda.mem_get_info(self.device)
+        reason = cache_release_reason(
+            reserved=reserved, allocated=allocated, driver_free=driver_free, total=total
+        )
+        if not reason:
             return
         torch.cuda.empty_cache()
         self._cache_releases += 1
         if self._cache_releases == 1 or self._cache_releases % 50 == 0:
             _LOGGER.warning(
-                "Reserved VRAM exceeded the card; cache released",
+                "VRAM pool at the card's limit; cache released",
                 extra={
+                    "reason": reason,
                     "reserved_mib": round(reserved / 1024**2, 1),
+                    "allocated_mib": round(allocated / 1024**2, 1),
+                    "driver_free_mib": round(driver_free / 1024**2, 1),
                     "total_mib": round(total / 1024**2, 1),
                     "releases_so_far": self._cache_releases,
                     "global_step": self.state.global_step,
@@ -501,7 +588,7 @@ class Trainer:
             },
             partial,
         )
-        partial.replace(path)
+        _replace_with_retry(partial, path)
         _LOGGER.info("Checkpoint written", extra={"path": str(path), **dict(provenance)})
 
     def load_checkpoint(self, path: Path, *, weights_only: bool = False) -> dict[str, Any]:

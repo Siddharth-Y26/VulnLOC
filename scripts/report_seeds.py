@@ -28,7 +28,9 @@ warning:
   into the report, because an override that leaves no trace in the artefact is not one.
 * **Enough seeds.** Below ``min_seeds`` the report is still written, because it is useful
   while a sweep is in flight, but it is stamped ``sufficient_for_phase_3: false`` and says
-  so in its own warning field.
+  so in its own warning field. ``+seeds.require_sufficient=true`` — which the queue passes
+  — then also exits non-zero, so an unattended slate cannot record "seed report: done" over
+  an arm that lost a seed (``Memory.md`` §7 #56: one did, at one seed of three).
 
 The per-run numbers come from MLflow's metric history at the **best** step, located with
 the run's own ``watch_metric`` / ``watch_mode`` rather than a hardcoded key, and they are
@@ -702,6 +704,28 @@ def report_filename(train_name: str, tag: str | None) -> str:
     return f"seed_report_{train_name}_{tag}.json" if tag else f"seed_report_{train_name}.json"
 
 
+def ensure_sufficient(report: dict[str, Any], *, required: bool) -> None:
+    """Refuse to call an under-seeded report a success, when the caller asked for that.
+
+    The report is already on disk and already says ``sufficient_for_phase_3: false``; this
+    decides only the exit status, which is all an unattended queue reads.
+
+    Args:
+        report: What :func:`build` returned.
+        required: ``seeds.require_sufficient``.
+
+    Raises:
+        ConfigError: If ``required`` and the report holds fewer runs than ``min_seeds``.
+    """
+    if required and not report["sufficient_for_phase_3"]:
+        raise ConfigError(
+            "the seed report was written, but it holds fewer seeds than seeds.min_seeds",
+            n_seeds=report["n_seeds"],
+            min_seeds=report["min_seeds"],
+            hint="Finish the missing seed (run_queue.py --retry-failed), then re-run this report.",
+        )
+
+
 @hydra.main(version_base="1.3", config_path="../configs", config_name="config")
 def main(cfg: DictConfig) -> None:
     """Hydra entrypoint.
@@ -709,7 +733,8 @@ def main(cfg: DictConfig) -> None:
     Args:
         cfg: Config composed from ``configs/config.yaml`` plus CLI overrides.
     """
-    build(cfg)
+    report = build(cfg)
+    ensure_sufficient(report, required=bool(OmegaConf.select(cfg, "seeds.require_sufficient")))
 
 
 if __name__ == "__main__":

@@ -7,7 +7,9 @@ Three properties matter more than anything clever here:
 
 **A failure must not end the night.** Every step is isolated in a subprocess; a step that
 raises is recorded with its exit code and its log path, and the queue moves to the next
-one. Losing one run to a bad config is a bad hour. Losing seven to it is a bad night.
+one. Losing one run to a bad config is a bad hour. Losing seven to it is a bad night. A
+run that crashed *after* writing a checkpoint is first continued from it (``--retries``,
+twice by default): both crashes this slate has had were the machine's, not the run's.
 
 **Re-running must be safe.** Completed steps are skipped, so an interrupted queue is
 restarted with the same command rather than a hand-edited one. State lives in
@@ -64,6 +66,17 @@ STOP_FILE_ENV = "VULNLOC_STOP_FILE"
 PAUSED_EXIT_CODE = 75
 
 POLL_SECONDS = 15.0
+
+SEED_REPORT_SCRIPT = "scripts/report_seeds.py"
+REQUIRE_SUFFICIENT = "+seeds.require_sufficient=true"
+
+DEFAULT_RETRIES = 2
+"""How often a crashed step is continued from its checkpoint before the queue moves on.
+
+Two, because both crashes this slate has seen were the machine's and not the run's — a
+file lock and a GPU driver fault, each gone on the next start (``Memory.md`` §7 #56, #57) —
+while a run that dies three times in a row is telling you something a fourth would not.
+"""
 
 PYTHON = str(Path(sys.executable))
 
@@ -578,6 +591,14 @@ def build_plan() -> list[Step]:
             )
         )
 
+    # Every seed report in the slate must fail, not pass, when a seed is missing. Without
+    # this the report after a crashed run is written on the seeds that survived, exits 0
+    # and is recorded `done` — and is then never run again once the missing seed finishes
+    # (Memory.md §7 #56: `d97-seed-report-llm_only` did exactly that, on one seed of three).
+    for step in steps:
+        if step.script == SEED_REPORT_SCRIPT and REQUIRE_SUFFICIENT not in step.args:
+            step.args.append(REQUIRE_SUFFICIENT)
+
     return steps
 
 
@@ -881,6 +902,38 @@ def run_step(step: Step, state: dict[str, Any], deadline: datetime | None = None
     return "paused" if status == "interrupted" else status
 
 
+def run_with_retries(
+    step: Step, state: dict[str, Any], deadline: datetime | None = None, *, retries: int = 0
+) -> str:
+    """Run a step, and continue it from its checkpoint if it crashes.
+
+    Only a crash that left a ``last.pt`` is retried: that is a run which was training and
+    stopped, and continuing it loses at most the steps since the checkpoint. A step that
+    dies before its first checkpoint, or one that cannot resume at all, failed on something
+    a second start would meet again, so it is left ``failed`` for a person to read.
+
+    Args:
+        step: The step.
+        state: Queue state, updated in place and saved.
+        deadline: Local time at which a resumable step is asked to pause.
+        retries: How many times to continue a crashed step before giving up on it.
+
+    Returns:
+        ``"done"``, ``"paused"`` or ``"failed"`` — the last attempt's outcome.
+    """
+    outcome = run_step(step, state, deadline)
+    for retry in range(1, retries + 1):
+        if outcome != "failed" or STOP_PATH.exists():
+            break
+        if deadline is not None and datetime.now() >= deadline:
+            break
+        if resume_checkpoint(step, state["steps"].get(step.name, {})) is None:
+            break
+        print(f"    crashed; continuing from its checkpoint ({retry} of {retries})", flush=True)
+        outcome = run_step(step, state, deadline)
+    return outcome
+
+
 def request_stop(reason: str) -> None:
     """Ask the running step to pause and the queue to start nothing further.
 
@@ -926,6 +979,14 @@ def main() -> int:
         "--retry-failed",
         action="store_true",
         help="Also re-run steps that previously failed.",
+    )
+    parser.add_argument(
+        "--retries",
+        type=int,
+        default=DEFAULT_RETRIES,
+        metavar="N",
+        help="Continue a step that crashed after writing a checkpoint up to N times "
+        f"before moving on (default {DEFAULT_RETRIES}; 0 turns it off).",
     )
     args = parser.parse_args()
 
@@ -993,7 +1054,7 @@ def main() -> int:
                     stopped = True
                     break
                 attempted.add(step.name)
-                outcome = run_step(step, state, deadline)
+                outcome = run_with_retries(step, state, deadline, retries=max(args.retries, 0))
                 failures += outcome == "failed"
                 state = load_state()
                 if outcome == "paused":
