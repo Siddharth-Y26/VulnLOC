@@ -202,7 +202,7 @@ The hyperparameter sweep is frozen-encoder only.
 - [x] Line scores calibrated (reliability curve reported)
   - *2026-10-07:* Platt scaling per checkpoint, fitted on `val`; ECE 0.1704 ± 0.0330 →
     0.0137 ± 0.0104 out of fold, 3 seeds. The curve is in
-    `artifacts/phase6/calibration_report.json` (run `e93ad84f…`) and `Memory.md` §1.24 —
+    `artifacts/phase6/calibration_report.json` (run `569c9701…`) and `Memory.md` §1.24 —
     including where it still fails: above p = 0.8 the observed rate is 0.67–0.81.
 - [x] Threshold chosen on validation only
   - *2026-10-07:* maximum line F1 on calibrated `val` probabilities, per checkpoint

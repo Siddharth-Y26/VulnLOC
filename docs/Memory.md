@@ -1490,13 +1490,19 @@ D9.7's configuration — runs `80fc5238` / `c193e3bc` / `829c3555`, seeds 42 / 1
 
 **How the numbers were made.** `scripts/score_checkpoint.py` rebuilds each run's model from
 the config the run archived at its start, loads `best.pt`, scores `val` and keeps every
-line's logit (`artifacts/phase6/scores/<run>_val.npz`; score runs `be9d2979…`, `81003ffa…`,
-`20723b0c…`). **All three re-scorings reproduce their run's logged best-epoch metrics**
-on eight keys within 1e-4 — Top-1, Top-5, IFA, line P/R/F1, scored units, coverage — and
-the script writes nothing when they do not. `scripts/calibrate.py` then works from those
-files alone (calibration run `e93ad84f…`; `artifacts/phase6/calibration_report.json`).
-**`test` and `clean_eval` were not touched**: both scripts refuse them without an explicit
-flag (`Rules.md` §5.3).
+line's logit (`artifacts/phase6/scores/<run>_val.npz`; score runs `06c04755…`, `5d3a6ad9…`,
+`a593b1be…`). **All nine D9.7 checkpoints were re-scored and every one reproduces its
+run's logged best-epoch metrics** on eight keys within 1e-4 — Top-1, Top-5, IFA, line
+P/R/F1, scored units, coverage — and the script writes nothing when they do not.
+`scripts/calibrate.py` then works from those files alone (calibration run `569c9701…`;
+`artifacts/phase6/calibration_report.json`). **`test` and `clean_eval` were not touched**:
+both scripts refuse them without an explicit flag (`Rules.md` §5.3).
+
+*Provenance.* The first pass of these runs (`be9d2979…`, `81003ffa…`, `20723b0c…`,
+`e93ad84f…` and seven more) was made while the new scripts were still uncommitted, so they
+carry a `-dirty` sha. All were re-run from the clean tree at `c7b6025`; every number came
+out identical to four decimals; the first pass is tagged `void` as superseded. **Commit
+before a run whose number will be quoted, even when the run is "only" a measurement.**
 
 **What was fitted.** Per seed, a Platt map on the logits — `sigmoid(scale · logit + shift)`,
 `scale` constrained positive so the ranking cannot change — and the cut-off with the
@@ -1544,9 +1550,36 @@ applied to the fifth. Fitted on all of `val` and scored on the same lines, F1 is
   0.002, and cannot bend the top. **That ceiling sits where §1.6's label audit would put
   it** (~30% of line labels wrong, 95% CI [14.5%, 51.9%]) — *consistent with* label noise
   capping the observed rate, **not evidence of it**: over-confidence looks the same.
-- **Not a comparison between arms.** Only the full model was calibrated. Line F1 for concat
-  and `llm_only` at their own thresholds has not been computed, so §1.22's F1 column is
-  still the only cross-arm F1 and still means nothing.
+- **Not a reason to prefer an arm — see the next table.**
+
+### The same procedure on the other two arms — line F1 ties as well
+
+Calibrated and thresholded exactly as above, each arm on its own three checkpoints
+(`artifacts/phase6/arms/<arm>/calibration_report.json`; calibration runs `fd3e94c5…`
+concat, `97cb6a76…` `llm_only`; score runs `845be156…` `2e52df3b…` `2d98c9b5…` and
+`527c9399…` `40de595e…` `15126017…`). **`val`, out of fold, n = 3 per arm.**
+
+| Arm | Line F1 at the logged 0.5 | **Line F1, own threshold** | Precision | Recall | ECE raw → calibrated |
+|---|---|---|---|---|---|
+| cross_attention | 0.2954 ± 0.0855 | **0.3898 ± 0.0190** | 0.4020 ± 0.0300 | 0.3787 ± 0.0098 | 0.1704 → 0.0137 |
+| concat | 0.3811 ± 0.0159 | **0.3908 ± 0.0030** | 0.4175 ± 0.0227 | 0.3682 ± 0.0151 | 0.1634 → 0.0198 |
+| llm_only | 0.3726 ± 0.0157 | **0.3936 ± 0.0072** | 0.4162 ± 0.0149 | 0.3738 ± 0.0143 | 0.1438 → 0.0170 |
+
+Per seed (42 / 1 / 2), own threshold: cross_attention 0.3920 / 0.4075 / 0.3698; concat
+0.3917 / 0.3933 / 0.3874; `llm_only` 0.4006 / 0.3940 / 0.3862.
+
+- **§1.22's line-F1 gap was the threshold, and here is the measurement.** At 0.5,
+  cross_attention trailed concat by 0.086 (1.39 pooled sd). Each arm at its own
+  validation-chosen cut-off: 0.3898 / 0.3908 / 0.3936 — a spread of 0.004 across the three
+  arms, against per-arm sds of 0.003 to 0.019. **Top-5, Top-1, IFA and now line F1: no
+  metric measured on `val` separates the three arms.**
+- **What cross-attention does show is more seed-to-seed spread**: its calibrator scales
+  run 0.72 / 1.84 / 3.05 against concat's 0.73 / 0.79 / 1.01 and `llm_only`'s 0.55 / 1.13 /
+  1.48, and its F1 sd is the largest of the three. Three seeds; recorded, not a finding.
+- **Every arm is over-confident above p = 0.8 in the same way**: observed 0.67–0.81
+  (cross_attention), 0.71–0.73 (concat), 0.66–0.79 (`llm_only`). Whatever caps the observed
+  rate there is common to all three models — which fits a property of the labels better
+  than a property of one architecture, and is still not proof of either.
 - **Not `test` or `clean_eval`**, and not a claim that a threshold chosen on `val` (488
   units, longer functions than `train`) transfers. That is what the single held-out
   evaluation is for.
@@ -1682,10 +1715,14 @@ Runs logged:
   - One `report_seeds.py` run →
     `artifacts/phase5/seed_report_fused_finetuned_llm_only.json` (`n_seeds: 3`). The queue's
     own 2-seed and 1-seed passes wrote the same file earlier and were overwritten.
-  - `be9d2979…` / `81003ffa…` / `20723b0c…` : `score-val` for the three full-model runs.
-    `e93ad84f…` : calibration — **ECE 0.1704 → 0.0137, line F1 0.2954 → 0.3898 out of fold**
-    (§1.24). `3ee36f97…` : void probe of the VRAM guard. `5d06b630…` : void, a calibration
-    attempt that died on a duplicate MLflow parameter name before logging a metric.
+  - `06c04755…` / `5d3a6ad9…` / `a593b1be…` : `score-val` for the three full-model runs;
+    six more for concat and `llm_only` (ids in §1.24). `569c9701…` : calibration of the
+    full model — **ECE 0.1704 → 0.0137, line F1 0.2954 → 0.3898 out of fold** (§1.24);
+    `fd3e94c5…` / `97cb6a76…` : the same for concat and `llm_only` — **line F1 ties at
+    0.390 / 0.391 / 0.394.** `3ee36f97…` : void probe of the VRAM guard. Eleven first-pass
+    score and calibration runs are void as superseded (made from an uncommitted tree), and
+    `5d06b630…` is void — a calibration attempt that died on a duplicate MLflow parameter
+    name before logging a metric.
 Learned:
   - **Brave was open again at the restart** and held 131 MiB dedicated on the NVIDIA
     adapter; the trainer sat at 3,752 MiB dedicated + 542 MiB shared. Close to session 15's
@@ -2218,7 +2255,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
-| `e93ad84f…` (calibration) · `be9d2979…` `81003ffa…` `20723b0c…` (scores) | 2026-10-07 | `score_checkpoint.py +score.run_id=<run>` ×3, then `calibrate.py '+calibrate.runs=[80fc5238…,c193e3bc…,829c3555…]'` — Platt, 15 bins, 5 folds by unit, `val` | 42, 1, 2 | cross_attention | fused | — | *unchanged — calibration is monotone* | *unchanged* | **Phase 6: calibration and the validation-chosen threshold (§1.24).** ECE 0.1704 ± 0.0330 → **0.0137 ± 0.0104**; line F1 0.2954 ± 0.0855 at 0.5 → **0.3898 ± 0.0190** out of fold (P 0.4020, R 0.3787). Thresholds 0.1686 / 0.1083 / 0.2159. Every re-scoring reproduces its run's logged metrics. Over-confident above p = 0.8 (observed 0.67–0.81). `val` only. `5d06b630…` is a failed first attempt, tagged `void` |
+| `569c9701…` (calibration) · `06c04755…` `5d3a6ad9…` `a593b1be…` (scores); concat `fd3e94c5…` and `llm_only` `97cb6a76…` likewise — all at clean `c7b6025` | 2026-10-07 | `score_checkpoint.py +score.run_id=<run>` ×9, then `calibrate.py '+calibrate.runs=[80fc5238…,c193e3bc…,829c3555…]'` (and once per other arm) — Platt, 15 bins, 5 folds by unit, `val` | 42, 1, 2 | cross_attention | fused | — | *unchanged — calibration is monotone* | *unchanged* | **Phase 6: calibration and the validation-chosen threshold (§1.24).** ECE 0.1704 ± 0.0330 → **0.0137 ± 0.0104**; line F1 0.2954 ± 0.0855 at 0.5 → **0.3898 ± 0.0190** out of fold (P 0.4020, R 0.3787). Thresholds 0.1686 / 0.1083 / 0.2159. Every re-scoring reproduces its run's logged metrics. Over-confident above p = 0.8 (observed 0.67–0.81). **Same procedure on the other arms: line F1 0.3908 ± 0.0030 (concat), 0.3936 ± 0.0072 (`llm_only`) — a tie.** `val` only. A first pass from an uncommitted tree (`e93ad84f…` and ten more) and a failed attempt (`5d06b630…`) are tagged `void` |
 | `3ee36f97…` | 2026-10-07 | `train_fused.py +fusion=llm_only train=fused seed=42 … llm.frozen=false train.semantic_cache.enabled=false train.limit=3000 train.eval_limit=100 train.epochs=1`, commit `6d16adc` | 42 | llm_only | fused | — | — | — | **VOID / probe — never a result** (`train.limit` ≠ 0, so both reports refuse it; also tagged `void`). The live check of the fixed VRAM guard (§7 #57): no spill in 23 samples, 1.01 s/step. Its checkpoints were deleted. The first run to log `resolved_gpu` |
 | **MACHINE 2** — `f4d81b36…` `513d9d6b…` `45de097a…` (reference) and 18 more frozen; `57df8cff…` `77268204…` `3a953045…` / `b04a6b82…` `7d785c26…` `fb445d65…` (fine-tuned). Every id is in §1.23 | 2026-10-03 → 05 | `run_queue.py --only m2 m2ft` on the **second laptop** (RTX 4050 Laptop 6 GB, torch 2.14.1+cu130, commit `782ea98`), imported as files at `artifacts/machine2/Sujal_20261005-224401/` — **not in this machine's MLflow store** | 42, 1, 2 | cross_attention | fused | 1.000 *(degenerate)* | frozen reference **0.5498 ± 0.0219**; GAT 0.5456, GGNN 0.5692, weighted BCE 0.5802, plain BCE 0.5747, line-only 0.5456, GraphCodeBERT 0.5747. Fine-tuned CodeBERT **0.6272 ± 0.0073** / GraphCodeBERT **0.6169 ± 0.0098** | 12.48 (ref) / 11.54 / 11.53 | **MACHINE 2 — NEVER POOLED WITH THIS LAPTOP'S RUNS (§7 #49).** A4 in fusion, A8 line-only, A9, A5. **No ablation resolves at three seeds** (largest: weighted BCE +0.0304, 1.96 pooled sd). Fine-tuned GraphCodeBERT − CodeBERT = −0.0104 (−1.20 pooled sd). Four of the six fine-tuned runs are resumed (tags in §1.23). Five overfit gates passed (Top-1 1.0000, read from the store's history). Validation-selected, `val`. §1.23 |
 | `179632f5…` `72f067d0…` `2c7a7631…` | 2026-10-04 → 07 | `run_queue.py --only d97` — as the row below with `+fusion=llm_only`: **D9.7's scaffold control** | 42, 1, 2 | llm_only | fused | 1.000 *(degenerate)* | **0.6169 ± 0.0048** | 11.13 | **NEITHER FUSED ARM BEATS FINE-TUNED LLM-ONLY IN THE SAME SCAFFOLD** (cross_attention −0.0007, concat 0.0000 on Top-5). Top-1 0.3527 ± 0.0021, line F1 0.3726 ± 0.0157. Per seed Top-5 0.6141, 0.6141, 0.6224. **All three are resumed**: `resumed_at=epoch=6,batch=500,step=4565` (owner's pause) / `epoch=5,batch=976,step=4100` (WinError 5 crash, §7 #56) / `epoch=6,batch=946,step=4800` (GPU driver fault, §7 #57); seed 1's selected epoch 5 was completed after its resume. Validation-selected, `val`. 134, 210, 170 min over two attempts each. §1.22 |
