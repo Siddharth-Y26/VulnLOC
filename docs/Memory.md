@@ -2035,6 +2035,82 @@ is a recall-heavy one.
 
 ---
 
+## 1.28 `d97r` — D9.7 retrained on comment-stripped text: the first arm is in (2026-10-07 22:58)
+
+**Status: one arm of three. `llm_only` and concat are still training, so nothing below
+compares arms.** Started pending the owner's decision on Q14 (ADR-010, Proposed).
+
+`d97r` is D9.7's nine runs with exactly one more override,
+`+representation.strip_comments=true`: the comments — and with them the §1.25 tell — are
+gone at training as well as at evaluation. Validation-selected, `val`, 482 units.
+
+### The cross-attention arm (the designed model), three seeds
+
+| Run | Seed | Epochs run | Selected epoch | Top-5 | Top-1 | Minutes | Commit |
+|---|---|---|---|---|---|---|---|
+| `ba7dcc5f…` | 42 | 8 | 4 | 0.5519 | 0.2718 | 109.2 | `0a4843c` |
+| `8afbf7da…` | 1 | 8 | 4 | 0.5373 | 0.2718 | 109.1 | `d5e5dda` |
+| `ff980345…` | 2 | 4 | 0 | 0.5290 | 0.2614 | 54.4 | `5af24ba` |
+
+Every run: one attempt, not resumed, clean tree, the same card (`resolved_gpu` logged),
+`strip_comments=True`, 2,808 flagged lines of which 83 have no features (coverage 97.04%).
+
+Seed report `bd2544c7…` — `artifacts/adr010/seed_report_fused_finetuned_stripped_cross_attention.json`,
+`n_seeds: 3`, every run's cross-check "agrees":
+
+| Metric | Mean ± sd over 3 seeds |
+|---|---|
+| **Top-5** | **0.5394 ± 0.0116** |
+| **Top-1** | **0.2683 ± 0.0060** |
+| IFA | 14.56 ± 0.43 |
+| Line F1 at the logged threshold 0.5 | 0.1603 ± 0.0561 (P 0.3244 ± 0.1704, R 0.1316 ± 0.0761) |
+
+The F1 row is the threshold moving, as in §1.24 — precision 0.21 to 0.52 across seeds with
+recall moving the other way. The calibrated, validation-thresholded figure comes from the
+scoring step that follows the queue.
+
+### The same arm under three conditions
+
+| Condition | Top-5 | Top-1 | Source |
+|---|---|---|---|
+| Comments at training and at evaluation — D9.7 as shipped, reads the tell | 0.6162 ± 0.0184 | 0.3444 ± 0.0293 | §1.22 |
+| Trained with comments, stripped at evaluation only | 0.5353 ± 0.0200 | 0.2628 ± 0.0141 | audit `9b87fbb2…`, §1.25 |
+| **Stripped at training and at evaluation (`d97r`)** | **0.5394 ± 0.0116** | **0.2683 ± 0.0060** | seed report `bd2544c7…` |
+
+- **Retraining on leak-free text lands where stripping at evaluation had already put the
+  D9.7 checkpoints.** The difference is +0.0041 Top-5 (0.25 pooled sd) and +0.0055 Top-1
+  (0.51 pooled sd): not resolved.
+- **So for this arm the leak-free validation Top-5 is ≈ 0.54, and the 0.6162 it was
+  reported at was ≈ 0.077 too high** (4.99 pooled sd; Top-1 −0.0761, 3.60 pooled sd; IFA
+  14.56 ± 0.43 against 11.26 ± 1.45). A model that never saw the tell does not find
+  another route to the old score. §1.25's 8.18% of `val`'s flagged lines that are
+  comment-only — blank once stripped — are inside that drop: a ceiling, not a leak.
+- **It says nothing yet about whether the three arms still tie when retrained.**
+
+### What to quote with it
+
+1. **The seed report was made with `+seeds.allow_source_drift=true`.** Its provenance lists
+   `src/vulnloc/explanation/generator.py` (commit `7ea7a9c`) as the one file that differs
+   between the seeds' commits. Training is layer 3 and cannot import layer 5; §7 #62.
+2. **It was made outside the queue**, with the queue plan's own command
+   (`artifacts/queue/run_plan_step.py`), at commit `3bc918e`: the queue process running that
+   night predates the override and its own attempt is `[FAIL]`. `d97r_after.ps1` re-runs
+   that step through the queue at the end, which writes a second, identical report.
+3. **Seed 2 stopped after four epochs with its best at epoch 0** — validation Top-5 0.5290,
+   then 0.5249, 0.5166, 0.5021 — under `train.patience=3`, the rule every D9.7 run used.
+   The other two seeds dipped at epoch 1 and peaked at epoch 4, and none of the nine D9.7
+   runs was selected at epoch 0 (theirs: epochs 2–7). It is a replicate under the pre-set
+   rule and it is counted; it is also why the sd of 0.0116 should not be read as tight.
+4. Validation-selected (§1.18), `val` only. `test` and `clean_eval` are untouched.
+
+### Not known yet
+
+`llm_only` and concat retrained; the calibrated line F1, ECE and threshold; the score
+audit of these checkpoints (including the blank-line view); explanations made from them.
+`artifacts/queue/d97r_after.ps1` produces all of those once the queue ends.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -2740,6 +2816,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `ba7dcc5f…` `8afbf7da…` `ff980345…` · `bd2544c7…` (seed report) | 2026-10-07 | `run_queue.py --only d97r` — D9.7's constants plus `+representation.strip_comments=true`, cross_attention; commits `0a4843c` / `d5e5dda` / `5af24ba` (source drift in `explanation/generator.py` only — accepted, recorded in the report) | 42, 1, 2 | cross_attention | fused | 1.000 *(degenerate)* | **0.5394 ± 0.0116** | 14.56 | **§1.28: the designed model retrained on comment-stripped text — the first leak-free arm.** Top-1 0.2683 ± 0.0060. Indistinguishable from the D9.7 checkpoints with comments stripped at evaluation only (0.5353 ± 0.0200; 0.25 pooled sd), and 0.077 below the 0.6162 it was reported at with the tell in view. Seed 2 early-stopped after four epochs, selected at epoch 0. `llm_only` and concat are still training — **no arm comparison yet**. Validation-selected, `val`. Pending Q14 |
 | `bcf18403…` | 2026-10-07 | `run_queue.py --only d97rcheck` — `train_fused.py +fusion=cross_attention train=overfit_fused` with D9.7's constants and `+representation.strip_comments=true`, commit `0a4843c` | 42 | cross_attention | fused | — | Top-1 1.000 | — | **The overfit gate for the leak-free rerun. Never cite as a result.** Encoder training, comment-stripped text; Top-1 = 1.0000 over the last five of 150 epochs, read from the metric history. `d97r` started after it |
 | `84582530…` `baf55d15…` `f3b641bc…` / `0f391973…` `be36cca8…` `9e0e13ec…` / `9d89bb6d…` `3a1507ed…` `006b0ea1…` (scores) · `e8a27dc5…` `a38fd4db…` `5bada5f3…` (calibration) · `9b87fbb2…` `b6f750f2…` (score audits, fine-tuned) · `30a0d40b…` `18b2535c…` (frozen A1) · `7c64dfac…` `421bf67c…` (frozen A6) · `af4173a3…` (corpus report) | 2026-10-07 | `score_checkpoint.py +score.run_id=<run> +representation.strip_comments=true` ×9, `calibrate.py` per arm on `scores_stripped/`, `audit_score_leakage.py` with and without the switch, `report_comment_stripping.py` — clean `4ac5f7e` / `9dc3604` / `ae0cf3a` | 42, 1, 2 | cross_attention / concat / llm_only | fused | — | **comments stripped at evaluation: 0.5353 ± 0.0200 / 0.5415 ± 0.0090 / 0.5546 ± 0.0084** (as shipped 0.6162 / 0.6169 / 0.6169) | 14.13 / 14.34 / 13.89 | **§1.25: the D9.7 checkpoints on comment-stripped `val`.** Line F1 out of fold 0.2355 ± 0.0040 / 0.2338 ± 0.0059 / 0.2362 ± 0.0030 (as shipped 0.39). No unit is answered by the tell; the arms still tie. **Trained with comments, scored without — not the leak-free number; `d97r` is.** Stripper identical to the grammar on 6,586 of 6,586 clean units; 8–12% of flagged lines are comment-only. **Frozen screen (27 more scorings):** frozen `llm_only` does not read the tell, every arm with a structural branch does; fusion's lead over it is +0.010 to +0.029 on stripped text against +0.032 to +0.051 as logged. ADR-010 (Proposed), Q14 |
 | `cde35987…` `753f4c60…` `0fca1b4f…` / `920989e5…` `7a525ea0…` `f07faf7b…` / `ed9d88e5…` `64c5d5a0…` `317aef09…` | 2026-10-07 | `run_queue.py --only a6` — A1's frozen constants with `+fusion.args.direction={both,sem_from_str,str_from_sem}`, commits `2e9c0a4` / `82f1957` / `9083d4d` (source identical) | 42, 1, 2 | cross_attention | fused | 1.000 *(degenerate)* | **0.5408 ± 0.0181 / 0.5166 ± 0.0095 / 0.5498 ± 0.0231** | 12.19 / 12.99 / 13.96 | **A6: BIDIRECTIONAL IS NOT RESOLVABLY BETTER THAN EITHER ONE-WAY ARM** (largest Top-5 gap −0.0242, 1.67 pooled sd, with a sign flip). Top-1 0.2310 / 0.2503 / 0.2649 — both one-way arms higher on all three seeds, a candidate, not a finding. `both` reproduces §1.21's cross_attention arm seed for seed. Overfit gates `836aec8e…` `f3acb184…` passed. Frozen, validation-selected, `val`, **on text carrying the §1.25 leak**. §1.26 |
@@ -2883,6 +2960,15 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   different source trees") — expected, harmless.** The report is then made by hand
   with the new plan's exact command, and `d97r_after.ps1` re-runs the failed step
   through the queue at the end so the slate records it `done`.
+- **22:58 — THE FIRST ARM IS IN (§1.28).** `d97r-cross_attention-seed2`, run
+  `ff980345…`, 54.4 min, one attempt, not resumed, clean `5af24ba`: early-stopped after
+  four epochs, selected at epoch 0. The queue's own seed-report step went `[FAIL]` on
+  source drift exactly as predicted; `artifacts/queue/d97r_report_cross.ps1` then made
+  the report with the plan's command (run `bd2544c7…`, `n_seeds: 3`, the drift recorded).
+  **Cross-attention trained and evaluated without comments: Top-5 0.5394 ± 0.0116,
+  Top-1 0.2683 ± 0.0060** — where stripping at evaluation alone had put it (0.5353 ±
+  0.0200). `d97r-llm_only-seed42` started at 22:58. **`--status` shows one `[FAIL]`:
+  that is this step, and `d97r_after.ps1` clears it at the end.**
 - **Started the same evening — what happens after the nine, without a session:**
   `artifacts/queue/d97r_after.ps1` runs in its own window (transcript
   `artifacts/queue/d97r_after.out`). It waits for the queue to end; if a step is
@@ -2896,7 +2982,7 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   `val` only; it starts no training the `d97r` group did not already contain.
 - **First pace reading, 18:30:** 144 s per hundred optimizer steps (D9.7's fused arms ran
   at ~200), 3,267 MiB dedicated, no shared memory in use. One reading — look again.
-- **A bundle for machine 2 is ready, unused:** `D:ulnloc_transferulnloc_20261007.bundle`
+- **A bundle for machine 2 is ready, unused:** `D:\vulnloc_transfer\vulnloc_20261007.bundle`
   (commit `18516aa`, beside the 2026-10-03 one, which is untouched) with
   `A1R_START_HERE.md`. It is only for `a1r`, and only if the owner decides to run it
   there (`docs/SecondMachine.md` §6).
