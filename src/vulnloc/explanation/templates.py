@@ -9,9 +9,10 @@ C/C++ weakness pattern, names it. The category an explanation carries is therefo
 Three rules the library keeps, each because the alternative reads like an explanation and
 is not one:
 
-* **A sentence states something checkable about the line itself** — "the length is not
-  derived from the destination's size on this line" — never a conclusion the pattern
-  cannot support ("this overflows").
+* **A sentence states something checkable about the text** — "the length is not written
+  as a sizeof on this line", "below a `free()` of it on line 17" — never a conclusion
+  the pattern cannot support ("this overflows", "used after being freed"). The two-line
+  patterns see the order of lines, not the order of execution, and say only the first.
 * **No pattern, no cause.** A flagged line nothing matches is reported as exactly that
   (:data:`NO_PATTERN`); it is never filled with generic advice.
 * **No attack instructions** (``Rules.md`` §7.2, §7.3). A sentence explains why a
@@ -130,8 +131,8 @@ LINE_TEMPLATES: tuple[ExplanationTemplate, ...] = (
         "CWE-787",
         # A length that is not a sizeof expression is the case worth a look.
         r"\b(?P<call>memcpy|memmove|memset)\s*\((?![^;]*,\s*sizeof\b)[^;]*\)",
-        "The length passed to `{call}()` is not derived from the destination's size on this "
-        "line, so nothing here bounds the write.",
+        "The length passed to `{call}()` is not written as a sizeof on this line, so whether "
+        "it fits the destination is decided somewhere else.",
     ),
     _template(
         "scanf-string",
@@ -242,8 +243,8 @@ FLOW_TEMPLATES: dict[str, ExplanationTemplate] = {
         label="Use after free",
         cwe="CWE-416",
         reason=(
-            "`{ptr}` is used here after being freed on line {related}, and no line in between "
-            "reassigns it."
+            "`{ptr}` is used on this line, below a `free()` of it on line {related}, and no line "
+            "in between reassigns it."
         ),
     ),
     "double-free": ExplanationTemplate(
@@ -251,8 +252,8 @@ FLOW_TEMPLATES: dict[str, ExplanationTemplate] = {
         label="Double free",
         cwe="CWE-415",
         reason=(
-            "`{ptr}` is freed here after already being freed on line {related}, and no line in "
-            "between reassigns it."
+            "`{ptr}` is freed on this line, below an earlier `free()` of it on line {related}, "
+            "and no line in between reassigns it."
         ),
     ),
     "unchecked-allocation": ExplanationTemplate(
@@ -260,8 +261,8 @@ FLOW_TEMPLATES: dict[str, ExplanationTemplate] = {
         label="NULL pointer dereference",
         cwe="CWE-476",
         reason=(
-            "The result of `{call}()` assigned to `{ptr}` is never compared against NULL in the "
-            "rest of the function."
+            "The result of `{call}()` assigned to `{ptr}` is not compared against NULL on this "
+            "line or on any later one."
         ),
     ),
 }
@@ -269,6 +270,10 @@ FLOW_TEMPLATES: dict[str, ExplanationTemplate] = {
 control flow — the caveat the project's own DFG carries (``Memory.md`` §7 #19)."""
 
 _FREE = re.compile(rf"\bfree\s*\(\s*({_NAME})\s*\)")
+
+# An allocation written inside a test is checked where it stands:
+# `if ((p = malloc(n)) == NULL)`, `if (!(p = malloc(n)))`, `p = malloc(n) ? ... : ...`.
+_CHECKED_INLINE = re.compile(r"\b(?:if|while|assert\w*)\s*\(|[!=]=|!\s*\(|\?")
 _ALLOC = re.compile(rf"\b({_NAME})\s*=\s*(?:\([^)]*\)\s*)?(malloc|calloc|realloc)\s*\(")
 
 # `T name[n]` declares an array; it does not read one. `return a[i]` is not a declaration.
@@ -361,11 +366,14 @@ def _flow_matches(lines: Sequence[str]) -> dict[int, TemplateMatch]:
                     record("use-after-free", later, number, ptr=freed)
                     break
         for match in _ALLOC.finditer(text):
+            if _CHECKED_INLINE.search(text):
+                continue
             target, call = match.group(1), match.group(2)
             escaped = re.escape(target)
+            null = r"(?:NULL|nullptr|0)"
             guard = re.compile(
-                rf"(!\s*{escaped}\b|\b{escaped}\s*[!=]=\s*NULL|NULL\s*[!=]=\s*{escaped}\b"
-                rf"|if\s*\(\s*{escaped}\s*\))"
+                rf"(!\s*{escaped}\b|\b{escaped}\s*[!=]=\s*{null}\b|\b{null}\s*[!=]=\s*{escaped}\b"
+                rf"|\b(?:if|while|assert\w*)\s*\(\s*{escaped}\s*\))"
             )
             if not any(guard.search(other) for other in lines[number - 1 :]):
                 record("unchecked-allocation", number, None, call=call, ptr=target)

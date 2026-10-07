@@ -316,10 +316,10 @@ def test_a_matched_line_is_explained_with_its_pattern_score_attention_and_data_f
     assert explanation.template_id == "memcpy-length"
     assert explanation.text == (
         "Matches the pattern 'Out-of-bounds write' (CWE-787): The length passed to `memcpy()` "
-        "is not derived from the destination's size on this line, so nothing here bounds the "
-        "write. The model ranks line 7 at position 1 of 9 scored lines (calibrated score 0.91, "
-        "threshold 0.50). Its cross-attention puts most weight on lines 4 and 3. Name-based "
-        "data flow reaches it through lines 4 and 6 (`len`, `n`)."
+        "is not written as a sizeof on this line, so whether it fits the destination is decided "
+        "somewhere else. The model ranks line 7 at position 1 of 9 scored lines (calibrated "
+        "score 0.91, threshold 0.50). Its cross-attention puts most weight on lines 4 and 3. "
+        "Name-based data flow reaches it through lines 4 and 6 (`len`, `n`)."
     )
     assert explanation.cited_lines == (4, 3, 6)
     assert explanation.cited_symbols == ("memcpy", "len", "n")

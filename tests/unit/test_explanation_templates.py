@@ -104,7 +104,7 @@ def test_use_after_free_names_the_line_of_the_free():
     assert found.template.id == "use-after-free"
     assert found.related_line == 1
     assert found.symbols == ("ctx->buf",)
-    assert "freed on line 1" in found.reason
+    assert "below a `free()` of it on line 1" in found.reason
 
 
 def test_a_reassignment_between_free_and_use_clears_it():
@@ -132,7 +132,36 @@ def test_an_allocation_never_checked_against_null_is_reported_on_its_own_line():
     assert found.symbols == ("malloc", "p")
 
 
-@pytest.mark.parametrize("guard", ["if (!p)", "if (p == NULL)", "if (NULL == p)", "if (p)"])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "if ((dest = malloc(len)) == NULL) {",
+        "if (!(bin = malloc (sizeof (struct obj)))) {",
+        "if ((p = calloc(n, m))) {",
+        "p = n ? malloc(n) : NULL;",
+    ],
+)
+def test_an_allocation_tested_where_it_stands_is_not_called_unchecked(line):
+    # Found on real validation code: the first two were explained as "never compared
+    # against NULL", which the line itself contradicts.
+    found = match_lines([line, "p[0] = 1;"]).get(1)
+
+    assert found is None or found.template.id != "unchecked-allocation"
+
+
+def test_the_two_line_sentences_claim_line_order_not_execution_order():
+    # A `free()` in an error branch that returns is above a later use and never before
+    # it. The pattern sees lines; the sentence must not say more than that.
+    for kind in ("use-after-free", "double-free"):
+        reason = FLOW_TEMPLATES[kind].reason
+        assert "below" in reason
+        assert "after being freed" not in reason and "after already" not in reason
+
+
+@pytest.mark.parametrize(
+    "guard",
+    ["if (!p)", "if (p == NULL)", "if (NULL == p)", "if (p)", "if (p != nullptr)", "assert(p);"],
+)
 def test_a_null_check_anywhere_later_clears_the_unchecked_allocation(guard):
     lines = ["p = calloc(n, m);", guard, "return -1;"]
 
