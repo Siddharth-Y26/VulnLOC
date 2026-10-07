@@ -51,6 +51,7 @@ not go away, so they are on screen next to every score instead of being argued a
 | **Rank first, score second.** | The scores are not calibrated — ordinary lines score 0.7–0.97, because the model has never seen a safe function. |
 | **Punctuation-only lines get no card.** | A lone `}` is not a finding. Skipping lines that essentially never hold a flaw can only raise the chance the real one is shown, so the quoted Top-5 stays a lower bound. The skipped lines are listed. |
 | **Normalization is not optional here.** | A score on un-normalized text is the ADR-006 leak, not a finding. |
+| **This model learned a second formatting artefact — known since 2026-10-07, not yet fixed here.** | In its training text a labelled line that ended a comment had lost the slash of its `*/`, and a line ending in `*/` was never labelled (`docs/Memory.md` §1.25). The quoted 36% / 61% were measured on that text and are inflated by it; and on a paste, **a line with a trailing `/* comment */` may be ranked lower than its code deserves.** The fix (`strip_comments`) is built and off by default; this tab changes when a model trained with it replaces `fc902107…`. |
 
 **Fix advice comes from `fix_templates.py`, not from the model.** Eleven single-line
 patterns (unbounded copies, format strings, allocation-size arithmetic, …) plus three
