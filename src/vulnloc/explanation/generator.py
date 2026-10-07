@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from vulnloc.representation.units import CodeUnit
 
 __all__ = [
+    "FIXED_SENTENCES",
     "FORMATTING_ARTIFACT",
     "FORMATTING_ARTIFACT_LABEL",
     "UNCLASSIFIED",
@@ -59,6 +60,29 @@ _ARTIFACT_SENTENCE = (
 """Said whenever the tell is on the line, pattern or no pattern. It is the one case where
 the explainer can state *why the model scored the line* with measured backing: the nine
 D9.7 checkpoints rank such a line first in most units that have one."""
+
+_NO_PATTERN_SENTENCE = "No known weakness pattern matches this line's text, so no cause is named."
+_NO_PATTERN_ARTIFACT_SENTENCE = "No known weakness pattern matches this line's text."
+_PATTERN_FORMAT = "Matches the pattern '{label}' ({cwe}): {reason}"
+_RANK_FORMAT = (
+    "The model ranks line {line} at position {rank} of {scored} scored lines "
+    "(calibrated score {score:.2f}, threshold {threshold:.2f})."
+)
+_ATTENTION_FORMAT = "Its cross-attention puts most weight on {noun} {lines}."
+_DATAFLOW_FORMAT = "Name-based data flow reaches it through {noun} {lines} ({symbols})."
+
+FIXED_SENTENCES: dict[str, str] = {
+    "pattern (wraps a template sentence)": _PATTERN_FORMAT,
+    "no pattern": _NO_PATTERN_SENTENCE,
+    "no pattern, on a line carrying the formatting tell": _NO_PATTERN_ARTIFACT_SENTENCE,
+    "formatting tell (added whenever the tell is on the line)": _ARTIFACT_SENTENCE,
+    "rank and score": _RANK_FORMAT,
+    "attention": _ATTENTION_FORMAT,
+    "data flow": _DATAFLOW_FORMAT,
+}
+"""Every sentence form the explainer emits besides the template library's own — the whole
+of what a reviewer has to read (``Rules.md`` §7.3). ``{...}`` are filled from the
+prediction and the evidence."""
 
 _MATCH_CACHE_UNITS = 8
 
@@ -142,15 +166,13 @@ class TemplateExplainer:
 
         if match is None and artifact:
             label, cwe, template_id = FORMATTING_ARTIFACT_LABEL, "", FORMATTING_ARTIFACT
-            sentences.append("No known weakness pattern matches this line's text.")
+            sentences.append(_NO_PATTERN_ARTIFACT_SENTENCE)
         elif match is None:
             label, cwe, template_id = UNCLASSIFIED, "", NO_PATTERN
-            sentences.append(
-                "No known weakness pattern matches this line's text, so no cause is named."
-            )
+            sentences.append(_NO_PATTERN_SENTENCE)
         else:
             label, cwe, template_id = match.template.label, match.template.cwe, match.template.id
-            sentences.append(f"Matches the pattern '{label}' ({cwe}): {match.reason}")
+            sentences.append(_PATTERN_FORMAT.format(label=label, cwe=cwe, reason=match.reason))
             cited_symbols.extend(match.symbols)
             if match.related_line is not None:
                 cited_lines.append(match.related_line)
@@ -158,9 +180,13 @@ class TemplateExplainer:
             sentences.append(_ARTIFACT_SENTENCE)
 
         sentences.append(
-            f"The model ranks line {line} at position {pred.rank(line)} of "
-            f"{len(pred.ranking)} scored lines (calibrated score {pred.score(line):.2f}, "
-            f"threshold {pred.threshold:.2f})."
+            _RANK_FORMAT.format(
+                line=line,
+                rank=pred.rank(line),
+                scored=len(pred.ranking),
+                score=pred.score(line),
+                threshold=pred.threshold,
+            )
         )
 
         context: list[int] = []
@@ -170,9 +196,7 @@ class TemplateExplainer:
         context = context[: self.max_context_lines]
         if context:
             noun = "line" if len(context) == 1 else "lines"
-            sentences.append(
-                f"Its cross-attention puts most weight on {noun} {join_numbers(context)}."
-            )
+            sentences.append(_ATTENTION_FORMAT.format(noun=noun, lines=join_numbers(context)))
             cited_lines.extend(context)
 
         hops = [number for number in evidence.dataflow_path if number != line]
@@ -180,7 +204,7 @@ class TemplateExplainer:
             noun = "line" if len(hops) == 1 else "lines"
             quoted = ", ".join(f"`{symbol}`" for symbol in dict.fromkeys(evidence.dataflow_symbols))
             sentences.append(
-                f"Name-based data flow reaches it through {noun} {join_numbers(hops)} ({quoted})."
+                _DATAFLOW_FORMAT.format(noun=noun, lines=join_numbers(hops), symbols=quoted)
             )
             cited_lines.extend(hops)
             cited_symbols.extend(evidence.dataflow_symbols)
