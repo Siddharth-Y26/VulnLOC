@@ -152,6 +152,61 @@ vs. SOTA" — stands and is not tested by anything here. **No assumption is fals
 Phase 5; the project's central *hypothesis* is not an entry in that register**, and it is
 what §1.22 fails to support. A1, A3, A4, A5 untouched.
 
+### 1.1d Phase 6 Gate (`Phases.md` §Phase Gate Rule) — **PREPARED 2026-10-07, NOT SIGNED**
+
+Written by session 16 for the owner to read. **Nothing in this section is a signature.** The
+gate is the owner's, and its fourth criterion needs the owner's answer to Q5 (§5) first.
+
+**1. Did we meet every exit criterion?** **Three of four. The fourth is a decision, not
+work.**
+
+| Exit criterion | Status | Evidence |
+|---|---|---|
+| Line scores calibrated (reliability curve reported) | ✅ | Platt scaling per checkpoint, fitted on `val`: ECE 0.1704 ± 0.0330 → 0.0137 ± 0.0104 out of fold, 3 seeds (run `569c9701…`, §1.24). Reported with where it still fails: above p = 0.8 the observed rate is 0.67–0.81 |
+| Threshold chosen on validation only | ✅ | Maximum line F1 on calibrated `val` probabilities, one threshold per checkpoint (0.1686 / 0.1083 / 0.2159). `scripts/calibrate.py` refuses any other partition |
+| Best full-model configuration frozen and checkpointed | ✅ | The designed bidirectional cross-attention model at ADR-009 D9.7's configuration; checkpoints `80fc5238` / `c193e3bc` / `829c3555`. **The owner's choice (§2), not a measured win** — it ties concat and `llm_only` on every `val` metric read so far |
+| CWE labelling decided (Q5) and implemented or explicitly deferred | ⬜ | **Awaits the owner.** What is known: Big-Vul carries a `CWE ID` per function and the loader keeps it as unit metadata (`data/loaders/bigvul.py`); 86 distinct CWEs among the positives (`docs/DATA_CARD.md`). No model here predicts it. How many of the line-labelled training functions carry one has **not** been measured |
+
+Deliverables in `Phases.md` that were **not** built, said plainly so the tick marks are not
+read as more than they are: unit-level aggregation and the joint line + unit loss (deferred
+in writing 2026-10-07, §2 — every model here trains on vulnerable functions only); the CRF
+head variant (listed as optional; not built); and **no hyperparameter sweep of the full
+model was run** — one fine-tuned run costs 114–211 min. What exists instead is frozen-encoder
+ablations: machine 2's slate (§1.23) and A6, attention direction, running as this is
+written.
+
+**2. What did we learn that changes a later phase?**
+
+- **Every line F1 logged at 0.5 measured the threshold, not the model.** The full model's
+  0.2954 ± 0.0855 at 0.5 becomes 0.3898 ± 0.0190 at each checkpoint's own `val`-chosen
+  threshold, and the three D9.7 arms then tie (0.3898 / 0.3908 / 0.3936, §1.24). **Phase 8
+  reports thresholded metrics at the calibrated, `val`-chosen threshold of each checkpoint
+  and never compares arms at 0.5.**
+- **A calibrator and a threshold belong to one checkpoint.** Three seeds of the same arm
+  fitted scales of 1.8412 / 0.7166 / 3.0486. Phase 9 ships a checkpoint together with its
+  own calibrator — which is why `models/heads/calibration.py` sits at L2, where serving may
+  import it — and nothing averages a calibrator across seeds.
+- **A calibrated probability is still not a confidence above 0.8** (observed 0.67–0.81).
+  Phase 7's explanations and Phase 9's output lead with rank and do not print a high
+  probability as near-certainty.
+- **Fusion gains no second metric.** After calibration line F1 ties across the three arms
+  exactly as Top-5 does (§1.22). Phase 8's claim stays what the Phase 5 gate said it is.
+- **Per-line scores are on disk** (`artifacts/phase6/scores/`), each file written only after
+  it reproduced its run's logged metrics within 1e-4. Phase 8's metrics, intervals and
+  failure taxonomy are computed from those files, not from re-runs.
+- **The held-out evaluation is now one scoring pass per checkpoint**
+  (`score_checkpoint.py … +score.final=true`), with the `val`-fitted calibrator and
+  threshold applied unchanged. The configuration being frozen is `Rules.md` §5.3's
+  precondition; **`test` and `clean_eval` are still untouched, and the go-ahead is the
+  owner's.**
+
+**3. What `PRD.md` §10 assumption has been confirmed or falsified?**
+**A2 (single-GPU compute budget) is binding again:** it is why there is no fine-tuned sweep
+and why every function-level deliverable of this phase is deferred — the 148,983-function
+split is out of reach on this card inside the week. **Nothing is falsified by Phase 6.** A3
+(line-level labels obtainable) is untouched: the labels' measured ~30% noise (§1.6) remains
+the ceiling on every line metric here, calibrated or not. A1, A4, A5 untouched.
+
 ### 1.2 What Exists Right Now
 
 | Component | Status | Path |
