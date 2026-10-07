@@ -258,7 +258,12 @@ function renderFindings(host, data) {
   const caveats = el("ul", "trust-caveats");
   caveats.append(
     el("li", null, "It assumes there is a flaw and ranks where. It cannot tell you code is safe."),
-    el("li", null, "Fix advice comes from pattern templates, not from the model.")
+    el("li", null, "Fix advice comes from pattern templates, not from the model."),
+    el(
+      "li",
+      null,
+      "That figure is inflated by a formatting artefact in the training data (found 2026-10-07), and a line ending in a comment may be ranked too low."
+    )
   );
   trust.append(caveats);
   host.append(trust);
