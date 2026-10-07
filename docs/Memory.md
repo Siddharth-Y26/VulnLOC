@@ -45,7 +45,7 @@
 | 2 Representation | ✅ **Done** | **5 / 5** | Closed 2026-08-16. Parser, line map, all four graph builders (AST/CFG/DFG/CPG), PyG conversion, renderer, corpus report. **Q8 closed the same day by ADR-005** — the corpus-wide graph build is no longer gated |
 | 3 LLM Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. **All three seeds are in (§1.14): Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204.** The ≥3-seed criterion is MET; **gate signed by the owner 2026-09-15** |
 | 4 GNN Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | All four met by logged runs — `python scripts/report_phase4.py`, §1.13. Overfit test (`8b0a3c1d…`, Top-1 = Top-5 = 1.000); all three variants on real data; depth sweep 2/4/6; ≥3 seeds (gcn depth 4, Top-5 **0.3645 ± 0.0231**). **Gate signed by the owner 2026-09-15.** A4 (§1.15): subtokens lift Top-5 to **0.4302 ± 0.0372**, and A1 uses them |
-| 5 Fusion | 🟨 **Frozen screen done; D9.7's six runs done — `llm_only` control and the owner's gate pending** | **4 / 5** (head-to-head at ≥3 seeds measured, §1.21 frozen and §1.22 fine-tuned) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it. **2026-10-04 (session 15): the investigation's six runs are in (§1.22) — the null survives fine-tuning.** Still owed before the gate: the `llm_only` scaffold control (0 / 3, seed 42 paused) and the owner's signature |
+| 5 Fusion | 🟨 **All measured: frozen screen, D9.7's nine runs, the `llm_only` control. Gate PREPARED (§1.1c) — awaiting the owner's signature** | **5 / 5 on the evidence, unsigned** (head-to-head at ≥3 seeds, §1.21 frozen and §1.22 fine-tuned; the negative result investigated) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it. **2026-10-04 (session 15): the investigation's six runs are in (§1.22) — the null survives fine-tuning.** Still owed before the gate: the `llm_only` scaffold control (0 / 3, seed 42 paused) and the owner's signature. **2026-10-07 (session 16): the control is in — 0.6169 ± 0.0048, no fused arm beats it (§1.22). The three gate questions are answered in §1.1c; only the signature is missing** |
 | 6 Localization Head | ⬜ Not started | 0 / 4 | |
 | 7 Explanation | ⬜ Not started | 0 / 4 | |
 | 8 Evaluation | ⬜ Not started | 0 / 4 | |
@@ -100,6 +100,55 @@ meaning.** They are obtainable (8,243 functions / 46,513 lines, all internally v
 but roughly **30% of them point at the wrong lines** (§1.6). A3 as written asked whether
 the labels *exist*; the answer to whether they are *trustworthy* is "mostly, not always".
 A1, A4, A5 untouched.
+
+### 1.1c Phase 5 Gate (`Phases.md` §Phase Gate Rule) — PREPARED 2026-10-07, **NOT SIGNED**
+
+Written by session 16 for the owner to sign or correct. **Nothing here records a signature;
+until the owner gives one, Phase 5 stays 🟨 and Phase 6 has not started.**
+
+**1. Did we meet every exit criterion?** **Five of five, on the evidence below.**
+
+| Exit criterion | Status | Evidence |
+|---|---|---|
+| Gradient-flow test: both branches receive non-zero gradients | ✅ | `tests/unit/` fusion tests, session 12; every fixture contains a unit with no structural keys (§7 #41) |
+| Attention maps have correct shape and are retrievable | ✅ | `FusedLineModel.explain()`; `[B, H, L, L]` per direction, off by default |
+| `fusion=cross_attention` vs `fusion=concat` runnable by flag alone | ✅ | `+fusion=<arm>`; every arm of A1 and D9.7 was launched that way by `run_queue.py` |
+| First head-to-head comparison logged (≥ 3 seeds each) | ✅ | Frozen, six arms × 3 seeds (§1.21). Fine-tuned, three arms × 3 seeds (§1.22) |
+| A negative result recorded honestly and investigated before Phase 6 | ✅ | Recorded §1.21 (2026-09-15). Investigated by ADR-009 D9.7: nine fine-tuned runs, finished 2026-10-07 (§1.22). **cross_attention 0.6162 ± 0.0184, concat 0.6169 ± 0.0104, llm_only 0.6169 ± 0.0048 Top-5** — the null holds, and neither fused arm beats LLM-only in the same scaffold |
+
+**2. What did we learn that changes a later phase?**
+
+- **Phase 6's "best full-model configuration" has no winner to freeze on Top-5.** Three
+  arms tie fine-tuned. Which one is "the model" is a choice about what the project needs
+  next, not a measurement: only cross_attention produces the attention maps Phase 7a's
+  evidence extraction reads; `llm_only` is the simplest thing that scores the same. **The
+  owner's decision** (session 16 recommends keeping D9.7's cross_attention runs — they
+  exist at three seeds, so nothing new is fine-tuned — and reporting all three arms).
+- **Phase 7's explanations cannot be sold as coming from a better model.** The attention
+  maps are evidence about what the fused model looked at; §1.22 says looking there did not
+  improve localization. Faithfulness (the deletion test) carries more weight than planned.
+- **Phase 8's novelty claim changes shape.** A1 answers "does bidirectional cross-attention
+  help?" with *no, not measurably* — frozen and fine-tuned. (Machine 2 reproduced the
+  cross_attention arm's level both ways, §1.23; it did not run the comparison.) What the
+  data does support: the structural branch helps a
+  **frozen** encoder by +0.03 to +0.05 Top-5 and stops helping once the encoder adapts.
+  The paper's framing is the owner's (§5).
+- **Fine-tuning dominates every architectural choice measured here.** Freezing costs about
+  0.08 Top-5 for the fused arms and 0.13 for `llm_only` (§1.21 against §1.22); no ablation
+  on machine 2 moves Top-5 by 2 pooled sd (§1.23). Phase 6's sweep should spend its budget accordingly — and weighted BCE is the
+  one candidate that earned more seeds.
+- **Every fine-tuned number so far is `val`, validation-selected** (§1.18). `test` and
+  `clean_eval` are untouched and stay so until the configuration is frozen
+  (`Rules.md` §5.3).
+- **An unattended run needs the queue's own recovery** (§7 #56, #57) — built 2026-10-07.
+
+**3. What `PRD.md` §10 assumption has been confirmed or falsified?**
+**A2 (single-GPU compute budget) is confirmed as binding, and it shaped the result's
+form:** A1 could only be screened with a frozen encoder (ADR-009) and confirmed on nine
+fine-tuned runs over five days; the registered risk — "architecture may be under-scaled
+vs. SOTA" — stands and is not tested by anything here. **No assumption is falsified by
+Phase 5; the project's central *hypothesis* is not an entry in that register**, and it is
+what §1.22 fails to support. A1, A3, A4, A5 untouched.
 
 ### 1.2 What Exists Right Now
 
