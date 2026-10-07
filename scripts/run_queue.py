@@ -591,6 +591,75 @@ def build_plan() -> list[Step]:
             )
         )
 
+    # --- Phase 6 (E7): ablation A6 — attention direction, frozen encoder ---------------
+    # Added 2026-10-07, after the owner signed the Phase 5 gate. ResearchPlan.md §5: A6 is
+    # "bidirectional · sem→str only · str→sem only", and it is what justifies — or does
+    # not — *bidirectional* cross-attention specifically. Frozen, off the cache, for the
+    # reason every ablation is (Memory.md §6 item 0a).
+    #
+    # The bidirectional arm is RE-RUN here rather than borrowed from the A1 screen: those
+    # runs are from commit d1003f6 and `src/vulnloc` has changed since, so the seed report
+    # would — correctly — refuse to read them as the same experiment. One group, one
+    # commit, one machine (§7 #49).
+    #
+    # The direction is always passed explicitly, `both` included, so all three arms log the
+    # same parameter set and differ in exactly one value.
+    a6_directions = {
+        "both": "the design as built — both attentions; the arm the other two are read against",
+        "sem_from_str": "semantic lines query structural lines only ('sem→str only')",
+        "str_from_sem": "structural lines query semantic lines only ('str→sem only')",
+    }
+
+    def a6_args(direction: str, extra: list[str], train: str = "train=fused") -> list[str]:
+        return [
+            "+fusion=cross_attention",
+            train,
+            *extra,
+            *a1_constants,
+            f"+fusion.args.direction={direction}",
+        ]
+
+    # A one-way block is a path the fused model has never been trained through, so it gets
+    # the overfit gate first (§7 #52): it exits zero even when it fails to memorise.
+    for direction in ("sem_from_str", "str_from_sem"):
+        steps.append(
+            Step(
+                name=f"a6-overfit-{direction}",
+                group="a6check",
+                why=f"Sanity: cross_attention with direction={direction} must memorise 32 "
+                "functions, frozen. Never a result.",
+                script="scripts/train_fused.py",
+                args=a6_args(direction, [], train="train=overfit_fused"),
+            )
+        )
+    for seed in (42, 1, 2):
+        for direction, why in a6_directions.items():
+            steps.append(
+                Step(
+                    name=f"a6-{direction}-seed{seed}",
+                    group="a6",
+                    why=f"A6: {why}. Frozen encoder, seed {seed} of 3.",
+                    script="scripts/train_fused.py",
+                    args=a6_args(direction, [f"seed={seed}"]),
+                )
+            )
+    for direction in a6_directions:
+        steps.append(
+            Step(
+                name=f"a6-seed-report-{direction}",
+                group="a6",
+                why=f"Aggregate the A6 direction={direction} seeds (needs all 3).",
+                script="scripts/report_seeds.py",
+                args=[
+                    "train=fused",
+                    "+seeds.where={fusion_kind: cross_attention, frozen: True, "
+                    f"fusion_direction: {direction}}}",
+                    f"+seeds.tag=a6_{direction}",
+                    "+seeds.output_dir=./artifacts/phase6",
+                ],
+            )
+        )
+
     # Every seed report in the slate must fail, not pass, when a seed is missing. Without
     # this the report after a crashed run is written on the seeds that survived, exits 0
     # and is recorded `done` — and is then never run again once the missing seed finishes
@@ -962,7 +1031,7 @@ def main() -> int:
         default=None,
         metavar="GROUP",
         help="Run only these groups, in plan order (phase3, phase4, p5check, phase5, "
-        "d97check, d97, m2check, m2, m2ftcheck, m2ft).",
+        "d97check, d97, m2check, m2, m2ftcheck, m2ft, a6check, a6).",
     )
     parser.add_argument(
         "--until",

@@ -511,6 +511,72 @@ def test_the_fine_tuned_machine_two_runs_go_seed_by_seed_and_are_checked_first()
         assert not step.resumable
 
 
+# --- A6: three arms that differ in the direction and nothing else -----------------------
+
+A6_DIRECTIONS = ("both", "sem_from_str", "str_from_sem")
+
+
+def _direction(step: Any) -> str:
+    (value,) = [a.split("=", 1)[1] for a in step.args if a.startswith("+fusion.args.direction=")]
+    return value
+
+
+def test_the_a6_arms_differ_only_in_the_direction():
+    """A second difference between the arms would be what A6 measured instead."""
+    seed42 = {_direction(s): _overrides(s) for s in _group("a6") if s.name.endswith("-seed42")}
+
+    assert set(seed42) == set(A6_DIRECTIONS)
+    for direction in ("sem_from_str", "str_from_sem"):
+        assert seed42[direction] ^ seed42["both"] == {
+            f"+fusion.args.direction={direction}",
+            "+fusion.args.direction=both",
+        }
+
+
+def test_every_a6_arm_names_its_direction_even_the_default_one():
+    """Otherwise `both` would log a different parameter set from the two it is read against."""
+    runs = [s for s in _group("a6") if s.script == "scripts/train_fused.py"]
+
+    assert len(runs) == 9
+    assert all(sum(a.startswith("+fusion.args.direction=") for a in s.args) == 1 for s in runs)
+
+
+def test_a6_is_a_frozen_cross_attention_ablation_off_the_cache():
+    for step in _group("a6") + _group("a6check"):
+        if step.script != "scripts/train_fused.py":
+            continue
+        assert "+fusion=cross_attention" in step.args
+        assert "llm.frozen=true" in step.args
+        assert "train.semantic_cache.enabled=false" not in step.args
+        assert not step.resumable
+
+
+def test_a6_runs_seed_by_seed_so_a_short_night_leaves_equal_counts():
+    names = [s.name for s in _group("a6") if s.script == "scripts/train_fused.py"]
+
+    assert names == [f"a6-{d}-seed{seed}" for seed in (42, 1, 2) for d in A6_DIRECTIONS]
+
+
+def test_the_one_way_arms_are_overfit_checked_before_they_are_run():
+    """§7 #52: a path that cannot learn still exits zero, so it is checked by itself first."""
+    checks = _group("a6check")
+
+    assert sorted(_direction(s) for s in checks) == ["sem_from_str", "str_from_sem"]
+    assert all("train=overfit_fused" in s.args for s in checks)
+    plan = [s.group for s in run_queue.build_plan() if s.group in {"a6check", "a6"}]
+    assert plan == sorted(plan, key=lambda group: group != "a6check")
+
+
+def test_each_a6_seed_report_selects_exactly_one_direction():
+    reports = {s.name: s for s in _group("a6") if s.script == run_queue.SEED_REPORT_SCRIPT}
+
+    assert set(reports) == {f"a6-seed-report-{d}" for d in A6_DIRECTIONS}
+    for direction in A6_DIRECTIONS:
+        where = next(a for a in reports[f"a6-seed-report-{direction}"].args if "seeds.where" in a)
+        assert f"fusion_direction: {direction}}}" in where
+        assert "frozen: True" in where and "fusion_kind: cross_attention" in where
+
+
 # --- a fresh machine must name its groups -----------------------------------------------
 
 

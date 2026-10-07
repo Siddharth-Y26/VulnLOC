@@ -127,8 +127,10 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 - `models/` — `alignment.py` (the shared line axis), `semantic/{encoder,baseline}.py`,
   `structural/{encoder,baseline}.py` (GCN/GAT/GGNN behind one scaffold; `edge_handling`
   per ADR-007), `heads/line_head.py`, **`fusion/{base,cross_attention,comparators}.py`**
-  (six arms behind one `FusionModule`) and **`fused.py`** (both branches → one line axis →
-  one head; `explain()` exports the attention maps for Phase 7)
+  (six arms behind one `FusionModule`; cross-attention takes `direction` =
+  `both` | `sem_from_str` | `str_from_sem` for ablation A6 — the parameter set is the same
+  for all three, and `both` is the default and the design) and **`fused.py`** (both
+  branches → one line axis → one head; `explain()` exports the attention maps for Phase 7)
 - `training/` — plus `datasets.py`, **`graph_datasets.py`** (Phase 4's shards→graph-batch
   path: node-budget batching, corpus vocabulary with a verified digest, per-partition
   coverage accounting), **`fused_datasets.py`** (Phase 5's: the two branches joined on
@@ -261,6 +263,9 @@ python scripts/score_checkpoint.py +score.run_id=80fc5238   # Phase 6: every lin
                                                             #   the run's logged metrics; refuses test / clean_eval
                                                             #   without +score.final=true (Rules.md §5.3 — once, at the end)
 python scripts/calibrate.py '+calibrate.runs=[<run>,...]'   # Platt calibration + max-F1 threshold, val ONLY; quote out_of_fold
+
+python scripts/run_queue.py --only a6check                  # A6 (attention direction): overfit the two one-way arms — READ Top-1 first
+python scripts/run_queue.py --only a6                       # A6: both / sem_from_str / str_from_sem × 3 seeds, frozen, + 3 seed reports
 
 # SECOND LAPTOP ONLY (docs/SecondMachine.md) — its own clone, its own mlflow.db:
 python scripts/run_queue.py --only m2check m2ftcheck        # cache build + 5 overfit gates — READ Top-1 first

@@ -1706,6 +1706,13 @@ Learned:
   - **A background wait is not a guaranteed wake-up.** The 02:18 one reached the session at
     06:59. Anything that must happen overnight belongs in a process on the machine (the
     watcher), not in the session's intention to check.
+  - **A6 is built, as a setting that cannot change the model.** `CrossAttentionBlock` runs
+    one attention or both by `direction`; both modules always exist, so the three arms
+    share a parameter set and a `state_dict` (ADR-007 §D7.5's rule), the idle one gets no
+    gradient, and its map is `None` rather than zeros. The bidirectional path draws its
+    random numbers in the order it always did. Queue groups `a6check` (two overfit gates)
+    and `a6` (3 arms × 3 seeds, frozen, the bidirectional arm re-run under this commit, plus
+    three seed reports that select on a new logged parameter, `fusion_direction`).
   - **`start_run` logs every override as a parameter**, so a script must not log its own
     `+group.key` again under the same name with a different rendering — MLflow refuses the
     second value and the run dies after its report is already on disk (`5d06b630…`).

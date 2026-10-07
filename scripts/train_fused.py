@@ -382,6 +382,12 @@ def train(cfg: DictConfig) -> dict[str, Any]:
             "fusion_hidden_dim": int(fusion_cfg.args.hidden_dim),
             "fusion_heads": int(OmegaConf.select(cfg, "fusion.args.heads") or 0),
             "fusion_n_layers": int(OmegaConf.select(cfg, "fusion.args.n_layers") or 0),
+            # Ablation A6. `both` is the design and what every cross-attention run before
+            # this parameter existed was; arms without attention have no direction.
+            "fusion_direction": str(
+                OmegaConf.select(cfg, "fusion.args.direction")
+                or ("both" if str(fusion_cfg.kind) == "cross_attention" else "none")
+            ),
             "trim_line_axis": bool(fusion_cfg.trim_line_axis),
             "model_name": str(cfg.llm.model_name),
             "frozen": bool(cfg.llm.frozen),

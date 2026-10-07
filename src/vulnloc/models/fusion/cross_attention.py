@@ -45,6 +45,16 @@ time.
 **The head count has to divide the width.** Otherwise ``MultiheadAttention`` silently
 becomes a different-width model and a sweep over ``fusion.heads`` stops comparing heads —
 the same failure ``configs/gnn/default.yaml`` records for the GAT head count.
+
+**The direction can be switched off, and the parameter set does not change when it is.**
+Ablation A6 (``ResearchPlan.md`` §5) asks whether *bidirectional* attention is what the
+design needs, against either direction alone. ``direction`` selects which of the two
+attentions run; the other branch then passes through its residual and layer norm with
+nothing added. Both attention modules are always constructed — the same rule ADR-007
+§D7.5 set for edge handling — so the three arms have identical parameter sets and
+identical ``state_dict`` keys, a checkpoint from one loads into another, and the only
+thing that differs is the mechanism under test. The idle module simply receives no
+gradient.
 """
 
 from __future__ import annotations
@@ -55,7 +65,15 @@ from vulnloc.models.fusion.base import FusionModule, FusionOutput
 from vulnloc.models.registry import register_fusion
 from vulnloc.utils.exceptions import ModelError
 
-__all__ = ["CrossAttentionBlock", "CrossAttentionFusion", "cross_attend"]
+__all__ = ["DIRECTIONS", "CrossAttentionBlock", "CrossAttentionFusion", "cross_attend"]
+
+DIRECTIONS = ("both", "sem_from_str", "str_from_sem")
+"""Which attention runs. Named for the module that runs, because arrows are ambiguous.
+
+``sem_from_str`` — semantic lines query structural lines (the map exported as
+``attn_sem2str``); ``ResearchPlan.md``'s "sem→str only". ``str_from_sem`` is the reverse,
+"str→sem only". ``both`` is the architecture as designed.
+"""
 
 
 def cross_attend(
@@ -113,12 +131,16 @@ class CrossAttentionBlock(torch.nn.Module):
         hidden_dim: Common width ``D``.
         heads: Attention heads ``H``. Must divide ``hidden_dim``.
         dropout: Dropout inside the attention and on its residual branch.
+        direction: One of :data:`DIRECTIONS`. Both attention modules exist whatever this
+            says; it decides which of them run.
 
     Raises:
-        ModelError: If ``heads`` does not divide ``hidden_dim``.
+        ModelError: If ``heads`` does not divide ``hidden_dim`` or ``direction`` is unknown.
     """
 
-    def __init__(self, hidden_dim: int, *, heads: int = 4, dropout: float = 0.1) -> None:
+    def __init__(
+        self, hidden_dim: int, *, heads: int = 4, dropout: float = 0.1, direction: str = "both"
+    ) -> None:
         super().__init__()
         if heads <= 0 or hidden_dim % heads:
             raise ModelError(
@@ -126,7 +148,12 @@ class CrossAttentionBlock(torch.nn.Module):
                 hidden_dim=hidden_dim,
                 heads=heads,
             )
+        if direction not in DIRECTIONS:
+            raise ModelError(
+                "unknown attention direction", direction=direction, expected=list(DIRECTIONS)
+            )
         self.heads = heads
+        self.direction = direction
         self.sem_from_str = torch.nn.MultiheadAttention(
             hidden_dim, heads, dropout=dropout, batch_first=True
         )
@@ -157,17 +184,28 @@ class CrossAttentionBlock(torch.nn.Module):
 
         Returns:
             ``(sem' [B, L, D], str' [B, L, D], attn_sem2str [B, H, L, L] or None,
-            attn_str2sem [B, H, L, L] or None)``.
+            attn_str2sem [B, H, L, L] or None)``. A direction that is switched off returns
+            ``None`` for its map — there is no attention to report, and zeros would claim
+            there was.
         """
-        sem_attended, attn_sem2str = cross_attend(
-            self.sem_from_str, sem, str_, str_mask, need_weights=need_weights
-        )
-        str_attended, attn_str2sem = cross_attend(
-            self.str_from_sem, str_, sem, sem_mask, need_weights=need_weights
-        )
-        sem_out = self.sem_norm(sem + self.dropout(sem_attended))
-        str_out = self.str_norm(str_ + self.dropout(str_attended))
-        return sem_out, str_out, attn_sem2str, attn_str2sem
+        sem_attended: torch.Tensor | None = None
+        str_attended: torch.Tensor | None = None
+        attn_sem2str: torch.Tensor | None = None
+        attn_str2sem: torch.Tensor | None = None
+        # Both attentions first, then both residual dropouts — the order the bidirectional
+        # block has always drawn its random numbers in. Interleaving them would change
+        # every dropout mask of the default arm for no reason.
+        if self.direction != "str_from_sem":
+            sem_attended, attn_sem2str = cross_attend(
+                self.sem_from_str, sem, str_, str_mask, need_weights=need_weights
+            )
+        if self.direction != "sem_from_str":
+            str_attended, attn_str2sem = cross_attend(
+                self.str_from_sem, str_, sem, sem_mask, need_weights=need_weights
+            )
+        sem_out = sem if sem_attended is None else sem + self.dropout(sem_attended)
+        str_out = str_ if str_attended is None else str_ + self.dropout(str_attended)
+        return self.sem_norm(sem_out), self.str_norm(str_out), attn_sem2str, attn_str2sem
 
 
 @register_fusion("cross_attention")
@@ -187,10 +225,11 @@ class CrossAttentionFusion(FusionModule):
         n_layers: Bidirectional blocks to stack. The returned attention maps are the
             **last** block's.
         dropout: Dropout inside attention, on residuals and before the output projection.
+        direction: One of :data:`DIRECTIONS` — ablation A6. ``"both"`` is the design.
 
     Raises:
         ModelError: If a width is not positive, ``heads`` does not divide ``hidden_dim``,
-            or ``n_layers`` is not positive.
+            ``n_layers`` is not positive, or ``direction`` is unknown.
     """
 
     def __init__(
@@ -202,14 +241,17 @@ class CrossAttentionFusion(FusionModule):
         heads: int = 4,
         n_layers: int = 1,
         dropout: float = 0.1,
+        direction: str = "both",
     ) -> None:
         super().__init__(sem_dim=sem_dim, str_dim=str_dim, hidden_dim=hidden_dim, dropout=dropout)
         if n_layers <= 0:
             raise ModelError("n_layers must be positive", n_layers=n_layers)
         self.n_layers = n_layers
         self.heads = heads
+        self.direction = direction
         self.blocks = torch.nn.ModuleList(
-            CrossAttentionBlock(hidden_dim, heads=heads, dropout=dropout) for _ in range(n_layers)
+            CrossAttentionBlock(hidden_dim, heads=heads, dropout=dropout, direction=direction)
+            for _ in range(n_layers)
         )
         self.out_proj = torch.nn.Linear(2 * hidden_dim, hidden_dim)
         self.out_norm = torch.nn.LayerNorm(hidden_dim)
@@ -270,4 +312,7 @@ class CrossAttentionFusion(FusionModule):
 
     def extra_repr(self) -> str:
         """Show the widths, head count and depth in ``print(model)``."""
-        return f"{super().extra_repr()}, heads={self.heads}, n_layers={self.n_layers}"
+        return (
+            f"{super().extra_repr()}, heads={self.heads}, n_layers={self.n_layers}, "
+            f"direction={self.direction}"
+        )

@@ -228,6 +228,127 @@ def test_a_head_count_that_does_not_divide_the_width_raises() -> None:
         build_fusion("cross_attention", sem_dim=SEM_DIM, str_dim=STR_DIM, hidden_dim=8, heads=3)
 
 
+# --- the attention direction: ablation A6 ---------------------------------------------
+
+ONE_WAY = ["sem_from_str", "str_from_sem"]
+
+
+def _directed(direction: str | None, *, like: Any = None) -> Any:
+    """A cross-attention fusion in eval mode, optionally with another one's weights."""
+    kwargs = fusion_kwargs("cross_attention")
+    if direction is not None:
+        kwargs["direction"] = direction
+    fusion = build_fusion("cross_attention", **kwargs).eval()
+    if like is not None:
+        fusion.load_state_dict(like.state_dict(), strict=True)
+    return fusion
+
+
+def test_the_default_is_the_bidirectional_design(branches) -> None:
+    """Every run made before the option existed must still be the model it was."""
+    sem, structural, sem_mask, str_mask = branches
+    default = _directed(None)
+    explicit = _directed("both", like=default)
+
+    assert default.direction == "both"
+    assert torch.equal(
+        default(sem, structural, sem_mask, str_mask).fused,
+        explicit(sem, structural, sem_mask, str_mask).fused,
+    )
+
+
+@pytest.mark.parametrize("direction", ONE_WAY)
+def test_every_direction_has_the_same_parameter_set(direction) -> None:
+    """ADR-007 §D7.5's rule: the setting selects a mechanism, never a different model."""
+    both = _directed("both")
+    one_way = _directed(direction)
+
+    assert {k: v.shape for k, v in one_way.state_dict().items()} == {
+        k: v.shape for k, v in both.state_dict().items()
+    }
+    one_way.load_state_dict(both.state_dict(), strict=True)
+
+
+@pytest.mark.parametrize("direction", ONE_WAY)
+def test_switching_a_direction_off_changes_the_output(direction, branches) -> None:
+    """§7 #22: a knob nothing consumes looks exactly like a knob that works."""
+    sem, structural, sem_mask, str_mask = branches
+    both = _directed("both")
+    one_way = _directed(direction, like=both)
+
+    fused_both = both(sem, structural, sem_mask, str_mask).fused
+    fused_one_way = one_way(sem, structural, sem_mask, str_mask).fused
+
+    assert bool(torch.isfinite(fused_one_way).all())
+    assert not torch.allclose(fused_both, fused_one_way)
+
+
+def test_the_two_one_way_arms_are_not_the_same_arm(branches) -> None:
+    sem, structural, sem_mask, str_mask = branches
+    both = _directed("both")
+    first = _directed("sem_from_str", like=both)(sem, structural, sem_mask, str_mask).fused
+    second = _directed("str_from_sem", like=both)(sem, structural, sem_mask, str_mask).fused
+
+    assert not torch.allclose(first, second)
+
+
+@pytest.mark.parametrize(
+    ("direction", "present", "absent"),
+    [
+        ("sem_from_str", "attn_sem2str", "attn_str2sem"),
+        ("str_from_sem", "attn_str2sem", "attn_sem2str"),
+    ],
+)
+def test_a_direction_that_is_off_reports_no_map_rather_than_zeros(
+    direction, present, absent, branches
+) -> None:
+    """Phase 7 exports these as evidence; zeros would be evidence of attention to nothing."""
+    sem, structural, sem_mask, str_mask = branches
+
+    output = _directed(direction)(sem, structural, sem_mask, str_mask, return_attention=True)
+
+    assert getattr(output, present) is not None
+    assert getattr(output, present).shape == (2, 2, N_LINES, N_LINES)
+    assert getattr(output, absent) is None
+
+
+@pytest.mark.parametrize(
+    ("direction", "idle"),
+    [("sem_from_str", "str_from_sem"), ("str_from_sem", "sem_from_str")],
+)
+def test_the_idle_attention_gets_no_gradient_and_both_branches_still_do(
+    direction, idle, branches
+) -> None:
+    """One mechanism is removed; neither branch is. That is what makes it A6 and not A2."""
+    sem, structural, sem_mask, str_mask = branches
+    sem = sem.clone().requires_grad_(True)
+    structural = structural.clone().requires_grad_(True)
+    fusion = _directed(direction).train()
+
+    fusion(sem, structural, sem_mask, str_mask).fused.sum().backward()
+
+    idle_module = getattr(fusion.blocks[0], idle)
+    running = getattr(fusion.blocks[0], direction)
+    assert all(parameter.grad is None for parameter in idle_module.parameters())
+    assert any(
+        parameter.grad is not None and bool(parameter.grad.abs().sum() > 0)
+        for parameter in running.parameters()
+    )
+    assert float(sem.grad.abs().sum()) > 0.0
+    assert float(structural.grad.abs().sum()) > 0.0
+
+
+def test_an_unknown_direction_raises() -> None:
+    with pytest.raises(ModelError, match="unknown attention direction"):
+        build_fusion("cross_attention", **fusion_kwargs("cross_attention"), direction="sem2str")
+
+
+def test_a_comparator_does_not_accept_a_direction() -> None:
+    """The option belongs to cross-attention alone, like `heads`."""
+    with pytest.raises(ModelError, match="does not accept"):
+        build_fusion("concat", **fusion_kwargs("concat"), direction="both")
+
+
 # --- the composed model -------------------------------------------------------------
 
 
