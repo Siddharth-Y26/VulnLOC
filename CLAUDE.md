@@ -77,13 +77,15 @@ count (ADR-010, **Proposed**; identical to the grammar's own comment nodes on 6,
 F1 0.2355 / 0.2338 / 0.2362 — against 0.616–0.617 and 0.39 as shipped; the arms still tie.
 Those are models *trained with* comments, so they are not the leak-free numbers either:
 **queue group `d97r` retrains the nine on stripped text** (`d97rcheck` first) — **started
-2026-10-07 18:04 by session 16, pending Q14; about a day.** **The first arm is in
-(22:58, `Memory.md` §1.28): cross_attention trained and evaluated without comments,
-Top-5 0.5394 ± 0.0116, Top-1 0.2683 ± 0.0060, 3 seeds (seed report `bd2544c7…`, made
-with the recorded source-drift override, landmine #62) — indistinguishable from
-stripping at evaluation only. `llm_only` and concat are still training: no arm
-comparison yet, and `--status` shows one expected `[FAIL]` (that seed report's first
-attempt).** Run
+2026-10-07 18:04 by session 16, pending Q14; about a day.** **Two arms are in
+(`Memory.md` §1.28), 3 seeds each, `val`, trained and evaluated without comments:
+cross_attention Top-5 0.5394 ± 0.0116 / Top-1 0.2683 ± 0.0060 (seed report `bd2544c7…`,
+made with the recorded source-drift override, landmine #62); `llm_only` 0.5519 ± 0.0187 /
+0.2801 ± 0.0062 (`f814e521…`). Each is indistinguishable from stripping at evaluation
+only, and the designed model does not beat its control: Top-5 −0.0124 (0.80 pooled sd),
+Top-1 −0.0118 (1.92 pooled sd, same sign on every seed — a candidate in the control's
+favour, not a finding). Concat has been training since Thu 04:28; `--status` shows one
+expected `[FAIL]` (the cross-attention seed report's first attempt).** Run
 `python scripts/run_queue.py --only d97rcheck d97r --status` first. While a `d97r-*` step
 is running or paused, **do not edit `configs/` or ANY file under `src/vulnloc/`** — not
 only what training imports: the seed report refuses an arm whose seeds straddle any
