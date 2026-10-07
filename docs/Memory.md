@@ -2857,6 +2857,12 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   `llm_only` shrinks from +0.032…+0.051 to +0.010…+0.029 on stripped text and keeps its
   sign. `a1rcheck` / `a1r` (18 frozen runs on stripped text) are defined and **not
   started** — a candidate for machine 2, as one whole group.
+- **First pace reading, 18:30:** 144 s per hundred optimizer steps (D9.7's fused arms ran
+  at ~200), 3,267 MiB dedicated, no shared memory in use. One reading — look again.
+- **A bundle for machine 2 is ready, unused:** `D:ulnloc_transferulnloc_20261007.bundle`
+  (commit `18516aa`, beside the 2026-10-03 one, which is untouched) with
+  `A1R_START_HERE.md`. It is only for `a1r`, and only if the owner decides to run it
+  there (`docs/SecondMachine.md` §6).
 - **A draft of the held-out evaluation protocol** is at `docs/EvaluationProtocol.md`. It
   binds nothing until Phase 8 starts; its §2 and §3 are Q14 put to the owner in concrete
   form.
