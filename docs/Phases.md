@@ -248,7 +248,9 @@ The hyperparameter sweep is frozen-encoder only.
 - [ ] Explanations reviewed for absence of attack instructions (`Rules.md` §7.2)
   - *2026-10-07:* the automatic half is in place — every template sentence and every
     finished text is scanned for that vocabulary. **The review itself is a person
-    reading the 19 sentences in `explanation/templates.py`: the owner's.**
+    reading one page — `python scripts/list_explanation_sentences.py` writes every
+    sentence the explainer can emit to `artifacts/phase7/sentences_for_review.md`: the
+    owner's.**
 - [x] Human evaluation protocol defined (rubric, raters, sample size) — see `ResearchPlan.md` §4.3
   - *2026-10-07:* `docs/HumanEvalProtocol.md` — three raters, 100 functions drawn by
     content hash from `test`, four 1–5 dimensions, Krippendorff's α. Its approval is

@@ -218,8 +218,9 @@ The table is in §1.27. Met: an explanation for every positive prediction (13,90
 on `val`, three seeds, all verified); the grounding suite; the human-evaluation protocol
 (`docs/HumanEvalProtocol.md` — its approval is part of this gate). **Open: "explanations
 reviewed for absence of attack instructions"** — the automatic check is in place and
-passes; the review itself is reading 19 template sentences in
-`src/vulnloc/explanation/templates.py`, and it is the owner's.
+passes; the review itself is reading one page —
+`artifacts/phase7/sentences_for_review.md`, every sentence the explainer can emit, printed
+from the code — and it is the owner's.
 
 Not built, said plainly: 7b (deferred in writing); node importances (the model has no such
 output — `graph_nodes` is a selection by node type on the flagged line, and says so); and
@@ -2010,7 +2011,7 @@ is a recall-heavy one.
 |---|---|---|
 | 7a produces a valid explanation for every positive prediction | ✅ | 13,908 of 13,908 flagged lines over three seeds, each verified |
 | Grounding test suite passes (no explanation names an unflagged line) | ✅ | `tests/unit/test_explanation.py`, incl. a property test over arbitrary scores and thresholds; grounding rate 100% on real data, 0 rejections |
-| Explanations reviewed for absence of attack instructions | 🟨 | Automatic half done: every template sentence and every finished text is scanned for that vocabulary (test + verifier). **The reading by a person is the owner's** — 19 sentences, in `explanation/templates.py` |
+| Explanations reviewed for absence of attack instructions | 🟨 | Automatic half done: every template sentence and every finished text is scanned for that vocabulary (test + verifier). **The reading by a person is the owner's** — one page, `artifacts/phase7/sentences_for_review.md` (19 template sentences and 8 fixed forms, printed from the code by `scripts/list_explanation_sentences.py`) |
 | Human evaluation protocol defined | ✅ | `docs/HumanEvalProtocol.md`; a pilot pack of 100 `val` samples is at `artifacts/phase7/rater_pack_stripped/` (run `51525d82…`) |
 
 ### What this supports
