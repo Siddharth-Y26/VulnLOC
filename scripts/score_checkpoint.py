@@ -29,7 +29,10 @@ comments in place the corpus text carries a formatting leak the checkpoints read
 a run trained with comments this is *evaluation-time* stripping: the metrics are not
 expected to reproduce the run's own, so that check is skipped, the manifest records
 ``strip_comments`` and ``strip_comments_at_training`` separately, and the files go to
-``scores_stripped/`` so they can never be mistaken for the scores the run reported.
+``scores_stripped/`` so they can never be mistaken for the scores the run reported. A
+run *trained* on stripped text is always scored on stripped text, reproduces its own
+logged metrics, and goes to ``scores_retrained/`` — a third population, kept out of the
+other two's directories because an audit averages every seed of an arm it finds in one.
 
 Usage::
 
@@ -235,6 +238,28 @@ def evaluation_config(run_cfg: DictConfig, cfg: DictConfig) -> tuple[DictConfig,
     return stripped, True
 
 
+def text_variant(trained_cfg: DictConfig, *, text_changed: bool) -> str:
+    """The directory suffix that keeps scores made from different text apart.
+
+    A run trained on comment-stripped text is scored on the text it was trained on, so
+    it is "not a change of text" — and without this it would be written beside the
+    comment-trained checkpoints' scores of record, where an audit of the directory
+    averages every seed of an arm it finds.
+
+    Args:
+        trained_cfg: The run's archived config.
+        text_changed: :func:`evaluation_config`'s second result.
+
+    Returns:
+        ``""`` for a run trained and scored with comments in place, ``"_stripped"`` for
+        one trained with comments and scored without them, ``"_retrained"`` for one
+        trained and scored without them.
+    """
+    if text_changed:
+        return "_stripped"
+    return "_retrained" if strip_comments_enabled(trained_cfg) else ""
+
+
 def build_dataset(run_cfg: DictConfig, split: str, train_fused: Any) -> FusedLineDataset:
     """Build ``split`` exactly as the run's own evaluation set was built.
 
@@ -398,9 +423,8 @@ def score(cfg: DictConfig) -> dict[str, Any]:
     refuse_unusable_run(run)
     trained_cfg = load_run_config(run_id)
     run_cfg, text_changed = evaluation_config(trained_cfg, cfg)
-    output_dir = Path(
-        str(requested_output or f"./artifacts/phase6/scores{'_stripped' if text_changed else ''}")
-    )
+    variant = text_variant(trained_cfg, text_changed=text_changed)
+    output_dir = Path(str(requested_output or f"./artifacts/phase6/scores{variant}"))
     split = str(OmegaConf.select(cfg, "score.split") or run_cfg.train.eval_split)
     require_scoreable_split(split, final=final)
 

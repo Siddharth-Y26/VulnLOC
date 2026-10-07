@@ -27,7 +27,9 @@ Written to ``explain.output_dir`` (default ``./artifacts/phase7/explanations``):
 With ``+representation.strip_comments=true`` everything is read from, and written to,
 the comment-stripped variant (``Memory.md`` §1.25): the scores in ``scores_stripped/``,
 the calibrator fitted on them, and the units' text with comments removed — so a line an
-explanation quotes is the line the model was shown.
+explanation quotes is the line the model was shown. A run *trained* on stripped text
+reads and writes a third set (``scores_retrained/``, ``phase6/retrained/``,
+``explanations_retrained/``) without being asked.
 
 Usage::
 
@@ -96,6 +98,26 @@ REPO = Path(__file__).resolve().parent.parent
 DEFAULT_LOGIT_TOLERANCE = 0.05
 """How far this pass's logits may sit from the stored ones. Far above float noise between
 two runs of one checkpoint, far below the gap between two different checkpoints."""
+
+
+def default_paths(variant: str) -> dict[str, str]:
+    """Where one text variant's scores, calibrator and explanations live by default.
+
+    Args:
+        variant: ``score_checkpoint.text_variant``'s suffix — ``""``, ``"_stripped"`` or
+            ``"_retrained"``.
+
+    Returns:
+        ``scores_dir``, ``calibration_report`` and ``output_dir``. Each variant has its
+        own three, so a calibrator fitted on one text is never applied to scores made
+        from another.
+    """
+    calibration = f"./artifacts/phase6/{variant.lstrip('_')}" if variant else "./artifacts/phase6"
+    return {
+        "scores_dir": f"./artifacts/phase6/scores{variant}",
+        "calibration_report": f"{calibration}/calibration_report.json",
+        "output_dir": f"./artifacts/phase7/explanations{variant}",
+    }
 
 
 def _load_script(name: str) -> Any:
@@ -576,21 +598,10 @@ def explain(cfg: DictConfig) -> dict[str, Any]:
     scoring.refuse_unusable_run(run)
     trained_cfg = scoring.load_run_config(run_id)
     run_cfg, text_changed = scoring.evaluation_config(trained_cfg, cfg)
-    variant = "_stripped" if text_changed else ""
-    scores_dir = Path(str(option("scores_dir", f"./artifacts/phase6/scores{variant}")))
-    report_path = Path(
-        str(
-            option(
-                "calibration_report",
-                (
-                    "./artifacts/phase6/stripped/calibration_report.json"
-                    if text_changed
-                    else "./artifacts/phase6/calibration_report.json"
-                ),
-            )
-        )
-    )
-    output_dir = Path(str(option("output_dir", f"./artifacts/phase7/explanations{variant}")))
+    defaults = default_paths(scoring.text_variant(trained_cfg, text_changed=text_changed))
+    scores_dir = Path(str(option("scores_dir", defaults["scores_dir"])))
+    report_path = Path(str(option("calibration_report", defaults["calibration_report"])))
+    output_dir = Path(str(option("output_dir", defaults["output_dir"])))
     split = str(option("split", run_cfg.train.eval_split))
     scoring.require_scoreable_split(split, final=final)
 

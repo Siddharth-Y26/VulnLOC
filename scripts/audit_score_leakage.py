@@ -34,7 +34,9 @@ text. What this gives is the size of the problem, from files already on disk.
 With ``+representation.strip_comments=true`` it audits the scores in ``scores_stripped/``
 against comment-stripped text — where both tells should fire on nothing, and the groups
 that depend on them should be empty. That is the check that the fix removed the leak
-rather than hid it.
+rather than hid it. Scores made from the other text variant are refused, and a
+checkpoint *trained* on stripped text is its own arm (``<arm>_retrained``); its scores
+live in ``scores_retrained/``, named with ``+audit.scores_dir``.
 
 Usage::
 
@@ -241,15 +243,48 @@ def arm_name(manifest: Mapping[str, Any]) -> str:
 
     Returns:
         The fusion kind, with the attention direction when the run named one (ablation
-        A6's arms share a kind) and ``_frozen`` for a frozen encoder — so a frozen run is
-        never averaged with a fine-tuned one, nor one direction with another.
+        A6's arms share a kind), ``_frozen`` for a frozen encoder and ``_retrained`` for
+        a run trained on comment-stripped text — so a frozen run is never averaged with
+        a fine-tuned one, one direction with another, nor a model that never saw a
+        comment with one that was only evaluated without them.
     """
     direction = str(manifest.get("fusion_direction") or "")
     return (
         f"{manifest['fusion_kind']}"
         f"{'_' + direction if direction else ''}"
         f"{'_frozen' if manifest['frozen'] else ''}"
+        f"{'_retrained' if manifest.get('strip_comments_at_training') else ''}"
     )
+
+
+def refuse_other_text(manifests: Sequence[Mapping[str, Any]], *, strip: bool) -> None:
+    """Refuse score files made from the text variant this audit is not reading.
+
+    The groups are defined by matching each scored line to its text. Line counts are the
+    same with and without comments, so scores made from one variant line up against the
+    other without an error and every group is then computed on the wrong lines.
+
+    Args:
+        manifests: The score files' manifests.
+        strip: Whether this audit reads comment-stripped text.
+
+    Raises:
+        ConfigError: If any score file was made from the other variant. A manifest
+            written before the switch existed was, by definition, made with comments.
+    """
+    other = [
+        str(manifest["source_run"])
+        for manifest in manifests
+        if bool(manifest.get("strip_comments", False)) != strip
+    ]
+    if other:
+        raise ConfigError(
+            "these scores were made from the other text variant",
+            runs=other,
+            audit_strips_comments=strip,
+            hint="Add or drop '+representation.strip_comments=true' so the audit reads "
+            "the text the scores were made from.",
+        )
 
 
 def load_texts(
@@ -320,6 +355,7 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
         raise ConfigError(
             "no score files to audit", scores_dir=str(scores_dir), split=split, runs=wanted
         )
+    refuse_other_text(manifests, strip=strip)
 
     label_audit = _load_label_audit()
     tell = label_audit.TELLS["comment_end_lost_slash"]

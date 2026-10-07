@@ -174,6 +174,15 @@ def test_a_run_trained_on_stripped_text_is_never_scored_with_comments_put_back()
     assert text_changed is False
 
 
+def test_each_text_variant_gets_its_own_score_directory():
+    with_comments, without = _cfg(), _cfg(strip_comments=True)
+
+    assert score_checkpoint.text_variant(with_comments, text_changed=False) == ""
+    assert score_checkpoint.text_variant(with_comments, text_changed=True) == "_stripped"
+    # Trained on stripped text: "not a change of text", and still not the scores of record.
+    assert score_checkpoint.text_variant(without, text_changed=False) == "_retrained"
+
+
 def test_stripping_at_evaluation_reads_the_stripped_semantic_cache_not_the_one_of_record():
     from omegaconf import OmegaConf
 

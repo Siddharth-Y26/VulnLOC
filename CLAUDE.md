@@ -81,6 +81,11 @@ Those are models *trained with* comments, so they are not the leak-free numbers 
 `python scripts/run_queue.py --only d97rcheck d97r --status` first. While a `d97r-*` step
 is running or paused, **do not edit `configs/` or anything training imports** (`utils`,
 `data`, `representation`, `models`, `training`); `run_queue.py --stop` pauses it cleanly.
+**What follows the nine runs is `artifacts/queue/d97r_after.ps1`** (its own window; transcript
+`artifacts/queue/d97r_after.out`): it retries a crashed step, then scores, calibrates, audits
+and explains the complete arms on `val` into `artifacts/phase6/scores_retrained/`,
+`artifacts/phase6/retrained/` and `artifacts/phase7/explanations_retrained/` — read the
+transcript before quoting anything from them.
 **The frozen screen was audited as well:** frozen `llm_only` does not read the tell and
 every arm with a structural branch does (parse damage is visible to a GNN), so fusion's
 lead over frozen `llm_only` shrinks from +0.032…+0.051 Top-5 to +0.010…+0.029 on stripped
@@ -494,6 +499,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 58 | **A flagged line that ended a block comment has lost the slash of its `*/` — a second formatting leak that ADR-006's whitespace fix does not close** (`Memory.md` §1.25, found 2026-10-07). A line ending a comment with a bare `*` is flagged at precision 1.0000 on `val`, 0.9744 on `test`, 0.9882 on `train`; a line ending in `*/` is never flagged (0 of 8,474 on `train`). The nine D9.7 checkpoints use it: ≈ 0.05 of every logged `val` Top-5 and ≈ 0.07 of Top-1 sit on the 58 units it answers. It also causes parse damage (an unterminated comment swallows the code after it), so the structural branch may read it too. `clean_eval` has no positive tell but almost no flagged line there carries a comment at all. **Label every line-level number as measured on leaky text until Q14 is decided, and do not run the held-out evaluation on the shards as they are.** `python scripts/audit_label_leakage.py` and `python scripts/audit_score_leakage.py` are the two instruments; re-run both after any corpus change. The audit missed this for a month because it only asked whether a tell was *right* — **a tell that is never right is just as readable**, and it now reports both. |
 | 59 | **A semantic-cache directory holds one cache per partition.** Building the comment-stripped features into `artifacts/semantic_cache/` would replace the cache of record every frozen run was logged against (reproducible only to 1.9e-6, #50). `write_cache` now refuses to replace one text variant with the other, and stripped evaluation reads `<dir>_stripped`. Build with `train.semantic_cache.dir=./artifacts/semantic_cache_stripped`. |
 | 60 | **A run-id prefix can be a number to Hydra.** `+score.run_id=920989e5` arrived as the float `92098900000.0`; the step failed, the batch went on, and an audit reported an arm at `n=2` where three checkpoints existed. `utils/config.py::run_id_text` now refuses a non-text run id. **Pass full 32-character ids from scripts, and read `n_seeds` before quoting any aggregate.** |
+| 61 | **A run trained on stripped text is "not a change of text", so its scores defaulted into `artifacts/phase6/scores/`** — beside the comment-trained checkpoints, where the score audit would have averaged both as one arm at `n=6` without an error (stripping keeps the line count). Caught before any `d97r` checkpoint was scored. Three populations now have three default directories — `scores/`, `scores_stripped/` (evaluated without comments), `scores_retrained/` (trained without them) — the audit refuses scores made from the other text variant, and a retrained checkpoint is its own arm (`<arm>_retrained`). **`calibrate.py` replaces the `calibration_report.json` in its output directory: always pass `+calibrate.output_dir=` for anything but the full model of record.** |
 
 
 ---

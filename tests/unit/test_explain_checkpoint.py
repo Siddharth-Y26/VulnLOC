@@ -88,6 +88,27 @@ def test_a_missing_calibration_report_is_refused(tmp_path):
         explain_checkpoint.load_calibration(tmp_path / "absent.json", "run-a")
 
 
+def test_each_text_variant_reads_its_own_scores_and_its_own_calibrator():
+    shipped = explain_checkpoint.default_paths("")
+    stripped = explain_checkpoint.default_paths("_stripped")
+    retrained = explain_checkpoint.default_paths("_retrained")
+
+    # The two variants measured before the retraining keep the paths they were written to.
+    assert shipped == {
+        "scores_dir": "./artifacts/phase6/scores",
+        "calibration_report": "./artifacts/phase6/calibration_report.json",
+        "output_dir": "./artifacts/phase7/explanations",
+    }
+    assert stripped["calibration_report"] == "./artifacts/phase6/stripped/calibration_report.json"
+    assert retrained == {
+        "scores_dir": "./artifacts/phase6/scores_retrained",
+        "calibration_report": "./artifacts/phase6/retrained/calibration_report.json",
+        "output_dir": "./artifacts/phase7/explanations_retrained",
+    }
+    for key in shipped:
+        assert len({shipped[key], stripped[key], retrained[key]}) == 3, key
+
+
 def test_stored_logits_become_calibrated_probabilities_and_a_sentinel_never_does():
     scores = UnitScores(
         unit_id="u1",

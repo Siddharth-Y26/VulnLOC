@@ -182,6 +182,31 @@ def test_arms_keep_frozen_runs_and_attention_directions_apart():
     assert audit.arm_name({**frozen, "fusion_direction": ""}) == "cross_attention_frozen"
 
 
+def test_a_checkpoint_trained_without_comments_is_its_own_arm():
+    evaluated = {"fusion_kind": "concat", "frozen": False, "strip_comments": True}
+    retrained = {**evaluated, "strip_comments_at_training": True}
+
+    assert audit.arm_name(evaluated) == "concat"
+    assert audit.arm_name({**evaluated, "strip_comments_at_training": False}) == "concat"
+    assert audit.arm_name(retrained) == "concat_retrained"
+
+
+def test_scores_made_from_the_other_text_variant_are_refused():
+    with_comments = {"source_run": "aaa", "strip_comments": False}
+    before_the_switch = {"source_run": "bbb"}
+    without_comments = {"source_run": "ccc", "strip_comments": True}
+
+    audit.refuse_other_text([with_comments, before_the_switch], strip=False)
+    audit.refuse_other_text([without_comments], strip=True)
+
+    with pytest.raises(ConfigError, match="other text variant") as refusal:
+        audit.refuse_other_text([with_comments, without_comments], strip=False)
+    assert refusal.value.details["runs"] == ["ccc"]
+    with pytest.raises(ConfigError, match="other text variant") as refusal:
+        audit.refuse_other_text([before_the_switch, without_comments], strip=True)
+    assert refusal.value.details["runs"] == ["bbb"]
+
+
 def test_a_single_seed_has_no_standard_deviation():
     summary = audit.aggregate([audit.audit_run(SCORED, TEXTS, tell=lost_slash, mirror=intact)])
 
