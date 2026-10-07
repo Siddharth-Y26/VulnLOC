@@ -47,7 +47,7 @@
 | 4 GNN Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | All four met by logged runs — `python scripts/report_phase4.py`, §1.13. Overfit test (`8b0a3c1d…`, Top-1 = Top-5 = 1.000); all three variants on real data; depth sweep 2/4/6; ≥3 seeds (gcn depth 4, Top-5 **0.3645 ± 0.0231**). **Gate signed by the owner 2026-09-15.** A4 (§1.15): subtokens lift Top-5 to **0.4302 ± 0.0372**, and A1 uses them |
 | 5 Fusion | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1c)** | **5 / 5** (head-to-head at ≥3 seeds, §1.21 frozen and §1.22 fine-tuned; the negative result investigated) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it. **2026-10-04 (session 15): the investigation's six runs are in (§1.22) — the null survives fine-tuning.** Still owed before the gate: the `llm_only` scaffold control (0 / 3, seed 42 paused) and the owner's signature. **2026-10-07 (session 16): the control is in — 0.6169 ± 0.0048, no fused arm beats it (§1.22). The three gate questions are answered in §1.1c; only the signature is missing** |
 | 6 Localization Head | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1d)** | **4 / 4** | "Best full-model configuration frozen and checkpointed": **met by decision** — the designed cross-attention model, D9.7's config, checkpoints `80fc5238` / `c193e3bc` / `829c3555` (§2). **Calibrated, reliability curve reported, threshold chosen on `val` only: met 2026-10-07 (§1.24)** — ECE 0.1704 → 0.0137, line F1 0.2954 → 0.3898 out of fold. **Q5 (CWE labels): explicitly deferred by the owner 2026-10-07 — no type classifier; Phase 7a names a template-derived category and says so (§2).** **Deferred in writing (§2):** unit-level aggregation and a joint loss that means something — no negatives; the sweep is frozen-only |
-| 7 Explanation | 🟨 **Current phase since 2026-10-07 — gate answers prepared (§1.1e), not signed** | **3 / 4** | 7a built and measured the same day (§1.27): 13,908 of 13,908 flagged lines on `val` explained and verified, three seeds; grounding suite passes; protocol written. **Open: the owner's reading of the template sentences for attack instructions.** A pattern names a cause for about one flagged line in twelve. 7b is deferred in writing (§2); the category is template-derived (Q5) |
+| 7 Explanation | 🟨 **Current phase since 2026-10-07 — gate answers prepared (§1.1e), not signed** | **3 / 4** | 7a built and measured the same day (§1.27): 13,908 of 13,908 flagged lines on `val` explained and verified, three seeds; grounding suite passes; protocol written; four template sentences corrected after reading real output. **Open: the owner's reading of the template sentences for attack instructions.** A pattern names a cause for about one flagged line in twelve. 7b is deferred in writing (§2); the category is template-derived (Q5) |
 | 8 Evaluation | ⬜ Not started | 0 / 4 | |
 | 9 Serving | ⬜ Not started | 0 / 4 | |
 | 10 Artifacts | ⬜ Not started | 0 / 3 | |
@@ -1821,8 +1821,8 @@ vulnerable line, and until now a model was credited for ranking one.
 The nine checkpoints re-scored on comment-stripped `val` — *trained with comments, scored
 without*. Score runs `84582530…` `baf55d15…` `f3b641bc…` (cross_attention, seeds 42 / 1 /
 2), `0f391973…` `be36cca8…` `9e0e13ec…` (concat), `9d89bb6d…` `3a1507ed…` `006b0ea1…`
-(`llm_only`); calibration `e8a27dc5…` / `a38fd4db…` / `5bada5f3…`; audit `c9f4e0e2…`
-(the as-shipped audit re-run with the same groups is `d098e013…`). All from clean trees.
+(`llm_only`); calibration `e8a27dc5…` / `a38fd4db…` / `5bada5f3…`; audit `9b87fbb2…`
+(the as-shipped audit re-run with the same groups is `b6f750f2…`). All from clean trees.
 
 | `val`, 3 seeds | cross_attention | concat | `llm_only` |
 |---|---|---|---|
@@ -1836,7 +1836,7 @@ without*. Score runs `84582530…` `baf55d15…` `f3b641bc…` (cross_attention,
 
 On stripped text: no unit is answered by the tell (0 of 482, all nine checkpoints); 274 of
 the 2,808 flagged lines inside the cap are blank and 8 units have nothing else flagged;
-flagged-line coverage is 97.04% (it was 99.96%); source order alone scores Top-5 0.3091.
+flagged-line coverage is 97.04% (it was 99.96%); source order alone scores Top-5 0.3071.
 
 **Supports:** the leak and the comment lines together were worth **0.06–0.08 Top-5 and
 about 0.15 line F1** to these checkpoints; the fix removes the leak rather than hiding it;
@@ -1848,6 +1848,46 @@ comments in view — including "a line ending in `*/` is never flagged" — and 
 here on text they never saw. **A model trained on stripped text is the measurement.** That
 is queue group `d97r` (nine fine-tuned runs, one more override than D9.7, arm by arm);
 `d97rcheck` is its overfit gate.
+
+### The frozen screen: the structural branch is where the leak gets in
+
+The 18 checkpoints of the A1 frozen screen (§1.21) scored on `val` as shipped — each
+re-scoring reproduced its run's logged metrics — and again on comment-stripped text off a
+stripped semantic cache in its own directory (§7 #59). Audits `30a0d40b…` (as shipped) and
+`18b2535c…` (stripped). Top-5, mean ± sd over seeds 42 / 1 / 2:
+
+| Frozen arm | All 482 (as logged) | The 58 tell units | Top-ranked line is a tell line, of 58 (range over seeds) | The other 424 | All 482, comments stripped |
+|---|---|---|---|---|---|
+| `llm_only` | 0.4903 ± 0.0032 | 0.4655 ± 0.0000 | **0–1** | 0.4937 ± 0.0036 | 0.4938 ± 0.0036 |
+| cross_attention | 0.5408 ± 0.0181 | 0.6379 ± 0.1645 | 0–18 | 0.5275 ± 0.0054 | 0.5228 ± 0.0062 |
+| concat | 0.5394 ± 0.0198 | 0.6609 ± 0.0100 | 18–23 | 0.5228 ± 0.0213 | 0.5159 ± 0.0220 |
+| sum | 0.5304 ± 0.0012 | 0.6494 ± 0.0527 | 18–21 | 0.5142 ± 0.0062 | 0.5069 ± 0.0043 |
+| gated | 0.5221 ± 0.0052 | 0.6322 ± 0.0697 | 20–22 | 0.5071 ± 0.0118 | 0.5041 ± 0.0055 |
+| `gnn_only` | 0.4191 ± 0.0468 | 0.5690 ± 0.0597 | 21–24 | 0.3986 ± 0.0450 | 0.4053 ± 0.0456 |
+
+**Supports:**
+
+- **Frozen `llm_only` does not read the tell** — its top-ranked line is a tell line in 0–1
+  of 58 units, and it scores *lower* on those units than on the rest. **Every arm with a
+  structural branch does**, `gnn_only` included: an unterminated comment is parse damage,
+  and a GNN sees parse damage. A frozen encoder with a linear head cannot use the cue; a
+  fine-tuned one learns it (above).
+- **So part of "every fusion arm beats frozen `llm_only`" (§1.21) was the leak.** The lead
+  over `llm_only` was +0.032 to +0.051 Top-5 as logged. On the other 424 units it is
+  +0.013 to +0.034; on stripped text it is **+0.010 to +0.029**.
+- **What is left keeps its sign.** On stripped text every fused arm is above `llm_only` on
+  every seed, except concat on seed 1, which ties it (0.4959 both). Per seed: `llm_only`
+  0.4959 / 0.4959 / 0.4896; cross_attention 0.5166 / 0.5290 / 0.5228; concat 0.5124 /
+  0.4959 / 0.5394; sum 0.5083 / 0.5021 / 0.5104; gated 0.5062 / 0.4979 / 0.5083.
+- **Cross-attention ≈ concat survives here too** (0.5228 ± 0.0062 against 0.5159 ± 0.0220
+  stripped; +0.0069, 0.43 pooled sd).
+
+**Does not support:** a leak-free size for the frozen advantage. These checkpoints were
+trained with the damage in view and are scored without it. Queue groups `a1rcheck` / `a1r`
+are the same screen trained on stripped text — 18 frozen runs, a whole comparison group,
+runnable on either machine but never split between them. **Not started.** Phase 4's
+structural baseline (§1.15), Phase 3 (§1.14) and machine 2's slate (§1.23) have no stored
+scores and remain unaudited.
 
 ---
 
@@ -1892,7 +1932,29 @@ Against `both`:
 - That one-way attention is *better*. Both one-way arms are higher on Top-1 on all three
   seeds (+0.019 and +0.034) and worse on IFA; at three seeds and ~2 pooled sd that is a
   candidate, not a finding (§1.16).
-- Anything about a fine-tuned encoder, or about text without the leak.
+- Anything about a fine-tuned encoder. For text without the leak, see below.
+
+### With the leak accounted for
+
+The nine A6 checkpoints scored on `val` both ways; audits `7c64dfac…` (as shipped) and
+`421bf67c…` (comments stripped at evaluation). Top-5 (Top-1):
+
+| Arm | As logged | The 58 tell units | The other 424 | Comments stripped |
+|---|---|---|---|---|
+| `both` | 0.5408 ± 0.0181 (0.2310) | 0.6379 ± 0.1645 | 0.5275 ± 0.0054 | 0.5228 ± 0.0062 (0.2199 ± 0.0198) |
+| `sem_from_str` | 0.5166 ± 0.0095 (0.2503) | 0.5747 ± 0.0796 | 0.5086 ± 0.0214 | 0.5028 ± 0.0104 (0.2393 ± 0.0161) |
+| `str_from_sem` | 0.5498 ± 0.0231 (0.2649) | **0.7701 ± 0.0100** | 0.5197 ± 0.0252 | 0.5339 ± 0.0048 (0.2337 ± 0.0270) |
+
+`str_from_sem` — structural lines querying semantic ones — reads the tell most: its
+top-ranked line is a tell line in 15–22 of the 58 units by seed, against 0–18 for `both`
+and 3–9 for `sem_from_str`. Its apparent lead over `both` as logged is on
+those units; on the other 424 it is behind.
+
+On stripped text `sem_from_str` sits 0.0200 below `both` (2.34 pooled sd) and
+`str_from_sem` 0.0111 above (2.00 pooled sd). **Still not written down as a difference:**
+three seeds, about 2 sd, models scored on text they were not trained on, and §1.16 is two
+retractions of exactly this size. The conclusion above stands — nothing here shows
+bidirectional attention to be better than attending one way.
 
 ---
 
@@ -1918,17 +1980,24 @@ Measured on `val`, full model, each checkpoint at its own calibrated threshold:
 
 | | seed 42 `80fc5238…` | seed 1 `c193e3bc…` | seed 2 `829c3555…` | seed 42, comments in place |
 |---|---|---|---|---|
-| Explain run | `6f76427b…` | `37a4943f…` | `31ed73d2…` | `8f85eebd…` |
+| Explain run | `412a2df4…` | `2c427d73…` | `1eca6836…` | `3ac6a4c3…` |
 | Text | stripped | stripped | stripped | as shipped |
 | Units with a flagged line, of 488 | 448 | 408 | 444 | 305 |
 | Flagged lines | 5,364 | 4,014 | 4,530 | 2,447 |
 | **Explanations verified / rejected** | **5,364 / 0** | **4,014 / 0** | **4,530 / 0** | 2,447 / 0 |
-| Lines where a pattern names a cause | 8.15% | 8.87% | 8.30% | 6.91% (169) |
-| — of units' top-ranked lines | 14.51% | 13.48% | 14.86% | — |
+| Lines where a pattern names a cause | 8.07% | 8.79% | 8.23% | 6.78% (166) |
+| — of units' top-ranked lines | 14.51% | 13.48% | 14.86% | 12.46% (and 6.23% carry the tell) |
 | Lines that match no pattern and carry the §1.25 tell (told so) | 0 | 0 | 0 | 6.29% (154) |
 | With attention / data-flow / graph-node evidence | 100% / 68.8% / 94.3% | 100% / 69.3% / 94.8% | 100% / 67.7% / 94.3% | 100% / 48.0% / 76.5% |
-| Flagged lines the dataset labels | 18.21% | 20.35% | 18.81% | 42.83% |
+| Flagged lines the dataset labels | 18.21% | 20.35% | 18.81% | 42.83% — and **154 of 154** of the tell lines |
 | Template CWE = the function's CWE id, exactly (units compared) | 11.67% (60) | 11.76% (51) | 14.52% (62) | 8.57% (35) |
+
+**The table is the second pass.** Reading the first pass's explanations of real code
+found four template sentences saying more than a pattern can see — an allocation tested
+where it stands (`if ((p = malloc(n)) == NULL)`) explained as "never compared against
+NULL"; "used after being freed" from a pattern that sees line order, not execution
+order — and they were corrected before these runs (first pass: `6f76427b…` `37a4943f…`
+`31ed73d2…` `8f85eebd…`, superseded, 8.15 / 8.87 / 8.30%).
 
 Every pass reproduced the stored scores (largest logit deviation 0.0215). The stripped
 thresholds are low (0.0973 / 0.0846 / 0.1163), so most units have a flagged line and four
@@ -1942,7 +2011,7 @@ is a recall-heavy one.
 | 7a produces a valid explanation for every positive prediction | ✅ | 13,908 of 13,908 flagged lines over three seeds, each verified |
 | Grounding test suite passes (no explanation names an unflagged line) | ✅ | `tests/unit/test_explanation.py`, incl. a property test over arbitrary scores and thresholds; grounding rate 100% on real data, 0 rejections |
 | Explanations reviewed for absence of attack instructions | 🟨 | Automatic half done: every template sentence and every finished text is scanned for that vocabulary (test + verifier). **The reading by a person is the owner's** — 19 sentences, in `explanation/templates.py` |
-| Human evaluation protocol defined | ✅ | `docs/HumanEvalProtocol.md`; a pilot pack of 100 `val` samples is at `artifacts/phase7/rater_pack_stripped/` (run `4246d0ef…`) |
+| Human evaluation protocol defined | ✅ | `docs/HumanEvalProtocol.md`; a pilot pack of 100 `val` samples is at `artifacts/phase7/rater_pack_stripped/` (run `51525d82…`) |
 
 ### What this supports
 
@@ -2046,7 +2115,16 @@ Next:
 - **Measured:** the nine checkpoints re-scored and re-calibrated on stripped `val`.
 - **A6 finished and written up (§1.26).**
 - **Human-evaluation protocol** written; pilot rater pack drawn.
-- **Queue groups `d97rcheck` / `d97r`** added for the leak-free rerun.
+- **Queue groups `d97rcheck` / `d97r`** added for the leak-free rerun, and **started at
+  18:04** in their own window; `a1rcheck` / `a1r` (the frozen screen on stripped text)
+  defined, not started.
+- **The frozen screen audited** (27 checkpoints scored both ways): the structural branch
+  is where the leak gets in; frozen `llm_only` does not read it.
+- **Three things found by looking rather than by testing**, all the same evening: four
+  template sentences that claimed more than a pattern can see (read on real code); a
+  run-id prefix parsed as a float, which left one checkpoint out of an audit (§7 #60);
+  and the score audit's own ranking, which dropped units the training metric counts as
+  misses (it did not reproduce `gnn_only`'s logged 0.4191).
 - **What the afternoon taught:** the leak was found by *reading what the model ranked
   first on real functions*, not by any metric — every number looked plausible. And the
   audit that should have caught it a month ago only asked whether a formatting tell was
@@ -2661,9 +2739,9 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
-| `84582530…` `baf55d15…` `f3b641bc…` / `0f391973…` `be36cca8…` `9e0e13ec…` / `9d89bb6d…` `3a1507ed…` `006b0ea1…` (scores) · `e8a27dc5…` `a38fd4db…` `5bada5f3…` (calibration) · `c9f4e0e2…` `d098e013…` (score audits) · `af4173a3…` (corpus report) | 2026-10-07 | `score_checkpoint.py +score.run_id=<run> +representation.strip_comments=true` ×9, `calibrate.py` per arm on `scores_stripped/`, `audit_score_leakage.py` with and without the switch, `report_comment_stripping.py` — clean `4ac5f7e` / `9dc3604` / `ae0cf3a` | 42, 1, 2 | cross_attention / concat / llm_only | fused | — | **comments stripped at evaluation: 0.5353 ± 0.0200 / 0.5415 ± 0.0090 / 0.5546 ± 0.0084** (as shipped 0.6162 / 0.6169 / 0.6169) | 14.13 / 14.34 / 13.89 | **§1.25: the D9.7 checkpoints on comment-stripped `val`.** Line F1 out of fold 0.2355 ± 0.0040 / 0.2338 ± 0.0059 / 0.2362 ± 0.0030 (as shipped 0.39). No unit is answered by the tell; the arms still tie. **Trained with comments, scored without — not the leak-free number; `d97r` is.** Stripper identical to the grammar on 6,586 of 6,586 clean units; 8–12% of flagged lines are comment-only. ADR-010 (Proposed), Q14 |
+| `84582530…` `baf55d15…` `f3b641bc…` / `0f391973…` `be36cca8…` `9e0e13ec…` / `9d89bb6d…` `3a1507ed…` `006b0ea1…` (scores) · `e8a27dc5…` `a38fd4db…` `5bada5f3…` (calibration) · `9b87fbb2…` `b6f750f2…` (score audits, fine-tuned) · `30a0d40b…` `18b2535c…` (frozen A1) · `7c64dfac…` `421bf67c…` (frozen A6) · `af4173a3…` (corpus report) | 2026-10-07 | `score_checkpoint.py +score.run_id=<run> +representation.strip_comments=true` ×9, `calibrate.py` per arm on `scores_stripped/`, `audit_score_leakage.py` with and without the switch, `report_comment_stripping.py` — clean `4ac5f7e` / `9dc3604` / `ae0cf3a` | 42, 1, 2 | cross_attention / concat / llm_only | fused | — | **comments stripped at evaluation: 0.5353 ± 0.0200 / 0.5415 ± 0.0090 / 0.5546 ± 0.0084** (as shipped 0.6162 / 0.6169 / 0.6169) | 14.13 / 14.34 / 13.89 | **§1.25: the D9.7 checkpoints on comment-stripped `val`.** Line F1 out of fold 0.2355 ± 0.0040 / 0.2338 ± 0.0059 / 0.2362 ± 0.0030 (as shipped 0.39). No unit is answered by the tell; the arms still tie. **Trained with comments, scored without — not the leak-free number; `d97r` is.** Stripper identical to the grammar on 6,586 of 6,586 clean units; 8–12% of flagged lines are comment-only. **Frozen screen (27 more scorings):** frozen `llm_only` does not read the tell, every arm with a structural branch does; fusion's lead over it is +0.010 to +0.029 on stripped text against +0.032 to +0.051 as logged. ADR-010 (Proposed), Q14 |
 | `cde35987…` `753f4c60…` `0fca1b4f…` / `920989e5…` `7a525ea0…` `f07faf7b…` / `ed9d88e5…` `64c5d5a0…` `317aef09…` | 2026-10-07 | `run_queue.py --only a6` — A1's frozen constants with `+fusion.args.direction={both,sem_from_str,str_from_sem}`, commits `2e9c0a4` / `82f1957` / `9083d4d` (source identical) | 42, 1, 2 | cross_attention | fused | 1.000 *(degenerate)* | **0.5408 ± 0.0181 / 0.5166 ± 0.0095 / 0.5498 ± 0.0231** | 12.19 / 12.99 / 13.96 | **A6: BIDIRECTIONAL IS NOT RESOLVABLY BETTER THAN EITHER ONE-WAY ARM** (largest Top-5 gap −0.0242, 1.67 pooled sd, with a sign flip). Top-1 0.2310 / 0.2503 / 0.2649 — both one-way arms higher on all three seeds, a candidate, not a finding. `both` reproduces §1.21's cross_attention arm seed for seed. Overfit gates `836aec8e…` `f3acb184…` passed. Frozen, validation-selected, `val`, **on text carrying the §1.25 leak**. §1.26 |
-| `6f76427b…` `37a4943f…` `31ed73d2…` · `8f85eebd…` · `4246d0ef…` | 2026-10-07 | `explain_checkpoint.py +explainer=template +explain.run_id=<run> +representation.strip_comments=true` ×3, once as shipped, `make_rater_pack.py` | 42, 1, 2 | cross_attention | fused | — | — | — | **Phase 7a (§1.27): 13,908 of 13,908 flagged lines explained and verified, 0 rejected, on stripped `val`.** A pattern names a cause for 8.2–8.9% of flagged lines (13.5–14.9% of top-ranked ones). Pilot rater pack, 100 `val` samples. Explanations, not model results |
+| `412a2df4…` `2c427d73…` `1eca6836…` · `3ac6a4c3…` · `51525d82…` | 2026-10-07 | `explain_checkpoint.py +explainer=template +explain.run_id=<run> +representation.strip_comments=true` ×3, once as shipped, `make_rater_pack.py` | 42, 1, 2 | cross_attention | fused | — | — | — | **Phase 7a (§1.27): 13,908 of 13,908 flagged lines explained and verified, 0 rejected, on stripped `val`.** A pattern names a cause for 8.1–8.8% of flagged lines (13.5–14.9% of top-ranked ones). Pilot rater pack, 100 `val` samples. Explanations, not model results. A first pass (`6f76427b…` and three more) is superseded: four template sentences were corrected after reading it |
 | `9f462174…` · `ded852ee…` | 2026-10-07 | `audit_label_leakage.py` (every shard) · `audit_score_leakage.py` (the nine D9.7 `val` score files), both at clean `a86b7e1` | 42, 1, 2 | cross_attention / concat / llm_only | fused | — | all 482 units 0.6162 / 0.6169 / 0.6169 (reproduces §1.22); **the other 424 units 0.5708 ± 0.0227 / 0.5653 ± 0.0106 / 0.5660 ± 0.0047**; the 58 tell units 0.9483 / 0.9943 / 0.9885 | — | **THE §1.25 EVIDENCE: a second formatting leak.** A flagged line that ended a block comment lost the slash of its `*/`: the tell is flagged at precision 1.0000 on `val` (204 of 204), 0.9744 on `test`, 0.9882 on `train`; a line ending in `*/` is never flagged. The checkpoints use it. Rule-only baselines: source order Top-5 0.3071, tell first 0.3942. Data artefacts and a post-hoc stratification, not results — and the reason every other row's line-level number is now qualified. §7 #58, open decision Q14 |
 | `569c9701…` (calibration) · `06c04755…` `5d3a6ad9…` `a593b1be…` (scores); concat `fd3e94c5…` and `llm_only` `97cb6a76…` likewise — all at clean `c7b6025` | 2026-10-07 | `score_checkpoint.py +score.run_id=<run>` ×9, then `calibrate.py '+calibrate.runs=[80fc5238…,c193e3bc…,829c3555…]'` (and once per other arm) — Platt, 15 bins, 5 folds by unit, `val` | 42, 1, 2 | cross_attention | fused | — | *unchanged — calibration is monotone* | *unchanged* | **Phase 6: calibration and the validation-chosen threshold (§1.24).** ECE 0.1704 ± 0.0330 → **0.0137 ± 0.0104**; line F1 0.2954 ± 0.0855 at 0.5 → **0.3898 ± 0.0190** out of fold (P 0.4020, R 0.3787). Thresholds 0.1686 / 0.1083 / 0.2159. Every re-scoring reproduces its run's logged metrics. Over-confident above p = 0.8 (observed 0.67–0.81). **Same procedure on the other arms: line F1 0.3908 ± 0.0030 (concat), 0.3936 ± 0.0072 (`llm_only`) — a tie.** `val` only. A first pass from an uncommitted tree (`e93ad84f…` and ten more) and a failed attempt (`5d06b630…`) are tagged `void` |
 | `3ee36f97…` | 2026-10-07 | `train_fused.py +fusion=llm_only train=fused seed=42 … llm.frozen=false train.semantic_cache.enabled=false train.limit=3000 train.eval_limit=100 train.epochs=1`, commit `6d16adc` | 42 | llm_only | fused | — | — | — | **VOID / probe — never a result** (`train.limit` ≠ 0, so both reports refuse it; also tagged `void`). The live check of the fixed VRAM guard (§7 #57): no spill in 23 samples, 1.01 s/step. Its checkpoints were deleted. The first run to log `resolved_gpu` |
@@ -2754,7 +2832,32 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-07 17:30 (session 16): leak measured, fix built, A6 and Phase 7a written up
+#### Where it stands — 2026-10-07 18:15 (session 16): `d97r` IS RUNNING — the leak-free rerun
+
+- **`d97r` was started at 18:04 by session 16, pending the owner's decision on Q14.** Its
+  own console window ("VulnLoc d97r"), transcript `artifacts/queue/d97r_chain.out`. Step
+  1 is the overfit gate on comment-stripped text (`d97rcheck`, ~28 min); the nine
+  fine-tuned runs start only if it ends at Top-1 = 1.0 with `strip_comments=True` logged.
+  Order: cross_attention ×3, its seed report, `llm_only` ×3, concat ×3. **Expect about a
+  day**: six D9.7 runs took 114–211 min each.
+  - `python scripts/run_queue.py --only d97rcheck d97r --status` shows where it is.
+  - `python scripts/run_queue.py --stop` pauses it cleanly; `--only d97r` continues it.
+  - **While it runs or is paused: no edits to `configs/` or to anything training imports**
+    (`utils`, `data`, `representation`, `models`, `training`). `evaluation/`,
+    `explanation/`, `serving/`, `scripts/` and docs are fine, committed at once.
+  - If the owner decides against retraining (Q14), stop it and tag its runs; nothing else
+    depends on it.
+- **The frozen screen was audited too (§1.25, last subsection).** Frozen `llm_only` does
+  not read the tell; every arm with a structural branch does. Fusion's lead over frozen
+  `llm_only` shrinks from +0.032…+0.051 to +0.010…+0.029 on stripped text and keeps its
+  sign. `a1rcheck` / `a1r` (18 frozen runs on stripped text) are defined and **not
+  started** — a candidate for machine 2, as one whole group.
+- **A draft of the held-out evaluation protocol** is at `docs/EvaluationProtocol.md`. It
+  binds nothing until Phase 8 starts; its §2 and §3 are Q14 put to the owner in concrete
+  form.
+- Everything in the 17:30 block below still holds.
+
+#### Where it stood — 2026-10-07 17:30 (session 16): leak measured, fix built, A6 and Phase 7a written up
 
 - **The leak (§1.25) has a fix and three measurements.** `strip_comments` is built, off by
   default, and agrees with the grammar on 6,586 of 6,586 clean units. The nine D9.7
@@ -3247,6 +3350,7 @@ Things that cost time once and should not cost time twice.
 | 57 | **Three things an unattended night did to a fine-tuned run, none visible in a morning `--status`.** MEASURED 2026-10-06/07. **(a) Windows defragments D: when nobody is at the keyboard.** Automatic Maintenance ran `ScheduledDefrag` on the hard disk the run checkpoints to: `Microsoft-Windows-Defrag` logs passes cancelled at 21:20, 22:26, 23:26 and 02:32 and one completed at 04:31; the 01:32 pass was watched — `defrag.exe` started 01:32:19 and was cancelled at 02:32:20. During it D: read 0% idle and a 32 MB write-through took 1.6 s (20 MB/s). It runs as SYSTEM: `Stop-ScheduledTask`, `schtasks /End` and `MSchedExe.exe Stop` from a non-admin shell each reported success and stopped nothing. **(b) A GPU driver fault.** 01:12:13–01:12:52: 20 × `nvlddmkm` id 13 ("Graphics FECS Exception: Logging error 0x2") and 2 × id 153; `2c7a7631…` died with `torch.AcceleratorError: CUDA error: unspecified launch failure`. No `nvlddmkm` event between 2026-10-02 and that minute; the GPU read 76 °C under load ten minutes later. Cause unknown. **(c) A VRAM spill the guard does not see.** From 01:34 `72f067d0…` climbed to 3,810 MiB dedicated + 792 MiB shared and slowed to 248 s, then 536 s, per 100 steps (median that night ~150 s; the previous worst, 504 s, was `179632f5…` on 2026-10-04); GPU power fell to 30–40 W. It cleared at the epoch boundary (2,773 + 78 MiB) with no intervention | (a) slower checkpoint writes, and a candidate for #56's lock. (b) exit 1 → `[FAIL]`, not retried (#56's queue behaviour). (c) a run that takes hours longer and says nothing. Across the 143 hundred-step intervals the three `llm_only` runs had logged by 01:56, the p90 is 205–248 s against a median of 123–152 s per run, so slow patches are routine, not rare | (a) **The owner turns off scheduled optimisation for D:** (Optimize Drives → Change settings — administrator) or lets it finish before a long run; it completed on 2026-10-07 04:31. (b) `--retry-failed`; if it recurs, look at the driver and at heat before blaming code. (c) **Fixed 2026-10-07, after measuring it.** `scripts/probe_vram_spill.py` (new; not an MLflow run — it describes a machine on a day) grows the pool 128 MiB at a time and reads the process's own Windows counters. Two runs forty minutes apart, Brave open both times: paging began at **≈ 3,520 MiB** reserved (dedicated plateau 3,615) and at **≈ 3,780 MiB** (plateau 3,869) — the budget is not the card's 4,095.5 MiB and **not a constant**. The old rule, `reserved > total`, would have waited until ~575 and ~320 MiB had already spilled, which is the band the night's run sat in. In both runs the driver's own free-memory figure (`torch.cuda.mem_get_info`) reached 0 at ≈ 3,290 MiB reserved — earlier than the spill, never later — so `cache_release_reason` now releases when that figure is under 32 MiB and at least 64 MiB of cache exists to give back, keeping the old rule as well. Cost of the worst case, a release on every step: **30 / 60 / 90 ms** for a 1 / 2 / 3 GiB working set, against steps of 1.2–2.0 s. Changes no number. Tests: `tests/unit/test_vram_guard.py`, whose cases are the probe's rows. **Seen working under real fine-tuning the same morning** — probe run `3ee36f97…` (`llm_only`, encoder training, `train.limit=3000`, one epoch, tagged `void`): the guard fired at step 3 (`driver_out_of_free_memory`, reserved 3,330 MiB, allocated 1,530) and fewer than 50 times in 387 steps; the trainer's shared usage read **76–78 MiB in all 23 samples** (20 s apart), dedicated peaking at 3,317 MiB; **387 steps in 389.7 s = 1.01 s/step**, 103–107 s per hundred including the checkpoint write, against the night's medians of 123–152 s. One short run, with Brave open; the first full-length run should still be read | (a) 🟥 Open — the owner's, (b) 🟨 mitigated by the retry in #56, (c) ✅ Fixed 2026-10-07 |
 | 58 | **A flagged line that ended a block comment has lost the slash of its `*/` — a second formatting leak, which ADR-006's whitespace fix does not close.** MEASURED 2026-10-07 (§1.25; `audit_label_leakage.py` run `9f462174…`): a line ending a comment with a bare `*` is flagged at precision 1.0000 on `val` (204 of 204), 0.9744 on `test`, 0.9882 on `train`, and answers 58 of 482 scored `val` units; a line ending in an intact `*/` is flagged 0 times in 8,474 on `train`. `clean_eval` has no positive tell but only 4 of its 4,358 flagged lines contain `/*` at all | All nine D9.7 checkpoints use it (`audit_score_leakage.py` run `ded852ee…`): Top-5 0.95–0.99 on the 58 units against 0.565–0.571 on the other 424, so ≈ 0.05 of every logged `val` Top-5 and ≈ 0.07 of Top-1 sit on it. It also *causes* parse damage — an unterminated comment swallows the code after it — so the structural branch may read it as damage. A1's null survives (the arms tie on the other units too). Every frozen, structural, Phase 3 and machine-2 number is unaudited | **Open decision Q14** (ADR-010 to be written): strip comments label-blind at L0/L1 and retrain, or repair at evaluation and report stratified. Until then: label every line-level number as measured on leaky text, and **do not run the held-out evaluation on the shards as they are**. Re-run both audits after any corpus change. The lesson ADR-006 already taught and the audit did not generalise: **a tell that is never right is as readable as one that is always right** — the audit now reports both | 🟥 Open — Q14 |
 | 59 | **A semantic-cache directory holds one cache per partition, so building a second text variant into it replaces the first.** Found 2026-10-07 before it happened: `build_semantic_cache.py +representation.strip_comments=true` would have written the stripped features over `artifacts/semantic_cache/{train,val}.pt`, the cache of record (`c99764bc…`) that every frozen run was logged against | The loss would have been loud, not silent — `SemanticFeatureCache.load` checks the digest and would refuse every frozen run — but the cache of record is reproducible only to 1.9e-6 (§7 #50), not bitwise | `write_cache` refuses to replace a partition's cache with the other text variant; evaluation-time stripping reads `<dir>_stripped`; build the stripped cache with `train.semantic_cache.dir=./artifacts/semantic_cache_stripped`. Tests in `test_semantic_cache.py`, `test_score_checkpoint.py` | ✅ Guarded 2026-10-07 |
+| 60 | **A run-id prefix can be a number to the config parser.** `+score.run_id=920989e5` — one of A6's runs — reached the script as the float `92098900000.0`. FOUND 2026-10-07: the scoring step failed on "no checkpoint directory", the chain went on, and the audit that followed reported an arm at `n=2` where three checkpoints existed | Nothing wrong was written — a run id that matches nothing is refused — but a batch script that does not stop on a non-zero exit leaves a hole, and an aggregate over two seeds looks like one over three unless `n_seeds` is read | `utils/config.py::run_id_text` refuses a run id that is not text and says why; all four scripts that take one use it. **Pass full 32-character run ids from scripts**, and read `n_seeds` in every audit before quoting it | ✅ Fixed 2026-10-07 |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**

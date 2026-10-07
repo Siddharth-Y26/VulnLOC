@@ -44,7 +44,7 @@ The mirror tell — a line ending in an intact `*/` — is never flagged: 0 of 8
 as "not flagged". Why the two forms differ, and why the slash is lost at all, is **not
 established**; the raw CSV was not reopened.
 
-**The trained models read it.** `scripts/audit_score_leakage.py`, run `d098e013…`, on the
+**The trained models read it.** `scripts/audit_score_leakage.py`, run `b6f750f2…`, on the
 stored `val` scores of the nine fine-tuned D9.7 checkpoints: Top-5 0.95–0.99 on the 58
 units the tell answers, **0.565–0.571 on the other 424**, against the logged 0.616–0.617.
 The top-ranked line is a tell line in 20–53 of those 58 units, by checkpoint.
@@ -118,7 +118,7 @@ units:
 
 The nine D9.7 checkpoints, trained with comments, re-scored on comment-stripped `val`
 (nine `score-val` runs and calibrations `e8a27dc5…` / `a38fd4db…` / `5bada5f3…`; audit
-`c9f4e0e2…`). Three seeds each:
+`9b87fbb2…`). Three seeds each:
 
 | `val` | cross_attention | concat | `llm_only` |
 |---|---|---|---|
@@ -134,6 +134,14 @@ On stripped text the audit finds no unit the tell answers. The three arms still 
 view — including "a line ending in `*/` is never flagged" — and are scored here on text
 they were not trained on. A model trained on stripped text is the measurement; that is
 queue group `d97r`.
+
+**The frozen screen, the same way** (audits `30a0d40b…` and `18b2535c…`, 18 checkpoints):
+frozen `llm_only` does not read the tell — its top-ranked line is a tell line in 0–1 of
+58 units — while every arm with a structural branch does, `gnn_only` included. The
+structural branch is where the leak gets in: an unterminated comment is parse damage.
+Fusion's lead over frozen `llm_only` is +0.032 to +0.051 Top-5 as logged and +0.010 to
++0.029 with comments stripped at evaluation; it keeps its sign. Queue group `a1r` is that
+screen trained on stripped text.
 
 ---
 

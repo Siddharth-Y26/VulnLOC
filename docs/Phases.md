@@ -240,7 +240,7 @@ The hyperparameter sweep is frozen-encoder only.
 - [x] 7a produces a valid explanation for every positive prediction
   - *2026-10-07:* 13,908 of 13,908 flagged lines on comment-stripped `val`, the full
     model's three seeds, each explained and verified; 0 rejected (`Memory.md` §1.27).
-    "Valid" is not "names a cause": a weakness pattern matches 8.2–8.9% of flagged
+    "Valid" is not "names a cause": a weakness pattern matches 8.1–8.8% of flagged
     lines, and the rest say in words that no cause is named.
 - [x] Grounding test suite passes (no explanation names an unflagged line)
   - *2026-10-07:* `tests/unit/test_explanation.py`, including a property test over
