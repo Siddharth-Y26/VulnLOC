@@ -62,6 +62,7 @@ from vulnloc.explanation import (
     output_contract,
     verify,
 )
+from vulnloc.explanation.generator import FORMATTING_ARTIFACT
 from vulnloc.explanation.templates import NO_PATTERN
 from vulnloc.models.heads.calibration import LogitCalibrator
 from vulnloc.representation import (
@@ -381,8 +382,13 @@ def summarise(results: Mapping[str, UnitResult]) -> dict[str, Any]:
     details = [record for result in results.values() for record in result.details]
     flagged = sum(result.flagged for result in results.values())
     rejected = sum(len(result.rejections) for result in results.values())
-    patterned = [record for record in details if record["template_id"] != NO_PATTERN]
+    # A weakness pattern names a cause. The formatting-artifact notice does not: it says
+    # the score may rest on the dataset's formatting (Memory.md §1.25), and counting it as
+    # "a pattern matched" would report the leak as explanatory coverage.
+    unnamed = {NO_PATTERN, FORMATTING_ARTIFACT}
+    patterned = [record for record in details if record["template_id"] not in unnamed]
     plain = [record for record in details if record["template_id"] == NO_PATTERN]
+    artifact = [record for record in details if record["template_id"] == FORMATTING_ARTIFACT]
     top = [result.details[0] for result in results.values() if result.details]
     comparable = [
         record
@@ -410,7 +416,12 @@ def summarise(results: Mapping[str, UnitResult]) -> dict[str, Any]:
         "pattern_matched_lines": len(patterned),
         "pattern_matched_pct": pct(len(patterned), len(details)),
         "top_line_pattern_matched_pct": pct(
-            sum(1 for record in top if record["template_id"] != NO_PATTERN), len(top)
+            sum(1 for record in top if record["template_id"] not in unnamed), len(top)
+        ),
+        "formatting_artifact_lines": len(artifact),
+        "formatting_artifact_pct": pct(len(artifact), len(details)),
+        "top_line_formatting_artifact_pct": pct(
+            sum(1 for record in top if record["template_id"] == FORMATTING_ARTIFACT), len(top)
         ),
         "templates": dict(Counter(record["template_id"] for record in details).most_common()),
         "with_attention_pct": pct(sum(1 for r in details if r["attended"]), len(details)),
@@ -421,6 +432,7 @@ def summarise(results: Mapping[str, UnitResult]) -> dict[str, Any]:
         "labelled_pct_all": labelled_pct(details),
         "labelled_pct_pattern_matched": labelled_pct(patterned),
         "labelled_pct_no_pattern": labelled_pct(plain),
+        "labelled_pct_formatting_artifact": labelled_pct(artifact),
         # Exact agreement between the template's CWE and Big-Vul's own CWE id for the
         # function, on top-ranked flagged lines a pattern matched. Exact only: a template's
         # CWE-787 and a function filed under its parent CWE-119 count as a disagreement.

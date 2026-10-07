@@ -309,7 +309,11 @@ def build_pack(cfg: DictConfig) -> dict[str, Any]:
         "raters": n_raters,
         "seed": seed,
         "population": len(top),
-        "pattern_matched": sum(1 for entry in key.values() if entry["template_id"] != "no-pattern"),
+        "pattern_matched": sum(
+            1
+            for entry in key.values()
+            if entry["template_id"] not in {"no-pattern", "formatting-artifact"}
+        ),
         "flagged_line_is_labelled": sum(1 for entry in key.values() if entry["is_labelled"]),
         "output_dir": str(output_dir),
     }
