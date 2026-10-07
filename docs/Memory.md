@@ -2858,6 +2858,13 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   `llm_only` shrinks from +0.032…+0.051 to +0.010…+0.029 on stripped text and keeps its
   sign. `a1rcheck` / `a1r` (18 frozen runs on stripped text) are defined and **not
   started** — a candidate for machine 2, as one whole group.
+- **20:14 — the first of the nine is FINISHED:** `d97r-cross_attention-seed42`, run
+  `ba7dcc5f…`, 109.2 min, one attempt, not resumed, clean `0a4843c`, 13.5 min an epoch,
+  early-stopped after eight. Its curve rises (validation Top-5 0.5000 at epoch 0, 0.5519
+  at the selected epoch 4), so the stripped text trains. **One seed is not a result —
+  nothing about `d97r` is quoted until an arm has three** (§7 #37); the arm's seed report
+  runs by itself after seed 2. Seed 1 started at 20:13. The GPU read 85–87 °C for most of
+  the run: if the laptop can be given more air, give it.
 - **First pace reading, 18:30:** 144 s per hundred optimizer steps (D9.7's fused arms ran
   at ~200), 3,267 MiB dedicated, no shared memory in use. One reading — look again.
 - **A bundle for machine 2 is ready, unused:** `D:ulnloc_transferulnloc_20261007.bundle`
