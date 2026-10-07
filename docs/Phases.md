@@ -199,6 +199,8 @@ learned from or measured against; `function/f1` = 1.000 is degenerate for the sa
 The hyperparameter sweep is frozen-encoder only.
 
 **Exit criteria**
+**Gate signed by the owner 2026-10-07** (`Memory.md` §1.1d).
+
 - [x] Line scores calibrated (reliability curve reported)
   - *2026-10-07:* Platt scaling per checkpoint, fitted on `val`; ECE 0.1704 ± 0.0330 →
     0.0137 ± 0.0104 out of fold, 3 seeds. The curve is in
@@ -212,7 +214,10 @@ The hyperparameter sweep is frozen-encoder only.
     D9.7's fine-tuned configuration; checkpoints `80fc5238` / `c193e3bc` / `829c3555`
     (seeds 42 / 1 / 2). Chosen by the owner, not by a measurement: on Top-5 it ties concat
     and LLM-only (`Memory.md` §1.22), and all three are reported.
-- [ ] Vulnerability-type/CWE labelling decided (Q5) and implemented or explicitly deferred
+- [x] Vulnerability-type/CWE labelling decided (Q5) and implemented or explicitly deferred
+  - *2026-10-07:* **explicitly deferred by the owner** (`Memory.md` §2). No model predicts
+    a type; Phase 7a's explanations name a template-derived category and say so. Big-Vul's
+    `CWE ID` stays in each unit's metadata, so the decision is reversible.
 
 ---
 

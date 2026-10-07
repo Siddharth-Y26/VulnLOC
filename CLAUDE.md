@@ -75,7 +75,7 @@ runs are resumed runs** (a pause, a file-rename crash, a GPU driver fault — la
 #57); quote their `resumed_at` tags with the number. With no `d97-*` step running or
 paused, `src/vulnloc/` and `configs/` may be edited again.
 
-**2026-10-07: the owner SIGNED the Phase 5 gate; Phase 6 is the current phase.** Decided the
+**2026-10-07: the owner SIGNED the Phase 5 gate (morning) and the Phase 6 gate (afternoon); Phase 7 — 7a only — is the current phase.** Decided the
 same morning (`Memory.md` §2): **the full model is the architecture as designed —
 bidirectional cross-attention — at D9.7's configuration** (`80fc5238` / `c193e3bc` /
 `829c3555`; a choice, not a win: all three arms are reported); **the function-level criteria
@@ -83,6 +83,12 @@ and the generative explainer (7b) are deferred in writing; external baselines st
 `(reported)`**; weighted BCE gets no more seeds for now. **`test` and `clean_eval` have still
 never been evaluated on — once, at the end (`Rules.md` §5.3).** Owner deadline: the whole project in about a week;
 `Memory.md` §6 item 0a is the handoff.
+
+**2026-10-07, from 13:39 to about 19:30: queue group `a6` (ablation A6, attention
+direction) is running** — nine frozen runs at ~38 min each, then three seed reports.
+Check `python scripts/run_queue.py --only a6check a6 --status`. **Keep the main working
+tree clean until it ends** (build in a git worktree, or commit a docs change at once), and
+quote no A6 comparison before every arm has three seeds.
 
 **2026-10-07 09:15: the second laptop's results are imported** at
 `artifacts/machine2/Sujal_20261005-224401/` and written up in `Memory.md` §1.23 — RTX 4050
@@ -109,8 +115,9 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 3 | ✅ **DONE — gate signed by the owner 2026-09-15.** **LLM-only over three seeds on normalized text: Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60** (§1.14). Top-5 varies by under a point across seeds while P/R swing ±0.04 in opposite directions — the threshold moving, not the model. Run `1843412a…` remains VOID (ADR-006); `function/f1` = 1.000 is degenerate and must never be quoted. |
 | Phase 4 | ✅ **DONE — gate signed by the owner 2026-09-15.** Overfit test PASSED (`8b0a3c1d…`). **Best structural config: gcn depth 4 + subtokens, Top-5 0.4302 ± 0.0372 over 3 seeds** (ADR-002 §D2.5's second half, +0.066 over node-type-only — §1.15). Far below the semantic arm's 0.6141. **The depth sweep 2/4/6 shows NO resolvable effect at 3 seeds each** (every pairwise gap <0.6 sd, §1.16) — an earlier one-seed over-smoothing reading was retracted. |
 | Phase 5 | ✅ **DONE — 5 / 5, gate signed by the owner 2026-10-07** (`Memory.md` §1.1c). ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6"): **D9.7's fine-tuned confirmation agrees — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104 (`Memory.md` §1.22).** **The `llm_only` scaffold control is in (2026-10-07): 0.6169 ± 0.0048 — no fused arm beats it.** |
-| Phase 6 | 🟨 **Started 2026-10-07 — 3 / 4.** Full-model configuration frozen by the owner's decision (the designed cross-attention model, D9.7's runs). **Calibrated and thresholded on `val` (`Memory.md` §1.24, run `569c9701…`): ECE 0.1704 ± 0.0330 → 0.0137 ± 0.0104; line F1 0.2954 ± 0.0855 at the logged 0.5 → 0.3898 ± 0.0190 out of fold, 3 seeds. Concat (0.3908 ± 0.0030) and `llm_only` (0.3936 ± 0.0072) tie with it at their own thresholds — the F1 gap every run logged at 0.5 was the threshold.** Thresholds are per checkpoint (0.1686 / 0.1083 / 0.2159) — never average a calibrator across seeds. Still over-confident above p = 0.8 (observed 0.67–0.81). **Owed: Q5 (CWE labels) decided or deferred by the owner.** Unit-level aggregation is deferred in writing. |
-| Phases 7–10 | ⬜ Not started. 7b and the function-level parts of Phase 8 are deferred in writing (`Phases.md`). |
+| Phase 6 | ✅ **DONE — 4 / 4, gate signed by the owner 2026-10-07** (`Memory.md` §1.1d). Full-model configuration frozen by the owner's decision (the designed cross-attention model, D9.7's runs). **Calibrated and thresholded on `val` (`Memory.md` §1.24, run `569c9701…`): ECE 0.1704 ± 0.0330 → 0.0137 ± 0.0104; line F1 0.2954 ± 0.0855 at the logged 0.5 → 0.3898 ± 0.0190 out of fold, 3 seeds. Concat (0.3908 ± 0.0030) and `llm_only` (0.3936 ± 0.0072) tie with it at their own thresholds — the F1 gap every run logged at 0.5 was the threshold.** Thresholds are per checkpoint (0.1686 / 0.1083 / 0.2159) — never average a calibrator across seeds. Still over-confident above p = 0.8 (observed 0.67–0.81). **Q5 is closed: the owner deferred the learned CWE-type classifier — Phase 7a names a template-derived category and says so.** Unit-level aggregation is deferred in writing. |
+| Phase 7 | 🟨 **Current phase since 2026-10-07 — 7a only, 0 / 4.** 7b is deferred in writing (`Phases.md`). |
+| Phases 8–10 | ⬜ Not started. The function-level parts of Phase 8 are deferred in writing. **The single `test` / `clean_eval` evaluation is authorised by the owner for the start of Phase 8 — after the Phase 7 gate is signed and the evaluation protocol is committed** (`Memory.md` §2). |
 | Tests | **1,045 passing, 2 skipped** (2026-10-07). ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
@@ -485,4 +492,4 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    **launched once, nothing built yet.** **Answered 2026-10-07 (`Memory.md` §2):** the
    function-level criteria and 7b are deferred in writing and external baselines stay
    `(reported)` — the owner delegated the choice ("whatever is best") and can reverse it.
-6. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.
+6. Q4 (explanation supervision) — Phase 7's. ~~Q5 (CWE-type labels)~~ **closed 2026-10-07: the owner deferred the learned type classifier** (`Memory.md` §2).
