@@ -72,9 +72,16 @@ seed reports at `n_seeds: 3`, nothing running or paused.** Fine-tuned, on `val`,
 the same scaffold** — the three Top-5 means are within 0.0007. The frozen screen's "every
 fusion arm beats `llm_only`" holds **only with the encoder frozen**. **All three `llm_only`
 runs are resumed runs** (a pause, a file-rename crash, a GPU driver fault — landmines #56,
-#57); quote their `resumed_at` tags with the number. **What Phase 5 still needs is the
-owner's signature on the gate.** With no `d97-*` step running or paused, `src/vulnloc/` and
-`configs/` may be edited again. Owner deadline: the whole project in about a week;
+#57); quote their `resumed_at` tags with the number. With no `d97-*` step running or
+paused, `src/vulnloc/` and `configs/` may be edited again.
+
+**2026-10-07: the owner SIGNED the Phase 5 gate; Phase 6 is the current phase.** Decided the
+same morning (`Memory.md` §2): **the full model is the architecture as designed —
+bidirectional cross-attention — at D9.7's configuration** (`80fc5238` / `c193e3bc` /
+`829c3555`; a choice, not a win: all three arms are reported); **the function-level criteria
+and the generative explainer (7b) are deferred in writing; external baselines stay
+`(reported)`**; weighted BCE gets no more seeds for now. **`test` and `clean_eval` have still
+never been evaluated on — once, at the end (`Rules.md` §5.3).** Owner deadline: the whole project in about a week;
 `Memory.md` §6 item 0a is the handoff.
 
 **2026-10-07 09:15: the second laptop's results are imported** at
@@ -101,8 +108,9 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
 | Phase 3 | ✅ **DONE — gate signed by the owner 2026-09-15.** **LLM-only over three seeds on normalized text: Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60** (§1.14). Top-5 varies by under a point across seeds while P/R swing ±0.04 in opposite directions — the threshold moving, not the model. Run `1843412a…` remains VOID (ADR-006); `function/f1` = 1.000 is degenerate and must never be quoted. |
 | Phase 4 | ✅ **DONE — gate signed by the owner 2026-09-15.** Overfit test PASSED (`8b0a3c1d…`). **Best structural config: gcn depth 4 + subtokens, Top-5 0.4302 ± 0.0372 over 3 seeds** (ADR-002 §D2.5's second half, +0.066 over node-type-only — §1.15). Far below the semantic arm's 0.6141. **The depth sweep 2/4/6 shows NO resolvable effect at 3 seeds each** (every pairwise gap <0.6 sd, §1.16) — an earlier one-seed over-smoothing reading was retracted. |
-| Phase 5 | 🟨 **A1 frozen screen DONE; 4 / 5 criteria, the fifth half met.** ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6"): **D9.7's fine-tuned confirmation agrees — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104 (`Memory.md` §1.22).** **The `llm_only` scaffold control is in (2026-10-07): 0.6169 ± 0.0048 — no fused arm beats it.** Still owed before the gate: the owner's signature. |
-| Phases 6–10 | ⬜ Not started. |
+| Phase 5 | ✅ **DONE — 5 / 5, gate signed by the owner 2026-10-07** (`Memory.md` §1.1c). ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6"): **D9.7's fine-tuned confirmation agrees — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104 (`Memory.md` §1.22).** **The `llm_only` scaffold control is in (2026-10-07): 0.6169 ± 0.0048 — no fused arm beats it.** |
+| Phase 6 | 🟨 **Started 2026-10-07 — 1 / 4.** Full-model configuration frozen by the owner's decision (the designed cross-attention model, D9.7's runs). Owed: calibration with a reliability curve, a threshold chosen on `val`, and Q5 (CWE labels) decided or deferred. Unit-level aggregation is deferred in writing. |
+| Phases 7–10 | ⬜ Not started. 7b and the function-level parts of Phase 8 are deferred in writing (`Phases.md`). |
 | Tests | **965 passing, 2 skipped** (2026-10-07). ruff / black / mypy / import-linter all clean. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
@@ -448,8 +456,8 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    representation" form; the fine-tuned confirmation (D9.7) is triggered by the margin.
 5a. **Q11 — run ADR-009 D9.7's fine-tuned confirmation of A1?** (~18–24 h; closes Phase 5's
    fifth criterion) — **run: 9 of 9 FINISHED 2026-10-07; the two fused arms agree with the
-   frozen screen and neither beats the `llm_only` control (`Memory.md` §1.22). What remains
-   is the owner's signature on the Phase 5 gate**; Q12
+   frozen screen and neither beats the `llm_only` control (`Memory.md` §1.22). CLOSED — the
+   owner signed the Phase 5 gate on 2026-10-07**; Q12
    (commit the A1 write-up) closed 2026-10-02. `Memory.md` §5.
 5b. **Review the Findings tab's fix templates.** Written in session 13, tested for what
    they match, not reviewed by a human for what they advise.
@@ -459,6 +467,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
    trained on. `Memory.md` §6 item 0a lists each criterion; **the owner decides which are
    deferred in writing.** Partly answered 2026-10-03: three raters, a second GPU laptop and
    Docker lift the people and Docker blockers — Docker was installed on Sun 4 (session 15),
-   **launched once, nothing built yet.** Still open: the function-level criteria, 7b, and how the
-   external baseline is run — raise it.
+   **launched once, nothing built yet.** **Answered 2026-10-07 (`Memory.md` §2):** the
+   function-level criteria and 7b are deferred in writing and external baselines stay
+   `(reported)` — the owner delegated the choice ("whatever is best") and can reverse it.
 6. Q4 (explanation supervision) and Q5 (CWE-type labels) — deferred to Phases 6–7.

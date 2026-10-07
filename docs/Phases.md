@@ -161,11 +161,13 @@ most likely to be underestimated.** CFG/DFG construction is real compiler work.
 - Attention-map export API for Phase 7
 
 **Exit criteria**
-- [ ] Gradient-flow test: both branches receive non-zero gradients
-- [ ] Attention maps have correct shape and are retrievable
-- [ ] `fusion=cross_attention` vs `fusion=concat` runnable by flag alone
-- [ ] First head-to-head comparison logged (≥ 3 seeds each)
-- [ ] If cross-attention does **not** beat concat, this is recorded honestly in `Memory.md` and investigated before Phase 6 — not papered over
+**Gate signed by the owner 2026-10-07** (`Memory.md` §1.1c).
+
+- [x] Gradient-flow test: both branches receive non-zero gradients
+- [x] Attention maps have correct shape and are retrievable
+- [x] `fusion=cross_attention` vs `fusion=concat` runnable by flag alone
+- [x] First head-to-head comparison logged (≥ 3 seeds each)
+- [x] If cross-attention does **not** beat concat, this is recorded honestly in `Memory.md` and investigated before Phase 6 — not papered over
   - *2026-09-15:* it did not (frozen encoder, `Memory.md` §1.21) — **recorded; not yet
     investigated.** ADR-009 D9.7's fine-tuned confirmation is the pending investigation.
   - *2026-10-04:* **investigated — it still does not.** D9.7's six fine-tuned runs are in
@@ -176,6 +178,7 @@ most likely to be underestimated.** CFG/DFG construction is real compiler work.
     resumed (`Memory.md` §1.22).** Neither fused arm beats fine-tuned LLM-only in the same
     scaffold. The investigation is complete; the box stays open only for the owner's
     signature.
+  - *2026-10-07, later:* **signed.**
 
 ---
 
@@ -189,10 +192,20 @@ most likely to be underestimated.** CFG/DFG construction is real compiler work.
 - Threshold selection on validation; probability calibration
 - Full training runs, hyperparameter sweep
 
+**Deferred in writing, 2026-10-07** (`Memory.md` §2 — delegated by the owner, reversible):
+unit-level aggregation and a unit-level loss that means something. Every model here trains
+on line-labelled *vulnerable* functions only, so a function-level score has nothing to be
+learned from or measured against; `function/f1` = 1.000 is degenerate for the same reason.
+The hyperparameter sweep is frozen-encoder only.
+
 **Exit criteria**
 - [ ] Line scores calibrated (reliability curve reported)
 - [ ] Threshold chosen on validation only
-- [ ] Best full-model configuration frozen and checkpointed
+- [x] Best full-model configuration frozen and checkpointed
+  - *2026-10-07:* the architecture as designed — bidirectional cross-attention, ADR-009
+    D9.7's fine-tuned configuration; checkpoints `80fc5238` / `c193e3bc` / `829c3555`
+    (seeds 42 / 1 / 2). Chosen by the owner, not by a measurement: on Top-5 it ties concat
+    and LLM-only (`Memory.md` §1.22), and all three are reported.
 - [ ] Vulnerability-type/CWE labelling decided (Q5) and implemented or explicitly deferred
 
 ---
@@ -206,7 +219,8 @@ most likely to be underestimated.** CFG/DFG construction is real compiler work.
 - `verifier.py` enforcing FR-15 grounding
 - Output matches PRD §5.4 schema exactly
 
-**7b — Generative variant (only after 7a is measured)**
+**7b — Generative variant (only after 7a is measured)** — **deferred in writing 2026-10-07**
+(`Memory.md` §2): a local generator beside CodeBERT does not fit the 4 GiB card.
 - Constrained generation conditioned on evidence
 - Same verifier applied; ungrounded outputs are rejected, not softened
 - `[RECOMMENDATION]` prefer a local model over an API to keep evaluation deterministic (see `Rules.md` §2)
@@ -221,6 +235,12 @@ most likely to be underestimated.** CFG/DFG construction is real compiler work.
 
 ## Phase 8 — Evaluation, Baselines & Ablations
 **Goal:** turn the system into defensible research claims.
+
+**Deferred in writing, 2026-10-07** (`Memory.md` §2 — delegated by the owner, reversible):
+baseline *reproductions* under our splits and cross-dataset generalization (DiverseVul).
+Both are function-level and need negatives no model here was trained on. Published numbers
+are quoted from `docs/prior_work.yaml`, labelled `(reported)`, never beside ours as if run
+under our splits (`Rules.md` §5.7).
 
 **Deliverables**
 - Full metric suite (`ResearchPlan.md` §4)
