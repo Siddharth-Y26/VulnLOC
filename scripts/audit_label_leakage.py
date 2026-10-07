@@ -34,6 +34,15 @@ The script's standing value is forward-looking: it catches this class of defect 
 corpus that has *not* been through the fix — a new dataset, a changed preprocessing step,
 or a regression that turns the normalization off.
 
+**A second leak of the same family, found 2026-10-07, that whitespace normalization does
+not close.** In the release's text a flagged line that ended a block comment has lost the
+terminator's slash: ``foo();  /* note *`` where the source had ``/* note */``. Two tells
+measure it. ``comment_end_lost_slash`` is the positive oracle — a line that ends a comment
+with a bare ``*``. ``comment_end_intact`` is its mirror — a line that ends with ``*/`` —
+and it is a *negative* oracle: such a line is essentially never flagged, which precision
+alone would report as "found nothing". ``excludes_label`` exists for that case: a tell
+that fired on enough lines to expect flagged ones at the base rate and found almost none.
+
 Usage::
 
     python scripts/audit_label_leakage.py
@@ -43,6 +52,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -61,9 +71,29 @@ from vulnloc.utils.text import normalize_source_whitespace
 
 _LOGGER = get_logger(__name__)
 
+# Text, then exactly one `*`, at the end of the line. `/**` and `****` do not match: a
+# doc-comment opener and a banner end in `*` in every corpus, flagged or not.
+_BARE_STAR_END = re.compile(r"[^\s*/]\s*\*$")
+
+
+def comment_end_lost_slash(line: str) -> bool:
+    """Whether a line ends a block comment with ``*`` where ``*/`` belongs.
+
+    Args:
+        line: One source line.
+
+    Returns:
+        ``True`` for ``x = 1;  /* note *`` and for a continuation line ``* note *``.
+    """
+    stripped = line.strip()
+    return bool(_BARE_STAR_END.search(stripped)) and ("/*" in stripped or stripped[:1] == "*")
+
+
 # Each tell reads one line of text and returns "I claim this line is flagged". None of
 # them can see the code's meaning, the function, or any label.
 TELLS: dict[str, Callable[[str], bool]] = {
+    "comment_end_lost_slash": comment_end_lost_slash,
+    "comment_end_intact": lambda line: line.rstrip().endswith("*/"),
     "leading_whitespace": lambda line: line[:1] in (" ", "\t"),
     "trailing_whitespace": lambda line: bool(line) and line[-1:] in (" ", "\t"),
     "contains_tab": lambda line: "\t" in line,
@@ -78,6 +108,11 @@ TELLS: dict[str, Callable[[str], bool]] = {
 _LEAK_PRECISION = 0.5
 _LEAK_MIN_HITS = 25
 
+# The mirror image: a tell that fired on enough lines for `_LEAK_MIN_HITS` flagged ones to
+# be expected at the base rate, and found under a tenth of them. Such a line is readable as
+# *not* flagged — a leak that precision reports as zero and would otherwise read as clean.
+_EXCLUSION_RATIO = 0.1
+
 
 @dataclass
 class TellScore:
@@ -86,6 +121,7 @@ class TellScore:
     tp: int = 0
     fp: int = 0
     fn: int = 0
+    units_with_true_positive: int = 0
 
     def to_dict(self, base_rate: float) -> dict[str, Any]:
         """Return the tell's section of the report.
@@ -99,12 +135,20 @@ class TellScore:
         """
         precision = self.tp / (self.tp + self.fp) if self.tp + self.fp else 0.0
         recall = self.tp / (self.tp + self.fn) if self.tp + self.fn else 0.0
+        expected = (self.tp + self.fp) * base_rate / 100
         return {
             "precision": round(precision, 4),
             "recall": round(recall, 4),
             "fires_on_lines": self.tp + self.fp,
             "true_positives": self.tp,
             "false_positives": self.fp,
+            # Units in which the tell points at a flagged line: the share of a ranking
+            # metric's denominator the tell alone can answer.
+            "units_with_true_positive": self.units_with_true_positive,
+            "expected_true_positives_at_base_rate": round(expected, 1),
+            "excludes_label": (
+                expected >= _LEAK_MIN_HITS and self.tp <= _EXCLUSION_RATIO * expected
+            ),
             # The honest comparison: precision against guessing at the base rate.
             "lift_over_base_rate": round(precision / (base_rate / 100), 2) if base_rate else 0.0,
             "leaks": precision >= _LEAK_PRECISION and self.tp >= _LEAK_MIN_HITS,
@@ -131,6 +175,7 @@ def score_split(
         source = normalize_source_whitespace(unit.source) if normalize else unit.source
         lines = split_lines(source)
         limit = min(unit.n_lines, n_lines, len(lines))
+        pointed: set[str] = set()
         for index in range(1, limit + 1):
             line = lines[index - 1]
             flagged = index in unit.vulnerable_lines
@@ -141,10 +186,13 @@ def score_split(
                 score = scores[name]
                 if fired and flagged:
                     score.tp += 1
+                    pointed.add(name)
                 elif fired:
                     score.fp += 1
                 elif flagged:
                     score.fn += 1
+        for name in pointed:
+            scores[name].units_with_true_positive += 1
     return scores, judged, flagged_total
 
 
@@ -158,6 +206,18 @@ def _leaking(tells: dict[str, Any]) -> list[str]:
         Sorted tell names.
     """
     return sorted(name for name, tell in tells.items() if tell["leaks"])
+
+
+def _excluding(tells: dict[str, Any]) -> list[str]:
+    """Names of the tells whose lines are readable as *not* flagged.
+
+    Args:
+        tells: The tell sections of one partition.
+
+    Returns:
+        Sorted tell names.
+    """
+    return sorted(name for name, tell in tells.items() if tell["excludes_label"])
 
 
 def audit(cfg: DictConfig) -> dict[str, Any]:
@@ -216,6 +276,9 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
                 }
             section["tells_leaking_as_shipped"] = _leaking(section["as_shipped"]["tells"])
             section["tells_leaking_after_normalization"] = _leaking(section["normalized"]["tells"])
+            section["tells_excluding_label_after_normalization"] = _excluding(
+                section["normalized"]["tells"]
+            )
             shards[split] = section
 
             _LOGGER.info(
@@ -226,6 +289,10 @@ def audit(cfg: DictConfig) -> dict[str, Any]:
                     "base_rate_pct": section["as_shipped"]["base_rate_pct"],
                     "leaking_as_shipped": ",".join(section["tells_leaking_as_shipped"]) or "none",
                     "leaking_after_fix": ",".join(section["tells_leaking_after_normalization"])
+                    or "none",
+                    "excluding_after_fix": ",".join(
+                        section["tells_excluding_label_after_normalization"]
+                    )
                     or "none",
                 },
             )
