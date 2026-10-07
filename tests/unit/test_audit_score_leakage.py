@@ -74,6 +74,24 @@ def test_topk_hit_counts_only_units_with_a_usable_flagged_line():
     assert audit.topk_hit(logits, labels, np.array([False, True, True]), 1) == (False, False)
 
 
+def test_a_unit_whose_flagged_line_could_not_be_scored_is_a_miss_not_a_missing_unit():
+    # `training/metrics.py` ranks every line a unit has; the masked sentinel ranks last.
+    # A structural-only arm has such units, and dropping them would report a Top-k the
+    # run never logged.
+    masked = UnitScores(
+        unit_id="marked",
+        logits=np.array([0.1, -1.0e4, 0.5, 0.2], dtype=np.float32),
+        labels=np.array([0, 1, 0, 0], dtype=np.int8),
+        scoreable=np.array([True, False, True, True]),
+    )
+
+    report = audit.audit_run([masked], TEXTS, tell=lost_slash, mirror=intact)
+
+    assert report["all"] == {"units": 1, "top_1": 0.0, "top_5": 1.0}
+    assert report["tell_units"]["units"] == 1, "the split is by text and label, not by coverage"
+    assert report["top1_is_tell_line"] == 0
+
+
 def test_ties_keep_source_order():
     logits = np.zeros(3)
     labels = np.array([False, True, False])

@@ -5,9 +5,11 @@ script asks the question that follows: **did the trained models read it?** It ne
 model — only the per-line scores ``score_checkpoint.py`` stored and the partition's text —
 and reports, per checkpoint and per arm:
 
-* ``all`` — Top-1 / Top-5 over every unit, recomputed from the stored scores. This must
-  equal what the run logged; it is how the reader knows the rest is computed on the same
-  numbers.
+* ``all`` — Top-1 / Top-5 over every unit, recomputed from the stored scores the way
+  ``training/metrics.py`` computes them: every line of the unit is ranked, a line the model
+  could not score ranks last, and a unit none of whose flagged lines could be scored is a
+  miss. This must equal what the run logged; it is how the reader knows the rest is
+  computed on the same numbers.
 * ``tell_units`` — units in which the tell fires on a flagged line, i.e. where the answer
   is written in the formatting. ``top1_is_tell_line`` counts how often the checkpoint's
   top-ranked line there *is* such a line.
@@ -166,30 +168,35 @@ def audit_run(
                 scored_lines=n,
                 text_lines=None if lines is None else len(lines),
             )
-        usable = unit.scoreable.astype(bool)
+        # Every line the unit has is a candidate, exactly as `training/metrics.py` ranks
+        # them: a line the model could not score holds the head's masked sentinel and so
+        # ranks last, and a unit whose flagged lines are all unscoreable counts as a miss.
+        # Ranking only the scoreable lines would silently drop such units and report a
+        # number the run never logged.
+        every = np.ones(n, dtype=bool)
         labels = unit.labels.astype(bool)
         fires = np.array([tell(text) for text in lines[:n]], dtype=bool)
         intact = np.array([mirror(text) for text in lines[:n]], dtype=bool)
         logits = unit.logits.astype(np.float64)
 
-        tallies["all"].add(logits, labels, usable)
-        answered = bool((fires & labels & usable).any())
-        tallies["tell_units" if answered else "other_units"].add(logits, labels, usable)
-        tallies["tell_lines_withheld"].add(logits, labels, usable & ~fires & ~intact)
+        tallies["all"].add(logits, labels, every)
+        # Defined on the text and the labels alone, so every checkpoint is split into the
+        # same two sets of units whatever its own coverage.
+        answered = bool((fires & labels).any())
+        tallies["tell_units" if answered else "other_units"].add(logits, labels, every)
+        tallies["tell_lines_withheld"].add(logits, labels, ~fires & ~intact)
         blank = np.array([not text.strip() for text in lines[:n]], dtype=bool)
-        tallies["blank_lines_withheld"].add(logits, labels, usable & ~blank)
+        tallies["blank_lines_withheld"].add(logits, labels, ~blank)
         flagged_blank += int((labels & blank).sum())
         flagged_lines += int(labels.sum())
         only_blank += bool(labels.any()) and not bool((labels & ~blank).any())
 
         position = -np.arange(n, dtype=np.float64)
-        tallies["source_order"].add(position, labels, usable)
-        tallies["tell_first"].add(position + n * fires, labels, usable)
-        tallies["tell_first_intact_last"].add(position + n * fires - n * intact, labels, usable)
+        tallies["source_order"].add(position, labels, every)
+        tallies["tell_first"].add(position + n * fires, labels, every)
+        tallies["tell_first_intact_last"].add(position + n * fires - n * intact, labels, every)
         if answered:
-            index = np.flatnonzero(usable)
-            best = index[np.argmax(logits[index])]
-            top1_is_tell += bool(fires[best])
+            top1_is_tell += bool(fires[int(np.argmax(logits))])
     report: dict[str, Any] = {name: tally.to_dict() for name, tally in tallies.items()}
     report["top1_is_tell_line"] = top1_is_tell
     # After comment stripping a flagged line that held only a comment is blank: it is still
