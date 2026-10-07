@@ -172,3 +172,21 @@ def test_a_run_trained_on_stripped_text_is_never_scored_with_comments_put_back()
 
     assert config.representation.strip_comments is True
     assert text_changed is False
+
+
+def test_stripping_at_evaluation_reads_the_stripped_semantic_cache_not_the_one_of_record():
+    from omegaconf import OmegaConf
+
+    trained = OmegaConf.create(
+        {
+            "representation": {"normalize_whitespace": True},
+            "train": {"semantic_cache": {"enabled": True, "dir": "./artifacts/semantic_cache"}},
+        }
+    )
+
+    config, text_changed = score_checkpoint.evaluation_config(trained, _cfg(strip_comments=True))
+
+    assert text_changed is True
+    assert config.train.semantic_cache.dir == "./artifacts/semantic_cache_stripped"
+    assert config.train.semantic_cache.enabled is True
+    assert trained.train.semantic_cache.dir == "./artifacts/semantic_cache"

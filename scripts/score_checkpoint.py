@@ -218,11 +218,19 @@ def evaluation_config(run_cfg: DictConfig, cfg: DictConfig) -> tuple[DictConfig,
     Returns:
         ``(config, text_changed)``. The run's own config, unchanged, unless this
         invocation asks for comments to be stripped and the run was trained with them
-        in place — then a copy with ``representation.strip_comments`` set, and ``True``.
+        in place — then a copy with ``representation.strip_comments`` set and, for a run
+        that reads cached semantic features, the cache directory pointed at
+        ``<dir>_stripped``; and ``True``.
     """
     if not strip_comments_enabled(cfg) or strip_comments_enabled(run_cfg):
         return run_cfg, False
-    stripped = OmegaConf.merge(run_cfg, {"representation": {"strip_comments": True}})
+    changes: dict[str, Any] = {"representation": {"strip_comments": True}}
+    cache_dir = OmegaConf.select(run_cfg, "train.semantic_cache.dir")
+    if cache_dir:
+        # A directory holds one semantic cache per partition, so the stripped variant
+        # lives beside the cache of record, never in it.
+        changes["train"] = {"semantic_cache": {"dir": f"{str(cache_dir).rstrip('/')}_stripped"}}
+    stripped = OmegaConf.merge(run_cfg, changes)
     assert isinstance(stripped, DictConfig)
     return stripped, True
 

@@ -392,8 +392,27 @@ def write_cache(
 
     Returns:
         The manifest, as written.
+
+    Raises:
+        ConfigError: If the directory already holds this partition's cache for the other
+            text variant. A directory holds one cache per partition, so building the
+            comment-stripped cache (``Memory.md`` §1.25) into the directory of record would
+            replace it — and every frozen run logged against it would stop reproducing.
     """
     features_path, manifest_path = _paths(cache_dir, split)
+    if manifest_path.exists():
+        stored = json.loads(manifest_path.read_text(encoding="utf-8")).get("inputs", {})
+        key = "representation.strip_comments"
+        if stored.get(key) != inputs.get(key):
+            raise ConfigError(
+                "this directory holds the semantic cache of the other text variant; "
+                "refusing to replace it",
+                cache_dir=str(cache_dir),
+                split=split,
+                stored_strip_comments=stored.get(key, "absent (comments in place)"),
+                requested_strip_comments=inputs.get(key, "absent (comments in place)"),
+                hint="Build this variant elsewhere: train.semantic_cache.dir=<another directory>.",
+            )
     features_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         unit_id: {"states": entry.states, "mask": entry.mask} for unit_id, entry in features.items()

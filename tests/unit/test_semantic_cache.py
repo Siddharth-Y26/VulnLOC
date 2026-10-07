@@ -18,6 +18,7 @@ random draw, and the live path would disagree with it by a margin that looks lik
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,7 @@ from vulnloc.training.datasets import LineLabelledDataset  # noqa: E402
 from vulnloc.training.fused_datasets import FusedLineDataset, collate_fused  # noqa: E402
 from vulnloc.training.graph_datasets import load_node_vocab  # noqa: E402
 from vulnloc.training.semantic_cache import (  # noqa: E402
+    CachedLines,
     SemanticFeatureCache,
     assert_deterministic,
     cache_inputs,
@@ -366,3 +368,19 @@ def test_a_run_that_strips_comments_cannot_read_features_cached_with_them() -> N
 
     assert values["representation.strip_comments"] == "True"
     assert values != inputs()
+
+
+def test_the_stripped_cache_cannot_be_built_over_the_cache_of_record(tmp_path: Path) -> None:
+    # One file per partition per directory: without this refusal, building the stripped
+    # variant in place would silently strand every frozen run logged against the original.
+    out = tmp_path / "semantic_cache"
+    features = {"u1": CachedLines(states=torch.zeros(2, 4), mask=torch.ones(2, dtype=torch.bool))}
+    write_cache(out, "train", features, inputs())
+    stripped = inputs() | {"representation.strip_comments": "True"}
+
+    with pytest.raises(ConfigError, match="other text variant"):
+        write_cache(out, "train", features, stripped)
+
+    assert json.loads((out / "train.manifest.json").read_text())["inputs"] == inputs()
+    write_cache(out, "train", features, inputs())  # the same variant may still be rebuilt
+    write_cache(tmp_path / "semantic_cache_stripped", "train", features, stripped)
