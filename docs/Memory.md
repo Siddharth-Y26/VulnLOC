@@ -46,7 +46,7 @@
 | 3 LLM Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | Tokenization, `LineAligner`, encoder, line head, losses, metrics, training loop and both design measurements are built. **Overfit test passed** (Top-5 = 1.0, run `ffe3d03a…`). **Run `1843412a…` is VOID — ADR-006, §1.10.** The rerun on normalized text learns for real: seed 42 (`fc902107…`) reports Top-5 0.610 / line F1 0.378 with a rising curve. **All three seeds are in (§1.14): Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204.** The ≥3-seed criterion is MET; **gate signed by the owner 2026-09-15** |
 | 4 GNN Branch | ✅ **Done — gate signed 2026-09-15** | **4 / 4** | All four met by logged runs — `python scripts/report_phase4.py`, §1.13. Overfit test (`8b0a3c1d…`, Top-1 = Top-5 = 1.000); all three variants on real data; depth sweep 2/4/6; ≥3 seeds (gcn depth 4, Top-5 **0.3645 ± 0.0231**). **Gate signed by the owner 2026-09-15.** A4 (§1.15): subtokens lift Top-5 to **0.4302 ± 0.0372**, and A1 uses them |
 | 5 Fusion | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1c)** | **5 / 5** (head-to-head at ≥3 seeds, §1.21 frozen and §1.22 fine-tuned; the negative result investigated) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it. **2026-10-04 (session 15): the investigation's six runs are in (§1.22) — the null survives fine-tuning.** Still owed before the gate: the `llm_only` scaffold control (0 / 3, seed 42 paused) and the owner's signature. **2026-10-07 (session 16): the control is in — 0.6169 ± 0.0048, no fused arm beats it (§1.22). The three gate questions are answered in §1.1c; only the signature is missing** |
-| 6 Localization Head | 🟨 **Started 2026-10-07** | 1 / 4 | "Best full-model configuration frozen and checkpointed": **met by decision** — the designed cross-attention model, D9.7's config, checkpoints `80fc5238` / `c193e3bc` / `829c3555` (§2). Calibration and the validation-chosen threshold: in progress. Q5 (CWE labels): needs the owner's "decided" or "deferred". **Deferred in writing (§2):** unit-level aggregation and a joint loss that means something — no negatives; the sweep is frozen-only |
+| 6 Localization Head | 🟨 **Started 2026-10-07 — one criterion from done** | **3 / 4** | "Best full-model configuration frozen and checkpointed": **met by decision** — the designed cross-attention model, D9.7's config, checkpoints `80fc5238` / `c193e3bc` / `829c3555` (§2). **Calibrated, reliability curve reported, threshold chosen on `val` only: met 2026-10-07 (§1.24)** — ECE 0.1704 → 0.0137, line F1 0.2954 → 0.3898 out of fold. **Still open: Q5 (CWE labels) needs the owner's "decided" or "deferred".** **Deferred in writing (§2):** unit-level aggregation and a joint loss that means something — no negatives; the sweep is frozen-only |
 | 7 Explanation | ⬜ Not started | 0 / 4 | |
 | 8 Evaluation | ⬜ Not started | 0 / 4 | |
 | 9 Serving | ⬜ Not started | 0 / 4 | |
@@ -1483,6 +1483,76 @@ the tag holds only the last resume); `7d785c26` `epoch=4,batch=1236,step=3502`.
 
 ---
 
+## 1.24 Phase 6 — calibrated line scores and a threshold chosen on validation
+
+**The full model** (owner, 2026-10-07, §2): the designed cross-attention architecture at
+D9.7's configuration — runs `80fc5238` / `c193e3bc` / `829c3555`, seeds 42 / 1 / 2.
+
+**How the numbers were made.** `scripts/score_checkpoint.py` rebuilds each run's model from
+the config the run archived at its start, loads `best.pt`, scores `val` and keeps every
+line's logit (`artifacts/phase6/scores/<run>_val.npz`; score runs `be9d2979…`, `81003ffa…`,
+`20723b0c…`). **All three re-scorings reproduce their run's logged best-epoch metrics**
+on eight keys within 1e-4 — Top-1, Top-5, IFA, line P/R/F1, scored units, coverage — and
+the script writes nothing when they do not. `scripts/calibrate.py` then works from those
+files alone (calibration run `e93ad84f…`; `artifacts/phase6/calibration_report.json`).
+**`test` and `clean_eval` were not touched**: both scripts refuse them without an explicit
+flag (`Rules.md` §5.3).
+
+**What was fitted.** Per seed, a Platt map on the logits — `sigmoid(scale · logit + shift)`,
+`scale` constrained positive so the ranking cannot change — and the cut-off with the
+highest line F1. **`val`, 488 units, 43,056 scoreable lines, 2,807 of them flagged (6.52%),
+n = 3 seeds.**
+
+| | Raw `sigmoid`, cut at 0.5 (what every run logged) | **Calibrated, threshold chosen on the other folds** |
+|---|---|---|
+| ECE (15 bins) | 0.1704 ± 0.0330 | **0.0137 ± 0.0104** |
+| Negative log-likelihood | 0.3208 ± 0.0314 | 0.2012 ± 0.0075 |
+| Line precision | 0.6163 ± 0.0496 | 0.4020 ± 0.0300 |
+| Line recall | 0.2015 ± 0.0795 | 0.3787 ± 0.0098 |
+| **Line F1** | 0.2954 ± 0.0855 | **0.3898 ± 0.0190** |
+
+The right-hand column is **out-of-fold**: calibrator and threshold fitted on four fifths of
+the validation units (folds by content hash of `unit_id`, by unit, never by line) and
+applied to the fifth. Fitted on all of `val` and scored on the same lines, F1 is
+0.3952 ± 0.0191 — optimistic by 0.005 to 0.007 per seed. **Quote the out-of-fold numbers.**
+
+**Parameters of record** (fitted on all of `val`; what Phase 7 and serving apply):
+
+| Seed | Run | `scale` | `shift` | Threshold (calibrated probability) |
+|---|---|---|---|---|
+| 42 | `80fc5238` | 1.8412 | −0.6707 | 0.1686 |
+| 1 | `c193e3bc` | 0.7166 | −1.8906 | 0.1083 |
+| 2 | `829c3555` | 3.0486 | −0.1939 | 0.2159 |
+
+### What this supports
+
+1. **The line scores can be made calibrated**: ECE falls from 0.17 to 0.014 on units the
+   calibrator never saw. Raw, the lines scored below 0.2 carry a mean probability of
+   0.13–0.16 and are flagged 0.3–2.3% of the time — focal loss, as expected.
+2. **The seed-to-seed spread in line F1 was the threshold, measured.** At a fixed 0.5 the
+   three seeds score 0.31 / 0.37 / 0.20 (sd 0.086); each given its own validation-chosen
+   cut-off, 0.39 / 0.41 / 0.37 (sd 0.019). §1.14 and §1.22 said "the threshold moving, not
+   the model"; this is the number behind the sentence. **The scales differ by 4× across
+   seeds (0.72 to 3.05), so a calibrator belongs to its checkpoint — never average them.**
+3. **Calibration changes no ranking.** Top-1, Top-5 and IFA are exactly §1.22's.
+
+### What it does not support
+
+- **Not calibration at the confident end.** Out of fold, lines given p ≥ 0.8 (268 / 390 /
+  105 of them; mean predicted 0.94–0.95) are flagged **0.70 / 0.67 / 0.81** of the time.
+  A two-parameter monotone map fits the 93–98% of lines below 0.2, where it is within
+  0.002, and cannot bend the top. **That ceiling sits where §1.6's label audit would put
+  it** (~30% of line labels wrong, 95% CI [14.5%, 51.9%]) — *consistent with* label noise
+  capping the observed rate, **not evidence of it**: over-confidence looks the same.
+- **Not a comparison between arms.** Only the full model was calibrated. Line F1 for concat
+  and `llm_only` at their own thresholds has not been computed, so §1.22's F1 column is
+  still the only cross-arm F1 and still means nothing.
+- **Not `test` or `clean_eval`**, and not a claim that a threshold chosen on `val` (488
+  units, longer functions than `train`) transfers. That is what the single held-out
+  evaluation is for.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -1588,17 +1658,34 @@ Did:
     (measured first — `scripts/probe_vram_spill.py`), `resolved_gpu`, and `Top-1 last` in
     `export_results.py`. ruff / black / mypy / import-linter clean; **965 passed, 2 skipped**
     (was 937).
+  - **Asked the owner four questions; the answers are in §2**: the Phase 5 gate is
+    **signed**; the full model is "whatever architecture was designed before" — cross-
+    attention; deferrals are delegated ("whatever is best…"), applied as recommended and
+    reversible; weighted BCE is skipped for now.
+  - **Phase 6, built and run the same morning (§1.24).** `models/heads/calibration.py`,
+    `training/line_scores.py`, `scripts/score_checkpoint.py`, `scripts/calibrate.py`, with
+    81 new tests. Scored the three full-model checkpoints on `val` — each reproduces its
+    run's logged metrics — and calibrated them. Checked the fixed VRAM guard on a short
+    real run first (`3ee36f97…`, void).
 Files touched:
   - `src/vulnloc/training/{loop,job}.py`; `scripts/{run_queue,report_seeds,export_results}.py`;
     new `scripts/probe_vram_spill.py`; `tests/unit/test_{resume,run_queue,report_seeds,export_results}.py`,
     new `tests/unit/test_vram_guard.py`; this file, `CLAUDE.md`, `docs/Phases.md`. No config
     file changed. One helper script under `artifacts/queue/` (git-ignored).
+  - Phase 6: new `src/vulnloc/models/heads/calibration.py`,
+    `src/vulnloc/training/line_scores.py`, `scripts/score_checkpoint.py`,
+    `scripts/calibrate.py`, `tests/unit/test_{calibration,line_scores,calibrate_script,score_checkpoint}.py`.
+    **1,027 passed, 2 skipped.**
 Runs logged:
   - `179632f5…` / `72f067d0…` / `2c7a7631…` : llm_only seeds 42 / 1 / 2, all FINISHED, all
     **resumed** — **Top-5 0.6169 ± 0.0048** (§1.22).
   - One `report_seeds.py` run →
     `artifacts/phase5/seed_report_fused_finetuned_llm_only.json` (`n_seeds: 3`). The queue's
     own 2-seed and 1-seed passes wrote the same file earlier and were overwritten.
+  - `be9d2979…` / `81003ffa…` / `20723b0c…` : `score-val` for the three full-model runs.
+    `e93ad84f…` : calibration — **ECE 0.1704 → 0.0137, line F1 0.2954 → 0.3898 out of fold**
+    (§1.24). `3ee36f97…` : void probe of the VRAM guard. `5d06b630…` : void, a calibration
+    attempt that died on a duplicate MLflow parameter name before logging a metric.
 Learned:
   - **Brave was open again at the restart** and held 131 MiB dedicated on the NVIDIA
     adapter; the trainer sat at 3,752 MiB dedicated + 542 MiB shared. Close to session 15's
@@ -1619,12 +1706,15 @@ Learned:
   - **A background wait is not a guaranteed wake-up.** The 02:18 one reached the session at
     06:59. Anything that must happen overnight belongs in a process on the machine (the
     watcher), not in the session's intention to check.
+  - **`start_run` logs every override as a parameter**, so a script must not log its own
+    `+group.key` again under the same name with a different rendering — MLflow refuses the
+    second value and the run dies after its report is already on disk (`5d06b630…`).
+  - **A calibrator belongs to its checkpoint.** The three seeds' Platt scales span 0.72 to
+    3.05; an averaged one would fit none of them.
 Next:
-  - **Put the Phase 5 gate to the owner** — criterion 5's investigation is complete.
-  - With the source unfrozen: the rename retry (§7 #56) and the spill guard (§7 #57), each
-    with a test; then the Mon 5 daytime list in §6 item 0a, now two days late.
-  - Decide whether weighted BCE gets more seeds before Phase 6 fixes a loss (§1.23).
-  - The two held Q13 questions are still unanswered.
+  - **Q5 (CWE labels) from the owner** — the last Phase 6 criterion.
+  - Phase 7a and the rater pack; then the single held-out evaluation (§6 item 0a).
+  - The owner switches off scheduled optimisation for D: before the next long run (§7 #57).
   - Tests not run this session — no code changed.
 
 ---
@@ -2121,6 +2211,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `e93ad84f…` (calibration) · `be9d2979…` `81003ffa…` `20723b0c…` (scores) | 2026-10-07 | `score_checkpoint.py +score.run_id=<run>` ×3, then `calibrate.py '+calibrate.runs=[80fc5238…,c193e3bc…,829c3555…]'` — Platt, 15 bins, 5 folds by unit, `val` | 42, 1, 2 | cross_attention | fused | — | *unchanged — calibration is monotone* | *unchanged* | **Phase 6: calibration and the validation-chosen threshold (§1.24).** ECE 0.1704 ± 0.0330 → **0.0137 ± 0.0104**; line F1 0.2954 ± 0.0855 at 0.5 → **0.3898 ± 0.0190** out of fold (P 0.4020, R 0.3787). Thresholds 0.1686 / 0.1083 / 0.2159. Every re-scoring reproduces its run's logged metrics. Over-confident above p = 0.8 (observed 0.67–0.81). `val` only. `5d06b630…` is a failed first attempt, tagged `void` |
 | `3ee36f97…` | 2026-10-07 | `train_fused.py +fusion=llm_only train=fused seed=42 … llm.frozen=false train.semantic_cache.enabled=false train.limit=3000 train.eval_limit=100 train.epochs=1`, commit `6d16adc` | 42 | llm_only | fused | — | — | — | **VOID / probe — never a result** (`train.limit` ≠ 0, so both reports refuse it; also tagged `void`). The live check of the fixed VRAM guard (§7 #57): no spill in 23 samples, 1.01 s/step. Its checkpoints were deleted. The first run to log `resolved_gpu` |
 | **MACHINE 2** — `f4d81b36…` `513d9d6b…` `45de097a…` (reference) and 18 more frozen; `57df8cff…` `77268204…` `3a953045…` / `b04a6b82…` `7d785c26…` `fb445d65…` (fine-tuned). Every id is in §1.23 | 2026-10-03 → 05 | `run_queue.py --only m2 m2ft` on the **second laptop** (RTX 4050 Laptop 6 GB, torch 2.14.1+cu130, commit `782ea98`), imported as files at `artifacts/machine2/Sujal_20261005-224401/` — **not in this machine's MLflow store** | 42, 1, 2 | cross_attention | fused | 1.000 *(degenerate)* | frozen reference **0.5498 ± 0.0219**; GAT 0.5456, GGNN 0.5692, weighted BCE 0.5802, plain BCE 0.5747, line-only 0.5456, GraphCodeBERT 0.5747. Fine-tuned CodeBERT **0.6272 ± 0.0073** / GraphCodeBERT **0.6169 ± 0.0098** | 12.48 (ref) / 11.54 / 11.53 | **MACHINE 2 — NEVER POOLED WITH THIS LAPTOP'S RUNS (§7 #49).** A4 in fusion, A8 line-only, A9, A5. **No ablation resolves at three seeds** (largest: weighted BCE +0.0304, 1.96 pooled sd). Fine-tuned GraphCodeBERT − CodeBERT = −0.0104 (−1.20 pooled sd). Four of the six fine-tuned runs are resumed (tags in §1.23). Five overfit gates passed (Top-1 1.0000, read from the store's history). Validation-selected, `val`. §1.23 |
 | `179632f5…` `72f067d0…` `2c7a7631…` | 2026-10-04 → 07 | `run_queue.py --only d97` — as the row below with `+fusion=llm_only`: **D9.7's scaffold control** | 42, 1, 2 | llm_only | fused | 1.000 *(degenerate)* | **0.6169 ± 0.0048** | 11.13 | **NEITHER FUSED ARM BEATS FINE-TUNED LLM-ONLY IN THE SAME SCAFFOLD** (cross_attention −0.0007, concat 0.0000 on Top-5). Top-1 0.3527 ± 0.0021, line F1 0.3726 ± 0.0157. Per seed Top-5 0.6141, 0.6141, 0.6224. **All three are resumed**: `resumed_at=epoch=6,batch=500,step=4565` (owner's pause) / `epoch=5,batch=976,step=4100` (WinError 5 crash, §7 #56) / `epoch=6,batch=946,step=4800` (GPU driver fault, §7 #57); seed 1's selected epoch 5 was completed after its resume. Validation-selected, `val`. 134, 210, 170 min over two attempts each. §1.22 |
@@ -2218,7 +2309,18 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   the checkpoint rename waits out a lock, the queue continues a crashed run twice by
   itself, a seed report fails instead of passing short, the VRAM guard fires where the
   spill actually starts, and every run logs which card it used. 965 tests pass.
-- **Phase 5 now waits only on the owner's signature.** Then Phase 6.
+- **Phase 5 is SIGNED (the owner, Wed 7) and Phase 6 is three of four criteria in**
+  (§1.24): the designed cross-attention model is the full model; its scores are calibrated
+  and its threshold chosen on `val`. **Phase 6's last criterion is Q5 (CWE labels) — the
+  owner's "decided" or "deferred".**
+- **Next, in order:** (1) Q5 from the owner, which closes Phase 6. (2) Phase 7a —
+  evidence extraction from the attention maps, templates, the grounding verifier — and the
+  rater pack; the raters' time is the constraint, not the GPU. (3) **The single held-out
+  evaluation**: `score_checkpoint.py +score.split=test +score.final=true`, then
+  `clean_eval`, for all nine D9.7 checkpoints, applying each full-model checkpoint's
+  `val`-fitted calibrator and threshold. **Once, and only when nothing upstream will change
+  again** (`Rules.md` §5.3). It needs score files for concat and `llm_only` on `val` first
+  (~2 min a checkpoint) if their thresholded metrics are to be reported.
 - **Before the next long run the owner should stop Windows defragmenting D: on its own**
   (§7 #57) — it needs an administrator.
 - **The second machine's export is IN (Wed 7, 09:15):**

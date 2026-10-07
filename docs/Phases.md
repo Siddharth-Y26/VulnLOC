@@ -199,8 +199,14 @@ learned from or measured against; `function/f1` = 1.000 is degenerate for the sa
 The hyperparameter sweep is frozen-encoder only.
 
 **Exit criteria**
-- [ ] Line scores calibrated (reliability curve reported)
-- [ ] Threshold chosen on validation only
+- [x] Line scores calibrated (reliability curve reported)
+  - *2026-10-07:* Platt scaling per checkpoint, fitted on `val`; ECE 0.1704 ± 0.0330 →
+    0.0137 ± 0.0104 out of fold, 3 seeds. The curve is in
+    `artifacts/phase6/calibration_report.json` (run `e93ad84f…`) and `Memory.md` §1.24 —
+    including where it still fails: above p = 0.8 the observed rate is 0.67–0.81.
+- [x] Threshold chosen on validation only
+  - *2026-10-07:* maximum line F1 on calibrated `val` probabilities, per checkpoint
+    (0.1686 / 0.1083 / 0.2159). `scripts/calibrate.py` refuses any other partition.
 - [x] Best full-model configuration frozen and checkpointed
   - *2026-10-07:* the architecture as designed — bidirectional cross-attention, ADR-009
     D9.7's fine-tuned configuration; checkpoints `80fc5238` / `c193e3bc` / `829c3555`
