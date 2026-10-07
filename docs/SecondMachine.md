@@ -179,6 +179,37 @@ On the **first** machine, copy that folder to `D:\project\artifacts\machine2\` �
 A session writing results up cites second-machine numbers as **"machine 2 (<GPU from
 RESULTS.md>)"** with their run ids, beside — never inside — the first machine's.
 
+## 6. A second slate, proposed 2026-10-07 — the frozen A1 screen on comment-stripped text
+
+**Not started on either machine. The owner decides whether it runs, and where** (open
+decision Q14, `Memory.md` §5). It exists because of the label leak found that day
+(`Memory.md` §1.25): every frozen arm with a structural branch reads it, and frozen
+`llm_only` does not, so "fusion beats frozen `llm_only`" has to be re-measured on text
+without it. It is 18 frozen runs — about the size of this machine's first slate — and one
+whole comparison group, so it must run on **one** machine from start to finish.
+
+It needs the repository at a commit that has `strip_comments` (2026-10-07 evening or
+later), so a new `vulnloc.bundle`; nothing else in the transfer folder changes. Then:
+
+```powershell
+git pull <T>\vulnloc.bundle phase-2/representation     # in the existing clone
+$q = ".\.venv\Scripts\python.exe scripts\run_queue.py"
+
+iex "$q --only a1rcheck"      # builds the stripped CodeBERT cache in its OWN directory
+                              # (artifacts\semantic_cache_stripped), then one overfit gate
+iex "$q --only a1rcheck --status"
+```
+
+**Read the overfit Top-1** as in step 3 — last epochs, ~1.000 — before going on. Then:
+
+```powershell
+iex "$q --only a1r"           # six arms x three seeds, then six seed reports in artifacts\adr010\
+.\.venv\Scripts\python.exe scripts\export_results.py --groups a1rcheck a1r --out <USB>\results
+```
+
+The stripped cache never goes into `artifacts\semantic_cache\`: a directory holds one
+cache per partition, and the script refuses to replace one text variant with the other.
+
 ## While both machines work
 
 - The first machine's `d97` group must not have source code change under it (`Memory.md` §6
