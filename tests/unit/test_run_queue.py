@@ -628,6 +628,56 @@ def test_the_two_sets_of_fine_tuned_seed_reports_cannot_read_each_others_runs():
         assert "+seeds.output_dir=./artifacts/adr010" in new.args
 
 
+# --- a1r: the frozen A1 screen again on comment-stripped text (Memory.md §1.25) ----------
+
+STRIPPED_CACHE = "train.semantic_cache.dir=./artifacts/semantic_cache_stripped"
+
+
+def test_a1r_is_a1_with_stripping_and_its_own_cache_and_nothing_else():
+    for arm in ("cross_attention", "concat", "sum", "gated", "llm_only", "gnn_only"):
+        for seed in (42, 1, 2):
+            original = next(s for s in _group("phase5") if s.name == f"a1-{arm}-seed{seed}")
+            rerun = next(s for s in _group("a1r") if s.name == f"a1r-{arm}-seed{seed}")
+
+            assert _overrides(rerun) - _overrides(original) == {STRIP, STRIPPED_CACHE}
+            assert _overrides(original) - _overrides(rerun) == set()
+
+
+def test_the_stripped_cache_is_built_in_its_own_directory_before_anything_reads_it():
+    build, overfit = _group("a1rcheck")
+
+    assert build.script == "scripts/build_semantic_cache.py"
+    assert STRIP in build.args and STRIPPED_CACHE in build.args
+    assert "train=overfit_fused" in overfit.args and STRIPPED_CACHE in overfit.args
+    plan = [s.group for s in run_queue.build_plan() if s.group in {"a1rcheck", "a1r"}]
+    assert plan == sorted(plan, key=lambda group: group != "a1rcheck")
+
+
+def test_no_stripped_frozen_run_ever_points_at_the_cache_of_record():
+    """§7 #59: a directory holds one cache per partition."""
+    for step in run_queue.build_plan():
+        if STRIP in step.args and "llm.frozen=true" in step.args:
+            assert STRIPPED_CACHE in step.args, step.name
+
+
+def test_a1r_runs_the_core_pair_first_and_reports_each_arm_on_stripped_runs_only():
+    runs = [s.name for s in _group("a1r") if s.script == "scripts/train_fused.py"]
+    assert runs[:6] == [
+        f"a1r-{arm}-seed{seed}" for seed in (42, 1, 2) for arm in ("cross_attention", "concat")
+    ]
+    reports = [s for s in _group("a1r") if s.script == run_queue.SEED_REPORT_SCRIPT]
+    assert len(reports) == 6
+    for report in reports:
+        where = next(a for a in report.args if "seeds.where" in a)
+        assert "frozen: True" in where and "strip_comments: True" in where
+
+
+def test_the_a6_reports_do_not_read_stripped_runs():
+    for step in _group("a6"):
+        if step.script == run_queue.SEED_REPORT_SCRIPT:
+            assert "strip_comments: False" in next(a for a in step.args if "seeds.where" in a)
+
+
 # --- a fresh machine must name its groups -----------------------------------------------
 
 

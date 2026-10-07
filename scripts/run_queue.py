@@ -659,8 +659,10 @@ def build_plan() -> list[Step]:
                 script="scripts/report_seeds.py",
                 args=[
                     "train=fused",
+                    # `strip_comments: False` keeps the `a1r` runs — same arm, frozen, and
+                    # logging `fusion_direction: both` by default — out of this report.
                     "+seeds.where={fusion_kind: cross_attention, frozen: True, "
-                    f"fusion_direction: {direction}}}",
+                    f"strip_comments: False, fusion_direction: {direction}}}",
                     f"+seeds.tag=a6_{direction}",
                     "+seeds.output_dir=./artifacts/phase6",
                 ],
@@ -716,6 +718,77 @@ def build_plan() -> list[Step]:
                     "train=fused",
                     f"+seeds.where={{fusion_kind: {arm}, frozen: False, strip_comments: True}}",
                     f"+seeds.tag=finetuned_stripped_{arm}",
+                    "+seeds.output_dir=./artifacts/adr010",
+                ],
+            )
+        )
+
+    # --- Memory.md §1.25: the frozen A1 screen again, on comment-stripped text ---------
+    # Added 2026-10-07. The score audit of the frozen screen shows every arm with a
+    # structural branch reading the comment-terminator tell — an unterminated comment is
+    # parse damage a GNN can see — while frozen `llm_only` does not. "Every fusion arm beats
+    # frozen llm_only" is therefore the claim most exposed to the leak, and this is its
+    # leak-free form: A1's constants, comments stripped, and a semantic cache built from
+    # stripped text in a directory of its own (a directory holds one cache per partition,
+    # so building it into the cache of record would replace it — §7 #59).
+    #
+    # Frozen and cheap (~15-40 min a run), and a whole comparison group, so it can run on
+    # either machine — but never split between them (§7 #49).
+    a1r_cache = "train.semantic_cache.dir=./artifacts/semantic_cache_stripped"
+    a1r_constants = [*a1_constants, STRIP_COMMENTS, a1r_cache]
+    steps.append(
+        Step(
+            name="a1r-build-stripped-cache",
+            group="a1rcheck",
+            why="Frozen CodeBERT line features from comment-stripped text — read by every "
+            "a1r run. Its own directory; never the cache of record.",
+            script="scripts/build_semantic_cache.py",
+            args=["train=fused", "llm.frozen=true", STRIP_COMMENTS, a1r_cache, "device.kind=cuda"],
+        )
+    )
+    steps.append(
+        Step(
+            name="a1r-overfit-cross_attention",
+            group="a1rcheck",
+            why="Sanity: cross_attention must memorise 32 functions on comment-stripped text, "
+            "frozen, off the stripped cache. Never a result.",
+            script="scripts/train_fused.py",
+            args=["+fusion=cross_attention", "train=overfit_fused", *a1r_constants],
+        )
+    )
+    for seed in (42, 1, 2):
+        for arm in ("cross_attention", "concat"):
+            steps.append(
+                Step(
+                    name=f"a1r-{arm}-seed{seed}",
+                    group="a1r",
+                    why=f"A1 core on comment-stripped text: {arm}, frozen, seed {seed} of 3.",
+                    script="scripts/train_fused.py",
+                    args=[f"+fusion={arm}", "train=fused", f"seed={seed}", *a1r_constants],
+                )
+            )
+    for seed in (42, 1, 2):
+        for arm in ("llm_only", "gnn_only", "sum", "gated"):
+            steps.append(
+                Step(
+                    name=f"a1r-{arm}-seed{seed}",
+                    group="a1r",
+                    why=f"A1 arm {arm} on comment-stripped text, frozen, seed {seed} of 3.",
+                    script="scripts/train_fused.py",
+                    args=[f"+fusion={arm}", "train=fused", f"seed={seed}", *a1r_constants],
+                )
+            )
+    for arm in arms:
+        steps.append(
+            Step(
+                name=f"a1r-seed-report-{arm}",
+                group="a1r",
+                why=f"Aggregate the frozen, comment-stripped {arm} seeds (needs all 3).",
+                script="scripts/report_seeds.py",
+                args=[
+                    "train=fused",
+                    f"+seeds.where={{fusion_kind: {arm}, frozen: True, strip_comments: True}}",
+                    f"+seeds.tag=frozen_stripped_{arm}",
                     "+seeds.output_dir=./artifacts/adr010",
                 ],
             )
@@ -1092,7 +1165,8 @@ def main() -> int:
         default=None,
         metavar="GROUP",
         help="Run only these groups, in plan order (phase3, phase4, p5check, phase5, "
-        "d97check, d97, m2check, m2, m2ftcheck, m2ft, a6check, a6, d97rcheck, d97r).",
+        "d97check, d97, m2check, m2, m2ftcheck, m2ft, a6check, a6, d97rcheck, d97r, "
+        "a1rcheck, a1r).",
     )
     parser.add_argument(
         "--until",
