@@ -77,12 +77,21 @@ Computed from the per-line score files, by script.
 `scripts/audit_label_leakage.py` already covers both partitions. After scoring,
 `scripts/audit_score_leakage.py +audit.split=<split> +audit.final=true` is run on each
 partition's score files and its table is published with the results — including the
-count of units a formatting tell can answer, which on stripped text should be zero.
+count of units a formatting tell can answer, which on stripped text should be zero. For
+the `d97r` checkpoints that is `+audit.scores_dir=./artifacts/phase6/scores_retrained
++representation.strip_comments=true`: the audit refuses score files made from the text
+variant it is not reading (`Memory.md` §7 #61).
 
 ## 8. Order of work
 
 1. Owner decides Q14 and confirms §2 and §3. This file is committed as final.
-2. `val` (already permitted): score, calibrate and audit the nine checkpoints.
+2. `val` (already permitted): score, calibrate and audit the nine checkpoints. For the
+   `d97r` checkpoints this is what `artifacts/queue/d97r_after.ps1` does once the queue
+   ends: scores in `artifacts/phase6/scores_retrained/`, one calibrator and threshold per
+   checkpoint in `artifacts/phase6/retrained/` (cross_attention) and
+   `artifacts/phase6/retrained/arms/<arm>/`. Three populations of scores exist and are
+   never mixed: `scores/` (trained and scored with comments), `scores_stripped/` (trained
+   with comments, scored without), `scores_retrained/` (trained and scored without).
 3. `score_checkpoint.py +score.run_id=<run> +score.split=test +score.final=true`, then
    `clean_eval`, for all nine. **One pass.** A second scoring of a held-out partition for
    any checkpoint is a protocol violation and is recorded as one.
