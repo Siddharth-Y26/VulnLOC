@@ -67,7 +67,12 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 **Once a held-out file exists, nothing in that protocol, in `src/vulnloc/evaluation/` or in
 `scripts/evaluate_scores.py` may change, and no checkpoint is scored on a held-out
 partition twice** — `score_checkpoint.py` does not refuse to overwrite one, so check for
-`<run>_<split>.npz` first. `Memory.md` §6 item 0a says how far the pass has got.
+`<run>_<split>.npz` first. **THE PASS WAS STARTED AT 18:09 AND PAUSED AT 18:14 AT THE
+OWNER'S REQUEST (the hard disk was at 100%; "lets do this later"): 1 of 18 score files
+exists — `ba7dcc5f…` on `test` — and nothing has been evaluated or looked at. Continue
+only when the owner says so, with `.venv\Scripts\python.exe artifacts\queue\heldout_pass.py`:
+it scores only what is missing, then evaluates. Expect D: busy for an hour or more.**
+`Memory.md` §6 item 0a says how far the pass has got.
 
 **2026-10-08 afternoon: Phase 8 was started on `val` at the owner's instruction ("start
 with phase 8"), before that signature;** those words were recorded as a go-ahead to build

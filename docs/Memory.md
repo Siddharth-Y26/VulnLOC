@@ -3423,7 +3423,33 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-08 18:10 (session 17): PHASE 7 SIGNED, the evaluation protocol is FINAL — the single held-out pass is about to be made
+#### Where it stands — 2026-10-08 18:20 (session 17): THE HELD-OUT PASS IS PAUSED at the owner's request — 1 of 18 score files exists, nothing is evaluated
+
+- **Started at 18:09** from clean `d6c3fa6` with `artifacts/queue/heldout_pass.py`
+  (transcript `artifacts/queue/heldout_pass.out`). **At 18:14 the owner asked to pause
+  everything — the hard disk was at 100% — and to do it later.** The runner and its
+  children were killed at 18:14:55; nothing of the project is running.
+- **What exists:** `ba7dcc5f…` on `test` — score file and manifest, written 18:11:49, its
+  scoring run logged. **That checkpoint is never scored on `test` again.**
+- **What was in flight:** `8afbf7da…` on `test`, started 18:12:33, killed before it wrote
+  anything. No score file, no manifest, no run: not a scoring, and the next start makes
+  its first.
+- **Nothing held-out has been looked at.** No session has opened the one score file or
+  read the metrics in its manifest; nothing has been evaluated.
+- **To continue — one command, when the laptop is free for an hour or more:**
+  `.venv\Scripts\python.exe artifacts\queue\heldout_pass.py` from `D:\project`, on a clean
+  tree. It scores only what is missing (17 files), then evaluates, audits and explains.
+  **Do not run `score_checkpoint.py` by hand for a held-out partition.**
+- **Why the disk:** every scoring step starts a new Python process — PyTorch and its
+  libraries load from `.venv` on D: — and reads a 1,529 MB `best.pt` from D:, which is the
+  spinning disk. The first step took 172 s against about 60 s on `val` in the afternoon.
+  Measured after the stop: D: 65–88% idle, only the editor doing I/O. **Expect D: busy
+  for the whole pass.** An option that is the owner's and was not taken: copy the nine
+  checkpoints (13.8 GB) to the SSD and pass `+score.checkpoint_dir`; C: has 21 GB free.
+- **Unchanged:** the protocol is final (`d6c3fa6`), the evaluation code is frozen, and
+  the rest of the block below.
+
+#### Where it stood — 2026-10-08 18:10 (session 17): Phase 7 signed, the evaluation protocol final — the single held-out pass about to be made
 
 - **The owner signed the Phase 7 gate, approved the human-evaluation protocol and
   confirmed the evaluation protocol** (§2, the owner's words quoted there). Phase 8 is the
