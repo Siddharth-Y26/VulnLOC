@@ -245,7 +245,10 @@ The hyperparameter sweep is frozen-encoder only.
 - [x] Grounding test suite passes (no explanation names an unflagged line)
   - *2026-10-07:* `tests/unit/test_explanation.py`, including a property test over
     arbitrary scores and thresholds; the verifier re-checks every finished text.
-- [ ] Explanations reviewed for absence of attack instructions (`Rules.md` §7.2)
+- [x] Explanations reviewed for absence of attack instructions (`Rules.md` §7.2)
+  - *2026-10-08:* **the owner states the page was read** — every sentence the explainer
+    can emit, 19 template sentences and 8 fixed forms — **and named no sentence of
+    concern** (`Memory.md` §2).
   - *2026-10-07:* the automatic half is in place — every template sentence and every
     finished text is scanned for that vocabulary. **The review itself is a person
     reading one page — `python scripts/list_explanation_sentences.py` writes every
@@ -256,7 +259,7 @@ The hyperparameter sweep is frozen-encoder only.
     content hash from `test`, four 1–5 dimensions, Krippendorff's α. Its approval is
     part of the gate. A pilot pack on `val` is drawn.
 
-Gate answers prepared in `Memory.md` §1.1e — **not signed**.
+Gate answers in `Memory.md` §1.1e — **signed by the owner 2026-10-08.**
 
 ---
 
@@ -270,8 +273,9 @@ are quoted from `docs/prior_work.yaml`, labelled `(reported)`, never beside ours
 under our splits (`Rules.md` §5.7).
 
 **Started 2026-10-08 at the owner's instruction ("start with phase 8"), on `val` only, with
-the Phase 7 gate still unsigned** (`Memory.md` §2). The held-out pass waits for that gate
-and for the owner's confirmation of `docs/EvaluationProtocol.md`.
+the Phase 7 gate still unsigned** (`Memory.md` §2). **The same evening the owner signed
+that gate and confirmed `docs/EvaluationProtocol.md`; the protocol was committed as final
+before the single held-out pass was started.**
 
 **Deliverables**
 - Full metric suite (`ResearchPlan.md` §4)

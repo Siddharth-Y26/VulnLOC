@@ -1,9 +1,13 @@
 # Held-Out Evaluation Protocol — `test` and `clean_eval`, once (Phase 8)
 
-**Status: DRAFT, 2026-10-07 (session 16); §2 and §3 decided by the owner 2026-10-08.**
-Written while Phase 7 is still open, because the label leak found that day (`Memory.md`
-§1.25) changes what this evaluation must be. **It binds nothing until Phase 8 starts and
-the owner has confirmed it as a whole — that confirmation is still owed.** On 2026-10-07
+**Status: FINAL — confirmed by the project owner on 2026-10-08, before any held-out file
+existed.** Asked to read it and reply "protocol confirmed" or say what to change, the owner
+answered: *"yes I have already done all these please proceed forward I read through all
+this"* (`Memory.md` §2). Nothing below may change now that `test` and `clean_eval` are
+being read; a correction is a dated note beside the text it corrects, never an edit.
+
+Drafted 2026-10-07 (session 16) while Phase 7 was still open, because the label leak found
+that day (`Memory.md` §1.25) changed what this evaluation must be. On 2026-10-07
 the owner authorised the held-out evaluation "when Phase 8 starts", after this protocol is
 committed; that go-ahead was given before the leak was known, so two points below
 (§2, §3) were put back to the owner explicitly. Both were answered on 2026-10-08 by the
@@ -141,7 +145,8 @@ variant it is not reading (`Memory.md` §7 #61).
 ## 8. Order of work
 
 1. Owner decides Q14 (**done 2026-10-08: §2 and §3**) and confirms this file as a whole
-   (**owed**). This file is then committed as final.
+   (**done 2026-10-08**). This file is then committed as final — **the commit that carries
+   this line, made before step 3.**
 2. `val` (already permitted; **done 2026-10-08**, `Memory.md` §1.28): score, calibrate and
    audit the nine checkpoints. For the
    `d97r` checkpoints this is what `artifacts/queue/d97r_after.ps1` does once the queue

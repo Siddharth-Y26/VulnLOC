@@ -1,6 +1,7 @@
 # Human Evaluation Protocol — explanations (Phase 7 exit criterion; run in Phase 8)
 
-**Status:** defined 2026-10-07 (session 16) for the project owner's approval. Nothing has
+**Status: approved by the project owner on 2026-10-08, with the Phase 7 gate**
+(`Memory.md` §2). Defined 2026-10-07 (session 16). Nothing has
 been rated yet. This document fixes the procedure **before** any rating exists, so that
 no choice below can be made with the answers in view.
 
