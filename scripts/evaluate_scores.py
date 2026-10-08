@@ -60,6 +60,7 @@ from vulnloc.evaluation.evaluator import (
     load_partition,
     scalars,
 )
+from vulnloc.evaluation.statistics import RESOLVED_AT, threshold_p_value
 from vulnloc.models.heads.calibration import LogitCalibrator
 from vulnloc.training.line_scores import load_scores
 from vulnloc.training.tracking import start_run
@@ -204,6 +205,42 @@ def reconcile(report: Mapping[str, Any], logged: Mapping[str, float]) -> list[st
                 f"[{low:.6f}, {high:.6f}]"
             )
     return problems
+
+
+def summarise_comparisons(
+    comparisons: Mapping[str, Mapping[str, Any]], *, n_seeds: int
+) -> dict[str, Any]:
+    """Count the comparisons made, and name the ones that reach the threshold.
+
+    A table of ninety comparisons with three marked is read very differently from three
+    comparisons with three marked. This puts the denominator, and what the threshold is
+    worth at this number of seeds, in the report itself.
+
+    Args:
+        comparisons: ``pair -> metric -> compare_arms(...)``.
+        n_seeds: Seeds per arm.
+
+    Returns:
+        ``{"made", "pairs", "metrics_per_pair", "at_least_threshold", "which",
+        "threshold_pooled_sd", "n_seeds", "chance_of_reaching_it_with_no_difference"}``.
+    """
+    made = sum(len(metrics) for metrics in comparisons.values())
+    which = [
+        f"{pair} on {name} ({entry['difference_in_pooled_sd']:+.2f})"
+        for pair, metrics in comparisons.items()
+        for name, entry in metrics.items()
+        if entry["resolved"]
+    ]
+    return {
+        "made": made,
+        "pairs": len(comparisons),
+        "metrics_per_pair": made // len(comparisons) if comparisons else 0,
+        "at_least_threshold": len(which),
+        "which": which,
+        "threshold_pooled_sd": RESOLVED_AT,
+        "n_seeds": n_seeds,
+        "chance_of_reaching_it_with_no_difference": threshold_p_value(n_seeds),
+    }
 
 
 def _pm(entry: Mapping[str, Any], digits: int = 4) -> str:
@@ -378,13 +415,30 @@ def render_markdown(payload: Mapping[str, Any]) -> str:
                         label,
                         f"{entry['difference']:+.4f}",
                         "—" if scaled is None else f"{scaled:+.2f}",
-                        "resolved" if entry["resolved"] else "not resolved",
+                        "**≥ 2 pooled sd**" if entry["resolved"] else "not resolved",
                         ", ".join(
                             f"{seed}: {value:+.4f}" for seed, value in entry["by_seed"].items()
                         ),
                     ]
                 )
         lines += _table(["Comparison", "Metric", "Difference", "In pooled sd", "", "By seed"], rows)
+        summary = payload["comparison_summary"]
+        chance = summary["chance_of_reaching_it_with_no_difference"]
+        lines += [
+            "",
+            f"**How to read \"≥ 2 pooled sd\".** {summary['made']} comparisons were made "
+            f"({summary['metrics_per_pair']} metrics for each of {summary['pairs']} pairs; the "
+            f"table shows five) and {summary['at_least_threshold']} reach the threshold"
+            + (f": {', '.join(summary['which'])}." if summary["which"] else "."),
+        ]
+        if chance is not None:
+            lines += [
+                f"With {summary['n_seeds']} seeds an arm, two arms with no difference reach it "
+                f"with probability about {chance:.2f} in any one comparison (two-sample t, "
+                f"two-sided) — about {summary['made'] * chance:.1f} of {summary['made']} if "
+                "they were independent, which they are not. A crossing is a candidate to "
+                "check on a partition it was not seen on, not a finding.",
+            ]
     coverage = first_run["coverage"]
     lines += ["", "## Ceilings — what no ranking of these scores could reach", ""]
     ceiling_rows = [
@@ -405,8 +459,8 @@ def render_markdown(payload: Mapping[str, Any]) -> str:
     )
     lines += [
         "",
-        f"Flagged lines the model had no features for, by checkpoint: "
-        f"{without[0]}–{without[-1]}.",
+        "Flagged lines the model had no features for, by checkpoint: "
+        + (f"{without[0]}." if len(without) == 1 else f"{without[0]}–{without[-1]}."),
         "",
         "About 30% of the corpus's line labels are wrong (`Memory.md` §1.6, n = 20, "
         "95% CI 14.5–51.9%): a ceiling on every number above that no count here measures.",
@@ -551,6 +605,7 @@ def evaluate(cfg: DictConfig) -> dict[str, Any]:
             hint="Memory.md §7 #37. '+evaluate.require_seeds=<n>' only for a stated reason.",
         )
 
+    comparisons = compare(by_arm, kinds)
     payload: dict[str, Any] = {
         "generated_by": "scripts/evaluate_scores.py",
         "split": split,
@@ -563,7 +618,8 @@ def evaluate(cfg: DictConfig) -> dict[str, Any]:
         "bootstrap_seed": bootstrap_seed,
         "tie_order": "source",
         "arms": {arm: aggregate_arm(seeds) for arm, seeds in sorted(by_arm.items())},
-        "comparisons": compare(by_arm, kinds),
+        "comparisons": comparisons,
+        "comparison_summary": summarise_comparisons(comparisons, n_seeds=require_seeds),
         "runs": runs,
         "note": (
             "Ranking metrics rank every line of a unit; pooled metrics use scoreable lines. "

@@ -168,6 +168,35 @@ def test_a_manifest_without_the_metric_is_a_disagreement_not_a_pass():
     assert len(problems) == 3 and all("the manifest has no" in problem for problem in problems)
 
 
+# --- how many comparisons, and what a crossing is worth --------------------------------
+
+
+def comparison(scaled: float) -> dict[str, Any]:
+    return {"difference_in_pooled_sd": scaled, "resolved": abs(scaled) >= 2.0}
+
+
+def test_the_report_counts_its_comparisons_and_names_the_ones_past_the_threshold():
+    """Three marked out of ninety reads differently from three out of three."""
+    comparisons = {
+        "a - b": {"top_5": comparison(-1.5), "pr_auc": comparison(2.2)},
+        "a - c": {"top_5": comparison(0.3), "pr_auc": comparison(-0.4)},
+    }
+
+    summary = evaluate_scores.summarise_comparisons(comparisons, n_seeds=3)
+
+    assert (summary["made"], summary["pairs"], summary["metrics_per_pair"]) == (4, 2, 2)
+    assert summary["at_least_threshold"] == 1
+    assert summary["which"] == ["a - b on pr_auc (+2.20)"]
+    assert summary["chance_of_reaching_it_with_no_difference"] == pytest.approx(0.0705, abs=5e-4)
+
+
+def test_one_seed_reports_no_chance_figure():
+    summary = evaluate_scores.summarise_comparisons({}, n_seeds=1)
+
+    assert summary["made"] == 0 and summary["metrics_per_pair"] == 0
+    assert summary["chance_of_reaching_it_with_no_difference"] is None
+
+
 # --- end to end, on a partition of eight five-line functions --------------------------------
 
 
@@ -290,6 +319,12 @@ def test_the_report_and_its_tables_are_written_for_every_arm(tmp_path, isolated_
     assert "Line F1 (out of fold)" in tables
     assert "cross_attention - concat" in tables
     assert payload["run_id"] in tables
+    # The denominator travels with the table: every comparison made, not the five shown.
+    assert payload["comparison_summary"]["made"] == len(
+        payload["comparisons"]["cross_attention - concat"]
+    )
+    assert f"{payload['comparison_summary']['made']} comparisons were made" in tables
+    assert "not a finding" in tables
 
 
 def test_numbers_that_do_not_reconcile_with_the_scoring_pass_are_not_written(

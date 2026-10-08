@@ -16,6 +16,7 @@ from vulnloc.evaluation.statistics import (
     compare_arms,
     pooled_sd,
     spread,
+    threshold_p_value,
 )
 from vulnloc.utils.exceptions import DataError
 
@@ -68,6 +69,19 @@ def test_a_difference_of_two_pooled_sd_is_resolved():
     assert abs(result["difference_in_pooled_sd"]) >= RESOLVED_AT
     assert result["resolved"] is True
     assert result["same_sign_on_every_seed"] is True
+
+
+def test_two_pooled_sd_at_three_seeds_is_crossed_by_chance_one_time_in_fourteen():
+    """What "resolved" is worth: t = 2 * sqrt(3 / 2) on 4 degrees of freedom."""
+    assert threshold_p_value(3) == pytest.approx(0.0705, abs=5e-4)
+
+
+def test_more_seeds_make_the_same_threshold_harder_to_cross_by_chance():
+    assert threshold_p_value(10) < threshold_p_value(3) < threshold_p_value(2)
+
+
+def test_one_seed_has_no_threshold_to_calibrate():
+    assert threshold_p_value(1) is None
 
 
 def test_arms_run_on_different_seeds_are_not_compared():

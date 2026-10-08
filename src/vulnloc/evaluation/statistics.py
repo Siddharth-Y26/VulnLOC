@@ -12,8 +12,11 @@ lives here is the little they do support, stated the same way every time:
   another sample of functions — a different source of noise from the seed, and usually
   the larger one on a partition of a few hundred units.
 
-No significance test is offered. With n = 3 a p-value would dress the same three numbers
-in more authority than they have.
+No significance test is run on a comparison. With n = 3 a p-value would dress the same
+three numbers in more authority than they have. What is offered is the opposite service,
+:func:`threshold_p_value`: how often two arms with **no** difference would cross the
+threshold anyway — so a reader facing ninety comparisons can count how many crossings to
+expect before reading any one of them as a result.
 """
 
 from __future__ import annotations
@@ -29,7 +32,14 @@ from vulnloc.utils.exceptions import DataError
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-__all__ = ["RESOLVED_AT", "bootstrap_mean_interval", "compare_arms", "pooled_sd", "spread"]
+__all__ = [
+    "RESOLVED_AT",
+    "bootstrap_mean_interval",
+    "compare_arms",
+    "pooled_sd",
+    "spread",
+    "threshold_p_value",
+]
 
 RESOLVED_AT = 2.0
 """A difference smaller than this many pooled standard deviations is "not resolved"."""
@@ -72,6 +82,34 @@ def pooled_sd(std_a: float, std_b: float) -> float:
         ``sqrt((std_a**2 + std_b**2) / 2)``.
     """
     return math.sqrt((std_a**2 + std_b**2) / 2.0)
+
+
+def threshold_p_value(n_seeds: int, *, threshold: float = RESOLVED_AT) -> float | None:
+    """How often two arms with no difference reach ``threshold`` pooled sd by chance.
+
+    A difference of ``d`` pooled sd between two arms of ``n`` seeds each is a two-sample
+    ``t = d * sqrt(n / 2)`` on ``2n - 2`` degrees of freedom. This returns the two-sided
+    tail beyond it — the calibration of the word "resolved", not a test of anything. At
+    three seeds an arm and 2 pooled sd it is about 0.07: one comparison in fourteen.
+
+    It assumes what the two-sample t does: roughly normal seed-to-seed noise of equal
+    variance in the two arms, and one comparison chosen in advance.
+
+    Args:
+        n_seeds: Seeds per arm.
+        threshold: The difference, in pooled sd.
+
+    Returns:
+        The two-sided probability, or ``None`` for fewer than two seeds — with one seed
+        there is no spread to scale a difference by.
+    """
+    if n_seeds < 2:
+        return None
+    # Deferred: nothing else in the evaluation layer needs scipy, which ships no stubs.
+    from scipy import stats  # type: ignore[import-untyped]
+
+    statistic = threshold * math.sqrt(n_seeds / 2.0)
+    return float(2.0 * stats.t.sf(statistic, 2 * n_seeds - 2))
 
 
 def compare_arms(first: Mapping[int, float], second: Mapping[int, float]) -> dict[str, Any]:

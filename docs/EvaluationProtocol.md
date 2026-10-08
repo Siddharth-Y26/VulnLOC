@@ -110,6 +110,12 @@ scores were made from the other text variant, or when an arm does not have three
   `sqrt((sd_a² + sd_b²) / 2)` — and each seed's own difference shown; a difference under
   2 pooled sd is reported as "not resolved". No significance test is run: at n = 3 a
   p-value would add authority, not information.
+- **What reaching 2 pooled sd is worth.** With three seeds an arm it is a two-sample
+  t of 2.45 on 4 degrees of freedom: two arms with no difference reach it about 7 times
+  in 100 in any one comparison. The report therefore counts every comparison it makes
+  (31 metrics × 3 pairs) and names the ones that cross; among that many, a crossing is a
+  candidate to check on another partition, not a finding. **The claims may rest only on
+  the nine headline comparisons** — Top-5, IFA and PR-AUC for the three pairs below.
 - A 95% bootstrap interval over **units** (10,000 resamples, seed 42) for each seed's
   Top-5 and IFA, so the reader sees unit-sampling noise beside seed noise.
 - Pre-stated comparisons, and no others: cross_attention − concat; cross_attention −
