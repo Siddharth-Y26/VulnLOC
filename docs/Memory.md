@@ -3018,7 +3018,35 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-08 05:50 (session 16): `d97r` IS PAUSED at the owner's request — to be resumed later
+#### Where it stands — 2026-10-08 11:05 (session 16): `d97r` IS RUNNING AGAIN — resumed at the owner's request
+
+- **Resumed at 10:59 with `artifacts/queue/d97r_resume.ps1`**, after 5 h 13 min paused
+  (05:46 → 10:59). Checked first: clean tree at `2e41629`, nothing under `configs/` or
+  `src/vulnloc/` changed since the paused run's commit `fbc44e2`, `last.pt` intact, GPU
+  empty, mains power, D: idle.
+- **`d97r-concat-seed42` continues as the same run, `9ac7a146…`.** Its log says "Resumed
+  from checkpoint … resumed_epoch=6 batches_already_trained=6", `earlier_resumes=0`; the
+  first optimizer step past the pause was taken at 11:04. Tags: `resumed_at:
+  epoch=6,batch=6,step=3944`, `resume_git_sha: 2e41629` (docs only since `fbc44e2`).
+  **Quote that `resumed_at` tag beside every concat number** (§7 #53).
+- **Correction to the block below:** the pause did not land "in its sixth epoch". Six
+  epochs were complete and evaluated (the sixth ended at step 3,941, twenty-two seconds
+  before the pause); the run was six batches into the seventh.
+- **What is left:** the rest of that run, concat seeds 1 and 2, the concat seed report —
+  then `d97r_after.ps1` (already waiting, minimized window) clears the `[FAIL]` on the
+  cross-attention seed report and scores, calibrates, audits and explains on `val`. About
+  2–5 h of training, then about 1 h.
+- **Unchanged:** nothing under `configs/` or `src/vulnloc/` until it has finished; the
+  table, the "when it has finished" steps and the owner's open decisions in the block
+  below all still apply. `python scripts/run_queue.py --stop` pauses it again, and
+  `d97r_resume.ps1` continues it.
+- **`d97r_resume.ps1` was hardened after this start.** It used to count the chain's first,
+  instant `--only d97rcheck` call as "the queue is up"; had the follow-up script then
+  started in the two-second gap before the real queue, it would have seen a paused step
+  and no queue and stood down. It did not happen (the transcript shows it waiting from
+  10:59:25), and the script now waits for the `d97r` queue or a training process.
+
+#### Where it stood — 2026-10-08 05:50 → 10:59 (session 16): `d97r` paused at the owner's request
 
 **Nothing is running. Nothing is broken. Six of the nine training runs are finished, a
 seventh is paused mid-run, two have not started.**
