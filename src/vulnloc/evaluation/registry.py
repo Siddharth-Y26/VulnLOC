@@ -1,8 +1,13 @@
 """Metric registry (``docs/Architecture.md`` §9, extension point 6).
 
-Phase 0 note:
-    Empty by design. Populated in Phase 8 from the metric suite in
-    ``docs/ResearchPlan.md`` §4.
+Populated in Phase 8 by ``vulnloc.evaluation.metrics``. An entry is a **per-unit ranking
+metric**: a function of one unit's labels in rank order — ``[n] bool``, most suspicious
+line first, at least one ``True`` — returning a float. The evaluator computes every entry
+for every unit under each tie order and reports the mean over units, so adding a metric is
+one function and one decorator.
+
+Metrics of a pooled set of lines (average precision, precision / recall / F1) have a
+different shape and are plain functions in ``metrics/localization.py``.
 """
 
 from __future__ import annotations

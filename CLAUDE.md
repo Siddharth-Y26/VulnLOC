@@ -61,6 +61,15 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-08 evening (session 17): PHASE 8 IS STARTED, on `val` only, at the owner's
+instruction ("start with phase 8") — the Phase 7 gate is still NOT signed and
+`docs/EvaluationProtocol.md` is still NOT confirmed.** Those words were recorded as a
+go-ahead to build and as nothing else (`Memory.md` §2); **ask for both before the held-out
+pass — do not infer either.** Built: the line-level metric suite, `src/vulnloc/evaluation/`
+and `scripts/evaluate_scores.py`, defined in `docs/EvaluationProtocol.md` §5.1. It
+reconciles with every logged `d97r` number on `val`. `test` and `clean_eval` have still
+never been read. `Memory.md` §6 item 0a, "Where it stands", is the handoff.
+
 **2026-10-07 15:30 — A SECOND FORMATTING LEAK, FOUND IN SESSION 16. READ `Memory.md` §1.25
 BEFORE QUOTING ANY LINE-LEVEL NUMBER.** In the corpus text a flagged line that ended a
 block comment has lost the slash of its `*/`. "Ends a comment with a bare `*`" is flagged
@@ -187,8 +196,9 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 5 | ✅ **DONE — 5 / 5, gate signed by the owner 2026-10-07** (`Memory.md` §1.1c). ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6"): **D9.7's fine-tuned confirmation agrees — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104 (`Memory.md` §1.22).** **The `llm_only` scaffold control is in (2026-10-07): 0.6169 ± 0.0048 — no fused arm beats it.** |
 | Phase 6 | ✅ **DONE — 4 / 4, gate signed by the owner 2026-10-07** (`Memory.md` §1.1d). Full-model configuration frozen by the owner's decision (the designed cross-attention model, D9.7's runs). **Calibrated and thresholded on `val` (`Memory.md` §1.24, run `569c9701…`): ECE 0.1704 ± 0.0330 → 0.0137 ± 0.0104; line F1 0.2954 ± 0.0855 at the logged 0.5 → 0.3898 ± 0.0190 out of fold, 3 seeds. Concat (0.3908 ± 0.0030) and `llm_only` (0.3936 ± 0.0072) tie with it at their own thresholds — the F1 gap every run logged at 0.5 was the threshold.** Thresholds are per checkpoint (0.1686 / 0.1083 / 0.2159) — never average a calibrator across seeds. Still over-confident above p = 0.8 (observed 0.67–0.81). **Q5 is closed: the owner deferred the learned CWE-type classifier — Phase 7a names a template-derived category and says so.** Unit-level aggregation is deferred in writing. |
 | Phase 7 | 🟨 **Current phase since 2026-10-07 — 7a built, 3 / 4, gate answers prepared (`Memory.md` §1.1e), NOT signed.** Every flagged line on `val` gets a verified explanation (13,908 of 13,908, three seeds, `Memory.md` §1.27); a weakness pattern names a cause for about one in twelve, and the rest say so. **Owed: the owner reads one page for attack instructions — `artifacts/phase7/sentences_for_review.md`, every sentence the explainer can emit (`python scripts/list_explanation_sentences.py` regenerates it) — and approves `docs/HumanEvalProtocol.md`.** A pilot rater pack (100 `val` samples) is at `artifacts/phase7/rater_pack_stripped/`. 7b is deferred in writing. |
-| Phases 8–10 | ⬜ Not started. The function-level parts of Phase 8 are deferred in writing. **The single `test` / `clean_eval` evaluation is authorised by the owner for the start of Phase 8 — after the Phase 7 gate is signed and the evaluation protocol is committed** (`Memory.md` §2). |
-| Tests | **1,265 passing, 2 skipped** (2026-10-07 22:11, full run on `2f6e150`). ruff / black on every file touched since; the pre-commit hooks (black, ruff, mypy, import-linter) pass on every commit. |
+| Phase 8 | 🟨 **Started 2026-10-08 on `val` at the owner's instruction, before the Phase 7 gate** (`Memory.md` §2). Built: the line-level metric suite with tie bounds, bootstrap intervals, the source-order baseline and the ceilings (`scripts/evaluate_scores.py`). Not built: ablation tables, figures, the failure taxonomy, the clean-clone check. The function-level parts are deferred in writing. **The single `test` / `clean_eval` evaluation still waits for the Phase 7 gate and the owner's confirmation of the protocol.** |
+| Phases 9–10 | ⬜ Not started. |
+| Tests | **1,367 passing, 3 skipped** (2026-10-08, full run on the tree that adds Phase 8's metric suite). ruff / black on every file touched since; the pre-commit hooks (black, ruff, mypy, import-linter) pass on every commit. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -225,7 +235,15 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
   `PRD.md` §5.4 contract. **A template is never the model's reasoning.**
 - `utils/text.py` also holds **`strip_comments`** — the label-blind fix for the second
   formatting leak — and `ends_comment_without_slash`, the tell itself. Off by default.
-- `evaluation/`, `serving/` — **empty packages with registries only.** Nothing built ahead.
+- Phase 8 (2026-10-08, `val` only so far): **`evaluation/metrics/localization.py`**
+  (per-unit ranking metrics behind `METRIC_REGISTRY`, each under three tie orders —
+  source order, every tie for the flagged line, every tie against it; pooled average
+  precision and precision / recall / F1), **`evaluation/statistics.py`** (mean ± sample
+  sd, the paired comparison in pooled sd, a bootstrap interval over units) and
+  **`evaluation/evaluator.py`** (one checkpoint, an arm over its seeds, the pre-stated
+  comparisons, the ceilings a score file cannot see). Everything is a function of stored
+  line scores; no model is loaded.
+- `serving/` — **an empty package.** Nothing built ahead.
 
 Outside the package: `frontend/` has two tabs. **Findings** (owner decision 2026-09-15)
 ranks a pasted function's lines with the Phase 3 semantic model, seed 42 (`fc902107…`, on
@@ -349,6 +367,11 @@ python scripts/score_checkpoint.py +score.run_id=80fc5238   # Phase 6: every lin
                                                             #   the run's logged metrics; refuses test / clean_eval
                                                             #   without +score.final=true (Rules.md §5.3 — once, at the end)
 python scripts/calibrate.py '+calibrate.runs=[<run>,...]'   # Platt calibration + max-F1 threshold, val ONLY; quote out_of_fold
+python scripts/evaluate_scores.py +representation.strip_comments=true +evaluate.scores_dir=./artifacts/phase6/scores_retrained +evaluate.calibration_dir=./artifacts/phase6/retrained
+                                                            # Phase 8: the whole line-level metric suite for every arm, from score
+                                                            #   files -> artifacts/phase8/evaluation_<split>.{json,md}; refuses to
+                                                            #   write if it does not reconcile with the scoring pass, and refuses
+                                                            #   test / clean_eval without +evaluate.final=true (once, at the end)
 
 python scripts/score_checkpoint.py +score.run_id=80fc5238 +representation.strip_comments=true
                                                             # the same checkpoint on comment-stripped text -> scores_stripped/

@@ -269,8 +269,17 @@ Both are function-level and need negatives no model here was trained on. Publish
 are quoted from `docs/prior_work.yaml`, labelled `(reported)`, never beside ours as if run
 under our splits (`Rules.md` §5.7).
 
+**Started 2026-10-08 at the owner's instruction ("start with phase 8"), on `val` only, with
+the Phase 7 gate still unsigned** (`Memory.md` §2). The held-out pass waits for that gate
+and for the owner's confirmation of `docs/EvaluationProtocol.md`.
+
 **Deliverables**
 - Full metric suite (`ResearchPlan.md` §4)
+  - *2026-10-08:* the line-level suite of §4.2 is built — `src/vulnloc/evaluation/` and
+    `scripts/evaluate_scores.py` — with tie bounds, bootstrap intervals over units, the
+    source-order baseline and the ceilings (`docs/EvaluationProtocol.md` §5.1). §4.1
+    (function level) is deferred with the rest of the function-level work; §4.4
+    (faithfulness) and §4.5 (efficiency) are not built.
 - Baseline reproductions under **our** splits
 - Complete ablation grid (`ResearchPlan.md` §5)
 - Statistical significance testing across seeds

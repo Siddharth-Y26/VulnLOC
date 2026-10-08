@@ -48,7 +48,7 @@
 | 5 Fusion | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1c)** | **5 / 5** (head-to-head at ≥3 seeds, §1.21 frozen and §1.22 fine-tuned; the negative result investigated) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it. **2026-10-04 (session 15): the investigation's six runs are in (§1.22) — the null survives fine-tuning.** Still owed before the gate: the `llm_only` scaffold control (0 / 3, seed 42 paused) and the owner's signature. **2026-10-07 (session 16): the control is in — 0.6169 ± 0.0048, no fused arm beats it (§1.22). The three gate questions are answered in §1.1c; only the signature is missing** |
 | 6 Localization Head | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1d)** | **4 / 4** | "Best full-model configuration frozen and checkpointed": **met by decision** — the designed cross-attention model, D9.7's config, checkpoints `80fc5238` / `c193e3bc` / `829c3555` (§2). **Calibrated, reliability curve reported, threshold chosen on `val` only: met 2026-10-07 (§1.24)** — ECE 0.1704 → 0.0137, line F1 0.2954 → 0.3898 out of fold. **Q5 (CWE labels): explicitly deferred by the owner 2026-10-07 — no type classifier; Phase 7a names a template-derived category and says so (§2).** **Deferred in writing (§2):** unit-level aggregation and a joint loss that means something — no negatives; the sweep is frozen-only |
 | 7 Explanation | 🟨 **Current phase since 2026-10-07 — gate answers prepared (§1.1e), not signed** | **3 / 4** | 7a built and measured the same day (§1.27): 13,908 of 13,908 flagged lines on `val` explained and verified, three seeds; grounding suite passes; protocol written; four template sentences corrected after reading real output. **Open: the owner's reading of the template sentences for attack instructions.** A pattern names a cause for about one flagged line in twelve. 7b is deferred in writing (§2); the category is template-derived (Q5) |
-| 8 Evaluation | ⬜ Not started | 0 / 4 | |
+| 8 Evaluation | 🟨 **Started 2026-10-08 on `val`, at the owner's instruction, before the Phase 7 gate (§2)** | 0 / 4 | The line-level metric suite is built and reconciles with every logged `d97r` number (§6 item 0a). No held-out partition has been read. Not built: ablation tables, figures, failure taxonomy, clean-clone check |
 | 9 Serving | ⬜ Not started | 0 / 4 | |
 | 10 Artifacts | ⬜ Not started | 0 / 3 | |
 
@@ -2367,6 +2367,7 @@ Append-only. Format: date · decision · alternatives considered · rationale ·
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-10-08 | **Phase 8 is started at the owner's instruction, with the Phase 7 gate still unsigned** (owner: "start with phase 8" — said after being given the steps for the gate and for confirming the evaluation protocol, and without answering either). Session 17 reads the words as a go-ahead to **build Phase 8 on `val`**. They are **not** recorded as the Phase 7 signature — that gate's open criterion is a person reading the explainer's sentences for attack instructions, and nothing said covers it — **nor as confirmation of `docs/EvaluationProtocol.md`**. No held-out partition is read | Build nothing until the gate is signed (the 2026-10-07 authorisation row: "Phase 8 starts only after the owner signs the Phase 7 gate") · record the words as the signature and the confirmation | The owner sets the order of work and can reverse an earlier row; a session cannot record a review nobody said took place (`Rules.md` §1). Everything built reads `val`, which was already permitted, so nothing irreversible follows from starting. **For Phase 8 code this supersedes the 2026-10-07 row's ordering; for the held-out evaluation that row stands unchanged** | — |
 | 2026-10-08 | **ADR-010 accepted; Q14 closed. The nine `d97r` checkpoints are the models of record** (owner, asked in session 17 with the evidence complete: "accept ADR-010 and the nine `d97r` runs as the numbers of record"; answer: "yes"). Comments are stripped label-blind from every line the models see (`+representation.strip_comments=true`, still an explicit override — D10.3). The full model of record is the designed cross-attention architecture retrained on that text, `ba7dcc5f…` / `8afbf7da…` / `ff980345…`, with the calibrators in `artifacts/phase6/retrained/`; concat (`9ac7a146…` / `7579bc33…` / `10b43ce5…`) and `llm_only` (`d82a6a70…` / `a1dce535…` / `9296a0e5…`) are reported beside it. The held-out evaluation is made on stripped text with these nine. **This supersedes, as the checkpoints of record, `80fc5238` / `c193e3bc` / `829c3555` in the 2026-10-07 full-model row below — the architecture choice in that row stands — and "all nine D9.7 checkpoints" in the 2026-10-07 authorisation row** | (b) keep the D9.7 checkpoints and strip at evaluation only · (c) report as is, with a limitation paragraph | Measured (§1.28, ADR-010): on `val` each retrained arm is within 0.19–1.51 pooled sd of the same arm stripped at evaluation only, so the choice moves no number resolvably — what it changes is that these models never saw the tell. `test` carries the tell on 73 of 546 units, so (c) was not defensible. Every line-level number logged with comments in place stays in the record, labelled as measured on leaky text (D10.7). **Not decided here:** D10.4 (moving the transform to L0) and `a1r` (the frozen screen on stripped text) | **ADR-010 — proposed 2026-10-07, accepted 2026-10-08 (Q14)** |
 | 2026-10-07 | **The single held-out evaluation is authorised for the start of Phase 8** (owner, asked in session 16 with three options; answer: "When Phase 8 starts"). Before either split is read, the evaluation protocol — metrics, thresholds, intervals — is committed; then all nine D9.7 checkpoints are scored on `test` and on `clean_eval` once, each with its own `val`-fitted calibrator and threshold applied unchanged. No further check-in is needed | Ask again right before · run it the evening A6 ends, before Phase 7a | `Rules.md` §5.3: once, at the end. A protocol committed before the splits are read is what makes "once" checkable afterwards. **Phase 8 starts only after the owner signs the Phase 7 gate** — this is a go-ahead for the evaluation, not for skipping a gate | — |
 | 2026-10-07 | **The owner signed the Phase 6 gate** (asked with §1.1d written and Q5 answered in the same batch; answer: "Sign it"). Phase 7 is the current phase | Not yet — read §1.1d first | Four of four exit criteria: calibration with its reliability curve, a `val`-only threshold, the configuration frozen by the owner's morning decision, Q5 explicitly deferred. The deliverables that were not built are listed in §1.1d rather than ticked | — |
@@ -3278,7 +3279,42 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-08 15:50 (session 17): Q14 CLOSED — ADR-010 accepted; two owner steps stand before Phase 8
+#### Where it stands — 2026-10-08 evening (session 17): PHASE 8 STARTED on `val` at the owner's instruction — the Phase 7 gate is NOT signed, no held-out partition has been read
+
+- **The owner said "start with phase 8"** after being given the steps for the Phase 7
+  gate and for confirming the evaluation protocol. It is recorded as a go-ahead to build
+  (§2) and as nothing else: **the Phase 7 gate is not signed and
+  `docs/EvaluationProtocol.md` is not confirmed.** Ask for both before the held-out pass;
+  do not infer either.
+- **Built, tested, `val` only:** the line-level metric suite as the protocol specifies it.
+  - `src/vulnloc/evaluation/metrics/localization.py` — per-unit ranking metrics behind
+    `METRIC_REGISTRY` (Top-1/3/5/10, IFA, first and average rank, Recall@1/5/20% LOC),
+    each under three tie orders; pooled average precision and precision / recall / F1.
+  - `src/vulnloc/evaluation/statistics.py` — mean ± sample sd, the paired comparison in
+    pooled sd, the bootstrap interval over units.
+  - `src/vulnloc/evaluation/evaluator.py` — one checkpoint, an arm over its seeds, the
+    pre-stated comparisons, the ceilings a score file cannot see.
+  - `scripts/evaluate_scores.py` — the one place a results table may come from; writes
+    `artifacts/phase8/evaluation_<split>.json` and `.md`, logs an MLflow run, and refuses
+    `test` / `clean_eval` without `+evaluate.final=true`.
+- **How it was checked before anything was logged:** on the nine `d97r` `val` score files
+  every logged Top-1 / Top-5 / IFA lies inside its tie bounds; in-sample F1 and ECE equal
+  the calibration reports'; Top-1 / Top-5 for all lines, blank lines withheld and source
+  order equal the score audit's (`10319b01…`) exactly; the ceilings are the figures
+  already on record (482 of 488 units ranked, 274 of 2,808 flagged lines blank, 578 of
+  3,386 = 17.07% past the line cap).
+- **The definitions are in the protocol** (`docs/EvaluationProtocol.md` §5.1): which
+  lines are ranked, the tie order, per-unit effort-aware recall, PR-AUC as average
+  precision. They were written on `val`, before any held-out score exists, and are part
+  of what the owner confirms.
+- **Next, in order:** the `val` run of `evaluate_scores.py` from the commit that adds it,
+  written up in §1.29; then — owner permitting — the gate, the protocol, the held-out
+  pass. Still to build in Phase 8: the ablation tables from the existing seed reports,
+  figures, the failure taxonomy (≥ 20 cases), the clean-clone check.
+- **Unchanged from the block below:** the models of record, the two owner steps and how
+  to do them, what is still the owner's.
+
+#### Where it stood — 2026-10-08 15:50 (session 17): Q14 closed — ADR-010 accepted; two owner steps stand before Phase 8
 
 - **The owner accepted ADR-010 (Q14) this afternoon** (§2). The nine `d97r` checkpoints
   are the models of record; the full model is `ba7dcc5f…` / `8afbf7da…` / `ff980345…`

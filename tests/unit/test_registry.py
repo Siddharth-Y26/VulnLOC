@@ -35,9 +35,10 @@ ALL_REGISTRIES = [
 # Registries whose owning phase has not started. `Rules.md` §1 bans building ahead, so
 # an entry appearing in one of these is a real failure, not a stale test. Move a
 # registry out of this list only when its phase legitimately lands.
-UNPOPULATED_REGISTRIES = [
-    METRIC_REGISTRY,  # Phase 8
-]
+# Empty since 2026-10-08: the owner started Phase 8 and the metric registry — the last
+# one here — is populated. The parametrized test below is then skipped, not deleted, so
+# a registry added for a later phase has somewhere to be listed.
+UNPOPULATED_REGISTRIES: list[Registry[object]] = []
 
 
 @pytest.fixture
@@ -178,6 +179,26 @@ def test_explainer_registry_holds_exactly_the_explainers_that_exist():
     # deferred in writing; a `generative` key here would make an explainer selectable
     # against code that does not exist — and against a verifier it has never passed.
     assert EXPLAINER_REGISTRY.keys() == ["template"]
+
+
+def test_metric_registry_holds_exactly_the_metrics_that_exist():
+    # Phase 8. Each key is a per-unit ranking metric the evaluation protocol names
+    # (`docs/EvaluationProtocol.md` §5): Top-1/3/5/10, IFA, the first and the average
+    # rank (whose means over units are MFR and MAR) and effort-aware recall at three
+    # budgets. The evaluator reports every key for every unit, so a key here without a
+    # definition in the protocol would put an unspecified column in a held-out table.
+    assert METRIC_REGISTRY.keys() == [
+        "average_rank",
+        "first_rank",
+        "ifa",
+        "recall_at_1pct_loc",
+        "recall_at_20pct_loc",
+        "recall_at_5pct_loc",
+        "top_1",
+        "top_10",
+        "top_3",
+        "top_5",
+    ]
 
 
 def test_head_registry_holds_exactly_the_heads_that_exist():

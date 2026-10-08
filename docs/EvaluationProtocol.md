@@ -73,11 +73,43 @@ Computed from the per-line score files, by script.
   withheld from targets and candidates.
 - **`function/f1` is not reported.** It is degenerate (every evaluated unit is vulnerable).
 
+### 5.1 Definitions — as implemented, fixed 2026-10-08 before any held-out score exists
+
+Written with the code (`src/vulnloc/evaluation/`, `scripts/evaluate_scores.py`), on `val`
+only. Each is a choice a number depends on; none may change after a held-out file is read.
+
+| Quantity | Definition |
+|---|---|
+| Units ranked | Units with at least one flagged line **inside the line cap**. The others are counted as a ceiling, not as misses. |
+| Lines ranked | **Every line of the unit** inside the cap, as the training loop ranks them. A line the model had no features for ranks last; a unit whose flagged lines are all such lines is a miss. |
+| Order of equal scores | **Source order** is the reported value. Beside it, two bounds: every tie broken for the flagged line, and every tie against it. |
+| Top-k (k = 1, 3, 5, 10) | 1 if a flagged line is among the unit's k highest-ranked lines; mean over units. |
+| IFA | Clean lines ranked above the unit's first flagged line; mean over units (the median is reported too). |
+| MFR | Mean over units of the 1-indexed rank of the first flagged line. Always IFA + 1. |
+| MAR | Mean over units of the mean 1-indexed rank of the unit's flagged lines. |
+| Recall@k% LOC (k = 1, 5, 20) | **Per unit:** the share of the unit's flagged lines within its top `ceil(k% × lines)` ranked lines, never fewer than one line; mean over units. Not a corpus-wide budget. |
+| Line-level PR-AUC | **Average precision** over the partition's pooled lines that the model could score, at the distinct score thresholds. The positive rate — what an uninformed ranker scores — is reported beside it. |
+| Precision / recall / F1 | Over the same pooled lines: flagged when the calibrated probability is `>=` the checkpoint's validation-chosen threshold. |
+| ECE | 15 equal-width bins of the calibrated probability, count-weighted, same lines. |
+| Source-order baseline | The ranking metrics with "position in the function" as the score. |
+
+On `val` the thresholded numbers are in-sample (the threshold was chosen on those lines);
+the report labels them so and copies the calibration's out-of-fold estimate, which is the
+one to quote. On a held-out partition there is nothing to choose: the parameters are
+applied.
+
+**The script refuses to write** when its Top-1, Top-5 or IFA for a checkpoint cannot be
+reconciled with what the scoring pass logged for the same file (the logged value must lie
+inside the tie bounds), when a score file's labels are not the partition's, when the
+scores were made from the other text variant, or when an arm does not have three seeds.
+
 ## 6. Statistics
 
 - Mean ± sample standard deviation over the three seeds, per arm.
-- Differences between arms: paired by seed, with the pooled standard deviation; a
-  difference under 2 pooled sd is reported as "not resolved".
+- Differences between arms: paired by seed, with the pooled standard deviation —
+  `sqrt((sd_a² + sd_b²) / 2)` — and each seed's own difference shown; a difference under
+  2 pooled sd is reported as "not resolved". No significance test is run: at n = 3 a
+  p-value would add authority, not information.
 - A 95% bootstrap interval over **units** (10,000 resamples, seed 42) for each seed's
   Top-5 and IFA, so the reader sees unit-sampling noise beside seed noise.
 - Pre-stated comparisons, and no others: cross_attention − concat; cross_attention −
@@ -115,7 +147,11 @@ variant it is not reading (`Memory.md` §7 #61).
 3. `score_checkpoint.py +score.run_id=<run> +score.split=test +score.final=true`, then
    `clean_eval`, for all nine. **One pass.** A second scoring of a held-out partition for
    any checkpoint is a protocol violation and is recorded as one.
-4. Metrics, intervals, audits, tables — from the score files.
+4. Metrics, intervals, audits, tables — from the score files:
+   `python scripts/evaluate_scores.py +evaluate.split=<split> +evaluate.final=true
+   +representation.strip_comments=true +evaluate.scores_dir=./artifacts/phase6/scores_retrained
+   +evaluate.calibration_dir=./artifacts/phase6/retrained`, which writes
+   `artifacts/phase8/evaluation_<split>.json` and the tables in `evaluation_<split>.md`.
 5. Explanations and the rater pack on `test` (`docs/HumanEvalProtocol.md`).
 
 ## 9. What this evaluation is not
