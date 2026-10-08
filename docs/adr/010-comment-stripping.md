@@ -143,6 +143,36 @@ Fusion's lead over frozen `llm_only` is +0.032 to +0.051 Top-5 as logged and +0.
 +0.029 with comments stripped at evaluation; it keeps its sign. Queue group `a1r` is that
 screen trained on stripped text.
 
+## What training on stripped text gives — `d97r`, measured 2026-10-08
+
+The nine D9.7 runs again with exactly one more override,
+`+representation.strip_comments=true` (`Memory.md` §1.28). Three seeds an arm, `val`,
+validation-selected; seed reports `bd2544c7…` / `f3d754eb…` / `f814e521…`,
+calibrations `513dd46e…` / `79b8c8d1…` / `8b7ac935…`, audit `10319b01…`.
+
+| `val` | cross_attention | concat | `llm_only` |
+|---|---|---|---|
+| Top-5, as shipped | 0.6162 ± 0.0184 | 0.6169 ± 0.0104 | 0.6169 ± 0.0048 |
+| Top-5, trained with comments, stripped at evaluation | 0.5353 ± 0.0200 | 0.5415 ± 0.0090 | 0.5546 ± 0.0084 |
+| **Top-5, trained and evaluated without comments** | **0.5394 ± 0.0116** | **0.5546 ± 0.0084** | **0.5519 ± 0.0187** |
+| — blank flagged lines withheld (474 units) | 0.5499 ± 0.0120 | 0.5633 ± 0.0084 | 0.5633 ± 0.0211 |
+| Top-1, trained and evaluated without comments | 0.2683 ± 0.0060 | 0.2621 ± 0.0222 | 0.2801 ± 0.0062 |
+| Line F1 at the calibrated threshold, out of fold | 0.2359 ± 0.0120 | 0.2408 ± 0.0074 | 0.2330 ± 0.0118 |
+
+- **Retraining lands where stripping at evaluation had put each arm**: the differences
+  are +0.0041, +0.0131 and −0.0028 Top-5 (0.25, 1.51 and 0.19 pooled sd). Nothing
+  resolvable separates the two.
+- **The arms tie on leak-free text.** cross_attention − concat is −0.0152 Top-5 (1.51
+  pooled sd); neither fused arm beats `llm_only`; no difference reaches 2 pooled sd.
+- The audit finds no unit a tell answers. 274 of the 2,808 flagged lines inside the
+  line cap are blank after stripping.
+- One run is resumed (concat seed 42, from a checkpoint selected before the pause) and
+  one seed report carries a recorded source-drift override; both are in §1.28.
+
+**So the choice between "strip and retrain" and "strip at evaluation only" no longer
+changes a number by a resolvable amount.** It changes what the numbers are numbers
+*of*: these are models that never saw the tell.
+
 ---
 
 ## Alternatives considered
@@ -153,6 +183,10 @@ screen trained on stripped text.
    very lines that were flagged. Rejected as a partial fix.
 2. **Strip at evaluation only**, keep the existing checkpoints. Measured above. It is what
    can be reported today; it understates a model trained on clean text. An interim.
+   *Measured 2026-10-08: it does not understate it — retraining is within 0.25–1.51
+   pooled sd of it for every arm (the section above). The prediction was wrong. What
+   remains against this alternative is only that its models learned with the tell in
+   view.*
 3. **Drop the affected lines or units from evaluation.** Label-dependent ("the units where
    the tell points at a flagged line"), changes the population, and leaves the models
    trained on the leak. Useful as a diagnostic — it is `other_units` in the audit — not as
@@ -169,7 +203,7 @@ screen trained on stripped text.
   number to publish.
 - **The headline has to be retrained** on stripped text to be leak-free: nine fine-tuned
   runs, 17–32 GPU-h on the 4 GiB laptop (six D9.7 runs took 114–211 min each). Queue groups
-  `d97rcheck` and `d97r`.
+  `d97rcheck` and `d97r`. *Done 2026-10-08: nine runs, 54–123 min each, about 14.7 GPU-h.*
 - **The held-out evaluation must be made on stripped text.** `test` carries the tell on 73
   of 546 units.
 - **Comments are gone as a signal**, including the legitimate one (a `TODO: check bounds`

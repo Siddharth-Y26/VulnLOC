@@ -92,19 +92,20 @@ largest gap is cross_attention − `llm_only` on Top-1, −0.0118 at 1.92 pooled
 candidate in the control's favour, not a finding. Each arm retrained is indistinguishable
 from the same arm with comments stripped at evaluation only. **These, not 0.616–0.617, are
 the leak-free validation numbers — if the owner accepts ADR-010 (Q14).** The queue was
-paused by the owner from 05:46 to 10:59 on Thu 8. `artifacts/queue/d97r_after.ps1` then
-scores, calibrates, audits and explains these checkpoints on `val`: **read
-`artifacts/queue/d97r_after.out` before quoting anything it produced.** `Memory.md` §6
-item 0a, "Where it stands", is the handoff. Run
-`python scripts/run_queue.py --only d97rcheck d97r --status` first. While a `d97r-*` step
-is running or paused, **do not edit `configs/` or ANY file under `src/vulnloc/`** — not
-only what training imports: the seed report refuses an arm whose seeds straddle any
-change in the package (landmine #62); `run_queue.py --stop` pauses it cleanly.
-**What follows the nine runs is `artifacts/queue/d97r_after.ps1`** (its own window; transcript
-`artifacts/queue/d97r_after.out`): it retries a crashed step, then scores, calibrates, audits
-and explains the complete arms on `val` into `artifacts/phase6/scores_retrained/`,
-`artifacts/phase6/retrained/` and `artifacts/phase7/explanations_retrained/` — read the
-transcript before quoting anything from them.
+paused by the owner from 05:46 to 10:59 on Thu 8 (one resumed run). **Calibrated, each
+checkpoint at its own `val` threshold, out of fold: line F1 0.2359 ± 0.0120 / 0.2408 ±
+0.0074 / 0.2330 ± 0.0118 (cross_attention / concat / `llm_only`) — a tie again, against
+0.39 with the tell in view.** The score audit (`10319b01…`) finds no unit a tell answers;
+274 of the 2,808 flagged lines are blank after stripping, and withholding them moves each
+arm by about +0.01. The retrained designed model explains 13,080 of 13,080 flagged lines,
+verified, none rejected. Artefacts: `artifacts/phase6/scores_retrained/`,
+`artifacts/phase6/retrained/`, `artifacts/phase7/explanations_retrained/`.
+**`d97r` IS COMPLETE (Thu 2026-10-08 14:44) — nothing is running or paused, so `configs/`
+and `src/vulnloc/` may be edited again.** The rule returns with the next group: while a
+comparison group runs or is paused, nothing under `configs/` or `src/vulnloc/` changes
+(landmines #54, #62). `Memory.md` §6 item 0a, "Where it stands", is the handoff and
+lists the owner's open decisions; `python scripts/run_queue.py --only d97rcheck d97r
+--status` shows the slate.
 **The frozen screen was audited as well:** frozen `llm_only` does not read the tell and
 every arm with a structural branch does (parse damage is visible to a GNN), so fusion's
 lead over frozen `llm_only` shrinks from +0.032…+0.051 Top-5 to +0.010…+0.029 on stripped
@@ -520,6 +521,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 60 | **A run-id prefix can be a number to Hydra.** `+score.run_id=920989e5` arrived as the float `92098900000.0`; the step failed, the batch went on, and an audit reported an arm at `n=2` where three checkpoints existed. `utils/config.py::run_id_text` now refuses a non-text run id. **Pass full 32-character ids from scripts, and read `n_seeds` before quoting any aggregate.** |
 | 61 | **A run trained on stripped text is "not a change of text", so its scores defaulted into `artifacts/phase6/scores/`** — beside the comment-trained checkpoints, where the score audit would have averaged both as one arm at `n=6` without an error (stripping keeps the line count). Caught before any `d97r` checkpoint was scored. Three populations now have three default directories — `scores/`, `scores_stripped/` (evaluated without comments), `scores_retrained/` (trained without them) — the audit refuses scores made from the other text variant, and a retrained checkpoint is its own arm (`<arm>_retrained`). **`calibrate.py` replaces the `calibration_report.json` in its output directory: always pass `+calibrate.output_dir=` for anything but the full model of record.** |
 | 62 | **"Training cannot import it" does not make a file safe to edit while a comparison group runs.** `report_seeds.py` compares *all* of `src/vulnloc` between the commits of an arm's seeds and refuses on any difference. Session 16 changed `explanation/generator.py` (commit `7ea7a9c`) between `d97r` cross-attention's seed 42 and seed 1, under a rule that allowed `explanation/` edits; the arm's report would have gone `[FAIL]` at midnight. Caught two hours before, by reading the report's guard. That one report now passes `+seeds.allow_source_drift=true`, which writes the changed file into its provenance — **quote that with the arm's numbers.** The rule is now: **while a group runs, nothing under `src/vulnloc/` changes; `scripts/`, `tests/`, `frontend/` and docs only.** |
+| 63 | **The reproduction check can refuse a correct checkpoint.** Logits are half-precision, so exact ties are ordinary (the best flagged line is tied with an unflagged one in 7–22 of 482 `val` units per checkpoint), and `training/metrics.py` ranks with `torch.argsort`, which fixes no order among equals. `score_checkpoint.py` refused `8afbf7da…` in four of six passes, on IFA alone, by one rank in one unit. **Re-run; never raise `score.tolerance`** — a pass that reproduces is kept. Bounded on the nine `d97r` checkpoints: tie order moves a checkpoint's Top-1 / Top-5 by at most one unit (0.0021) and an arm's mean by ≤ 0.0007, far inside the seed sd. A batch script must treat a refusal as "arm incomplete" for every later step (an audit ran at `n=2`). The held-out scoring has nothing to reproduce and carries this jitter; **Phase 8's metric code must define tie order.** `Memory.md` §1.28, §7 #63. |
 
 
 ---

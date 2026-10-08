@@ -71,6 +71,13 @@ Computed from the per-line score files, by script.
   Top-5 and IFA, so the reader sees unit-sampling noise beside seed noise.
 - Pre-stated comparisons, and no others: cross_attention − concat; cross_attention −
   `llm_only`; concat − `llm_only`.
+- **Tie order is a stated noise floor.** The logits are half-precision, so in 7–22 of
+  482 `val` units per checkpoint the best flagged line is exactly tied with an unflagged
+  one, and the order of equal scores is not fixed (`Memory.md` §1.28, §7 #63). On `val`
+  that moves a checkpoint's Top-1 or Top-5 by at most one unit and an arm's mean by
+  ≤ 0.0007. A held-out pass is made once and has no logged metric to reproduce, so it
+  carries this jitter: every ranking metric is reported with its tie bounds — all ties
+  broken for the flagged line, and all against it — computed from the score files.
 
 ## 7. Leak audit of the held-out scores
 
