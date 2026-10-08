@@ -2035,10 +2035,11 @@ is a recall-heavy one.
 
 ---
 
-## 1.28 `d97r` — D9.7 retrained on comment-stripped text: two arms in, concat training (2026-10-08 04:28)
+## 1.28 `d97r` — D9.7 retrained on comment-stripped text: two arms in, concat paused (2026-10-08 05:46)
 
 **Status: two arms of three — cross_attention (2026-10-07 22:58) and its `llm_only`
-control (2026-10-08 04:28). Concat is training, so A1's own comparison is not here yet.**
+control (2026-10-08 04:28). Concat's first seed was paused by the owner at 05:46 on
+2026-10-08 (§6 item 0a says how to continue), so A1's own comparison is not here yet.**
 Started pending the owner's decision on Q14 (ADR-010, Proposed).
 
 `d97r` is D9.7's nine runs with exactly one more override,
@@ -3032,6 +3033,23 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   every seed: a candidate, not a finding). `d97r-concat-seed42` started at 04:28; the
   three concat runs should end between about 07:15 and 11:15, then `d97r_after.ps1`
   takes about an hour.
+- **Thu 8, 05:46 — `d97r` IS PAUSED, at the owner's request.** `run_queue.py --stop`;
+  `d97r-concat-seed42` (run `9ac7a146…`, clean `fbc44e2`) paused cleanly at optimizer
+  step 3,944, in its sixth epoch, 80.7 min in, with `last.pt` written (`kind=paused`).
+  The queue exited, the GPU is free, and `d97r_after.ps1` stood down on the STOP file
+  without scoring anything. **State: 7 of 9 runs done; cross_attention and `llm_only`
+  have their three-seed reports (§1.28); concat has no finished seed.**
+  - **To continue:** `powershell -ExecutionPolicy Bypass -File
+    D:\project\artifacts\queue\d97r_resume.ps1` — it removes the STOP file, starts
+    the queue in its own window (same run id, same learning curve) and puts the
+    follow-up script behind it. About 2–5 h of training remain, then ~1 h of scoring.
+  - **`d97r-concat-seed42` will be a resumed run:** quote its `resumed_at` tag with
+    concat's numbers (§7 #53). The other eight are uninterrupted.
+  - **While it is paused the rule still holds:** nothing under `configs/` or
+    `src/vulnloc/` changes — a paused run refuses to resume under a different config
+    (§7 #54), and a package change between concat's seeds fails its report (§7 #62).
+  - `--status` shows `[FAIL]` on `d97r-seed-report-cross_attention`: the queue's first
+    attempt. The report exists (`bd2544c7…`); the follow-up script re-runs the step.
 - **Started the same evening — what happens after the nine, without a session:**
   `artifacts/queue/d97r_after.ps1` runs in its own window (transcript
   `artifacts/queue/d97r_after.out`). It waits for the queue to end; if a step is
