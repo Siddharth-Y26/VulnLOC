@@ -2361,6 +2361,113 @@ Artefacts: `artifacts/adr010/` (seed reports), `artifacts/phase6/scores_retraine
 
 ---
 
+## 1.29 Phase 8 — the full line-level metric suite on `val`: no per-unit metric separates the arms; one pooled metric crosses the threshold (2026-10-08)
+
+**Status: built and measured on `val` only. The Phase 7 gate is not signed and the
+evaluation protocol is not confirmed; no held-out partition has been read.** The nine
+`d97r` checkpoints — the models of record (§2) — trained and evaluated without comments,
+three seeds an arm. Run `52b9c998…` (`scripts/evaluate_scores.py`, clean `4281b3f`); the
+same numbers were first logged as `30aeff44…` at `b875d70`, before the wording of one
+table was corrected (§7 #64). Tables: `artifacts/phase8/evaluation_val.md`. Definitions:
+`docs/EvaluationProtocol.md` §5.1.
+
+| `val`, 482 units ranked, mean ± sd over 3 seeds | cross_attention | concat | `llm_only` | source order |
+|---|---|---|---|---|
+| Top-1 | 0.2683 ± 0.0060 | 0.2614 ± 0.0217 | 0.2801 ± 0.0062 | 0.0000 |
+| Top-3 | 0.4364 ± 0.0086 | 0.4564 ± 0.0166 | 0.4544 ± 0.0239 | 0.1598 |
+| **Top-5** | 0.5394 ± 0.0116 | 0.5546 ± 0.0084 | 0.5519 ± 0.0187 | 0.3071 |
+| Top-10 | 0.6667 ± 0.0153 | 0.6798 ± 0.0102 | 0.6757 ± 0.0188 | 0.4793 |
+| **IFA** (mean) | 14.56 ± 0.43 | 14.06 ± 0.26 | 14.72 ± 1.27 | 29.78 |
+| MFR (always IFA + 1) | 15.56 ± 0.43 | 15.06 ± 0.26 | 15.72 ± 1.27 | 30.78 |
+| MAR | 27.45 ± 0.15 | 26.66 ± 0.56 | 27.44 ± 1.18 | 42.30 |
+| Recall@1% LOC | 0.1275 ± 0.0044 | 0.1203 ± 0.0162 | 0.1268 ± 0.0099 | 0.0057 |
+| Recall@5% LOC | 0.1891 ± 0.0143 | 0.1930 ± 0.0040 | 0.1939 ± 0.0265 | 0.0248 |
+| Recall@20% LOC | 0.4700 ± 0.0032 | 0.4701 ± 0.0092 | 0.4700 ± 0.0186 | 0.1917 |
+| **PR-AUC** (positive rate 0.0664) | 0.1713 ± 0.0143 | 0.1816 ± 0.0090 | 0.1610 ± 0.0097 | — |
+| Line F1, out of fold | 0.2359 ± 0.0120 | 0.2408 ± 0.0074 | 0.2330 ± 0.0118 | — |
+| ECE, out of fold | 0.0133 ± 0.0067 | 0.0076 ± 0.0019 | 0.0168 ± 0.0029 | — |
+| Top-5, blank lines withheld (474 units) | 0.5499 ± 0.0120 | 0.5633 ± 0.0084 | 0.5633 ± 0.0211 | |
+
+Ties in source order. Median IFA is 3–4 for every checkpoint against a mean of 14–15: a
+long tail of units whose first flagged line the models rank far down.
+
+### What is the same as §1.28, and the one number that is not
+
+Top-5, the out-of-fold line F1 and ECE, and the blank-lines-withheld Top-5 are §1.28's to
+the last digit — the same score files through new code. **Concat's Top-1 is 0.2614 ±
+0.0217 here and 0.2621 ± 0.0222 in its seed report**: in `10b43ce5…` one unit's best
+flagged line is exactly tied with a clean line, the training loop's `argsort` put it
+first and source order does not. The arm's tie bounds are 0.2614 … 0.2621; both values
+are inside them. Wherever a comparison below uses Top-1, it uses the source-order value
+(cross_attention − concat is +0.0069 here, +0.0062 in §1.28).
+
+### The comparisons — 93 made, nine of them headline, three past the threshold
+
+| First − second | Top-5 | IFA | PR-AUC |
+|---|---|---|---|
+| cross_attention − concat | −0.0152 (1.51 pooled sd) | +0.50 (1.43) | −0.0103 (0.87) |
+| cross_attention − `llm_only` | −0.0124 (0.80) | −0.15 (0.16) | +0.0102 (0.84) |
+| concat − `llm_only` | +0.0028 (0.19) | −0.65 (0.71) | **+0.0206 (2.20)** |
+
+- **No per-unit ranking metric separates any two arms** — not Top-1/3/5/10, IFA, MAR or
+  effort-aware recall, with every line a candidate or with blank lines withheld. The
+  nearest are cross_attention − concat on MAR (+0.80, 1.96 pooled sd, same sign on every
+  seed) and cross_attention − `llm_only` on Top-1 (−0.0118, 1.92, same sign on every seed
+  — §1.28's candidate, unchanged).
+- **Three of the 93 comparisons reach 2 pooled sd, all concat − `llm_only`:** PR-AUC
+  +0.0206 (2.20; by seed +0.0098 / +0.0211 / +0.0308), ECE out of fold −0.0092 (3.77) and
+  ECE in sample −0.0130 (3.04).
+- **What that is worth.** With three seeds an arm, 2 pooled sd is a two-sample t of 2.45
+  on 4 degrees of freedom: two arms with no difference reach it with probability ≈ 0.07
+  in any one comparison — about 6.6 of 93 if they were independent (they are not), and
+  about 0.6 of the nine headline ones. One headline crossing is what chance gives. It is
+  **a candidate for the held-out pass**, where concat − `llm_only` on PR-AUC is a
+  pre-stated comparison — not a finding, and not "fusion beats LLM-only".
+- Both fused arms sit above `llm_only` on PR-AUC on every seed (cross_attention: +0.0023 /
+  +0.0179 / +0.0105). *A reading, not a measurement:* PR-AUC is the one metric here that
+  pools lines across functions, so a difference in it with none per unit would be about
+  how scores compare *between* functions, not about where a model points inside one.
+
+### Three things the new metrics show that Top-5 alone did not
+
+- **The sample of functions is the larger noise.** Each checkpoint's 95% bootstrap
+  interval over units is about ± 0.045 on Top-5 (`ba7dcc5f…`: 0.5519 [0.5062, 0.5975])
+  and ± 2.5 on IFA (14.18 [11.81, 16.75]) — two to five times the arms' seed sd on Top-5
+  (0.0084–0.0187). All nine intervals overlap. On 482 units, which functions are in the partition moves a number
+  more than the seed does.
+- **Reading from the top is a real baseline, and the models beat it.** Source order finds
+  a flagged line within five lines in 30.7% of units and within ten in 47.9%; the models
+  reach 54–55% and 67–68%, and halve its IFA (14–15 against 29.8). Its Top-1 is 0: no
+  function in `val` has its first line flagged.
+- **The ceilings, in one place.** 488 line-labelled units, all scored, 482 ranked. Of
+  3,386 flagged lines, 578 (17.07%) are past the line cap; of the 2,808 inside it, 274 are
+  blank after comment stripping and 83 have no features. And ~30% of the labels are wrong
+  (§1.6), which no count measures.
+
+### What this supports
+
+- On text with no tell, on `val`, at three seeds: the three arms tie on every per-unit
+  localization metric the protocol names, and each beats source order by a wide margin.
+- The evaluation code computes what the runs logged: every logged Top-1 / Top-5 / IFA is
+  inside its tie bounds, in-sample F1 and ECE equal the calibration reports', and Top-1 /
+  Top-5 in three readings equal the score audit's (`10319b01…`) exactly.
+
+### What it does not support
+
+- **Anything about `test` or `clean_eval`.** Nothing here was computed on them.
+- **"Concat beats `llm_only`"**, or any fusion-over-LLM claim: one headline comparison in
+  nine, on validation, at a threshold chance crosses 7 times in 100.
+- A paired test between arms on the same units. The intervals above are per checkpoint;
+  the protocol asks for nothing paired by unit, and none was computed.
+
+### Runs behind this section
+
+Evaluation: `52b9c998…` (of record, `4281b3f`), `30aeff44…` (same numbers, `b875d70`,
+table wording since corrected). Inputs: the nine score runs, three calibrations and the
+audit listed under §1.28. Artefacts: `artifacts/phase8/evaluation_val.json` and `.md`.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -2425,6 +2532,36 @@ Next:
 ```
 
 ---
+
+### 2026-10-08 16:30 → 17:05 (session 17, continued) — Phase 8 started on `val`: the metric suite, and a table that needed its denominator
+
+Phase: 8 started at the owner's instruction; 7's gate still unsigned (§2).
+Did:
+  - Built the line-level metric suite the evaluation protocol specifies, as functions of
+    stored line scores: `evaluation/metrics/localization.py`, `evaluation/statistics.py`,
+    `evaluation/evaluator.py`, `scripts/evaluate_scores.py`. 107 new tests.
+  - Checked it against everything already logged before logging anything: tie bounds
+    around each run's Top-1 / Top-5 / IFA, the calibration reports' in-sample F1 and ECE,
+    the score audit's Top-1 / Top-5 in three readings — all exact.
+  - Ran it on `val` for the nine models of record and wrote §1.29.
+  - Wrote the definitions into `docs/EvaluationProtocol.md` §5.1 and §6.
+Files touched:
+  - `src/vulnloc/evaluation/` (4 files), `scripts/evaluate_scores.py`, four new test
+    files, `tests/unit/test_registry.py`, `docs/EvaluationProtocol.md`, `docs/Phases.md`,
+    `docs/Memory.md`, `CLAUDE.md`.
+Runs logged:
+  - `52b9c998…` : `val`, 9 checkpoints — Top-5 0.5394 / 0.5546 / 0.5519, PR-AUC 0.1713 /
+    0.1816 / 0.1610 (cross_attention / concat / `llm_only`); source order Top-5 0.3071.
+  - `30aeff44…` : the same numbers at `b875d70`, before the table wording was corrected.
+Learned:
+  - The script's first table marked three of 93 comparisons "resolved". At three seeds
+    that threshold is crossed by chance 7 times in 100 (§7 #64). The rule was written for
+    one comparison at a time; a script applies it to all of them at once.
+  - The bootstrap interval over units (± 0.045 on Top-5) is wider than any difference
+    between arms and than the seed sd: 482 functions is the binding sample.
+  - Tie order is now defined (§7 #63 closed): source order, with both bounds.
+Next:
+  - The owner: the Phase 7 gate and the protocol. Then the held-out pass.
 
 ### 2026-10-08 afternoon (session 17) — the owner accepted ADR-010: Q14 closed, the `d97r` checkpoints are the models of record
 
@@ -3181,6 +3318,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `52b9c998…` (of record) · `30aeff44…` (same numbers, earlier table wording) | 2026-10-08 | `evaluate_scores.py +representation.strip_comments=true +evaluate.scores_dir=./artifacts/phase6/scores_retrained +evaluate.calibration_dir=./artifacts/phase6/retrained` — clean `4281b3f` / `b875d70`; reads the nine `d97r` `val` score files and their three calibrations, loads no model | 42, 1, 2 | cross_attention / concat / llm_only | fused | *not reported — degenerate* | 0.5394 ± 0.0116 / 0.5546 ± 0.0084 / 0.5519 ± 0.0187 (the seed reports', reproduced); source order 0.3071 | 14.56 ± 0.43 / 14.06 ± 0.26 / 14.72 ± 1.27; source order 29.78 | **§1.29: Phase 8's full line-level suite on `val`.** PR-AUC **0.1713 ± 0.0143 / 0.1816 ± 0.0090 / 0.1610 ± 0.0097** against a positive rate of 0.0664; Top-10 0.667 / 0.680 / 0.676; Recall@20% LOC 0.470 for all three. **No per-unit metric separates the arms.** 93 comparisons, three at ≥ 2 pooled sd, all concat − `llm_only` (PR-AUC +0.0206 at 2.20; ECE) — a threshold chance crosses 7 times in 100 at three seeds, so a candidate for the held-out pass, not a finding (§7 #64). Bootstrap 95% over units ≈ ± 0.045 on Top-5 per checkpoint. Ties in source order; concat's Top-1 is 0.2614 here against 0.2621 logged — one tied unit. `val` only |
 | `96b04469…` `2e9a2edc…` `af8b025e…` / `fbcf8b73…` `df29e1e1…` `3ee81242…` / `8f32f39d…` `09a50662…` `b626975c…` (scores) · `513dd46e…` `79b8c8d1…` `8b7ac935…` (calibration) · `10319b01…` (score audit) · `9196a0e3…` `798f6ef3…` `a65aa282…` (explanations) | 2026-10-08 | `score_checkpoint.py +score.run_id=<run> +score.output_dir=./artifacts/phase6/scores_retrained` ×9, `calibrate.py` per arm, `audit_score_leakage.py +representation.strip_comments=true`, `explain_checkpoint.py` ×3 — clean `1686536` / `bbb3d94` | 42, 1, 2 | cross_attention / concat / llm_only | fused | — | *unchanged — calibration is monotone*; blank lines withheld (474 units): 0.5499 ± 0.0120 / 0.5633 ± 0.0084 / 0.5633 ± 0.0211 | *unchanged* | **§1.28: the retrained checkpoints calibrated, audited and explained on `val`.** Line F1 out of fold **0.2359 ± 0.0120 / 0.2408 ± 0.0074 / 0.2330 ± 0.0118** — a tie (largest gap 0.79 pooled sd), against 0.39 with the tell in view. ECE 0.0133 / 0.0076 / 0.0168 after calibration. No unit answered by a tell; 274 of 2,808 flagged lines blank. 13,080 of 13,080 flagged lines explained and verified. **`8afbf7da…` was refused by the reproduction check in four of six passes — a tie-order flip of one rank in one unit; the kept file reproduces at the default tolerance (§7 #63).** Void: `15fccf6d…` (audit at `n=2`), `e735045f…` (tolerance probe) |
 | `9ac7a146…` `7579bc33…` `10b43ce5…` · `f3d754eb…` (seed report) | 2026-10-08 | `run_queue.py --only d97r` — D9.7's constants plus `+representation.strip_comments=true`, concat; commits `fbc44e2` / `1686536` (docs only between them) | 42, 1, 2 | concat | fused | 1.000 *(degenerate)* | **0.5546 ± 0.0084** | 14.06 | **§1.28: concat retrained on comment-stripped text — the last arm, and A1 on text with no tell.** Top-1 0.2621 ± 0.0222. **Cross-attention does not beat it** (Top-5 −0.0152, 1.51 pooled sd; Top-1 +0.0062, 0.38) **and neither fused arm beats `llm_only`** (concat − `llm_only` Top-5 +0.0028, 0.19). Nothing between arms reaches 2 pooled sd. Seed 42 is a resumed run (`resumed_at: epoch=6,batch=6,step=3944`; paused by the owner 05:46–10:59) whose selected checkpoint predates the pause. Validation-selected, `val`. Pending Q14 |
 | `d82a6a70…` `a1dce535…` `9296a0e5…` · `f814e521…` (seed report) | 2026-10-08 | `run_queue.py --only d97r` — D9.7's constants plus `+representation.strip_comments=true`, `llm_only`; commits `3bc918e` / `fbc44e2` (docs only between them) | 42, 1, 2 | llm_only | fused | 1.000 *(degenerate)* | **0.5519 ± 0.0187** | 14.72 | **§1.28: the scaffold control retrained on comment-stripped text.** Top-1 0.2801 ± 0.0062. None resumed. Indistinguishable from stripping at evaluation only (0.5546 ± 0.0084). **Retrained cross-attention does not beat it:** Top-5 −0.0124 (0.80 pooled sd, sign flips across seeds), Top-1 −0.0118 (1.92 pooled sd, same sign on all three seeds — a candidate in the control's favour, not a finding). Seeds 1 and 2 ran to the 10-epoch cap, selected at epoch 7. Concat is the row above. Validation-selected, `val`. Pending Q14 |
@@ -3279,7 +3417,7 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-08 evening (session 17): PHASE 8 STARTED on `val` at the owner's instruction — the Phase 7 gate is NOT signed, no held-out partition has been read
+#### Where it stands — 2026-10-08 17:05 (session 17): PHASE 8 STARTED on `val` at the owner's instruction — the Phase 7 gate is NOT signed, no held-out partition has been read
 
 - **The owner said "start with phase 8"** after being given the steps for the Phase 7
   gate and for confirming the evaluation protocol. It is recorded as a go-ahead to build
@@ -3307,10 +3445,22 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   lines are ranked, the tie order, per-unit effort-aware recall, PR-AUC as average
   precision. They were written on `val`, before any held-out score exists, and are part
   of what the owner confirms.
-- **Next, in order:** the `val` run of `evaluate_scores.py` from the commit that adds it,
-  written up in §1.29; then — owner permitting — the gate, the protocol, the held-out
-  pass. Still to build in Phase 8: the ablation tables from the existing seed reports,
-  figures, the failure taxonomy (≥ 20 cases), the clean-clone check.
+- **Measured on `val` (§1.29, run `52b9c998…`):** no per-unit metric separates the three
+  arms — Top-5 0.5394 / 0.5546 / 0.5519, IFA 14.6 / 14.1 / 14.7, PR-AUC 0.171 / 0.182 /
+  0.161 against a positive rate of 0.066 — and each beats reading from the top (Top-5
+  0.307, IFA 29.8). Of 93 comparisons three reach 2 pooled sd, all concat − `llm_only`
+  (PR-AUC, ECE); at three seeds chance crosses that line 7 times in 100, so it is a
+  candidate for the held-out pass, not a finding (§7 #64).
+- **Next, in order:** the owner's two steps (below) — the gate, the protocol, now
+  including §5.1's definitions and §6's note on what 2 pooled sd is worth; then the
+  held-out pass: `score_checkpoint.py … +score.split=test +score.final=true` for the nine,
+  then `clean_eval`, then `evaluate_scores.py +evaluate.split=<split>
+  +evaluate.final=true` and the leak audit on each. **About an hour of GPU; `clean_eval`
+  scoring has never been timed.** Still to build in Phase 8: the ablation tables from the
+  existing seed reports, figures (the reliability curves are already in the report's
+  JSON), the failure taxonomy (≥ 20 cases), the clean-clone check.
+- **`frontend/phases.json` is unchanged on purpose:** its Phase 8 stage is "final
+  benchmark numbers", and there are none yet.
 - **Unchanged from the block below:** the models of record, the two owner steps and how
   to do them, what is still the owner's.
 
@@ -4102,7 +4252,8 @@ Things that cost time once and should not cost time twice.
 | 60 | **A run-id prefix can be a number to the config parser.** `+score.run_id=920989e5` — one of A6's runs — reached the script as the float `92098900000.0`. FOUND 2026-10-07: the scoring step failed on "no checkpoint directory", the chain went on, and the audit that followed reported an arm at `n=2` where three checkpoints existed | Nothing wrong was written — a run id that matches nothing is refused — but a batch script that does not stop on a non-zero exit leaves a hole, and an aggregate over two seeds looks like one over three unless `n_seeds` is read | `utils/config.py::run_id_text` refuses a run id that is not text and says why; all four scripts that take one use it. **Pass full 32-character run ids from scripts**, and read `n_seeds` in every audit before quoting it | ✅ Fixed 2026-10-07 |
 | 61 | **A run trained on comment-stripped text is "not a change of text" — so its scores defaulted into the directory of record.** `score_checkpoint.py` sent scores to `scores_stripped/` only when the text differed from training; a `d97r` checkpoint is scored on the text it was trained on, so it would have been written into `artifacts/phase6/scores/` beside the nine comment-trained D9.7 checkpoints. FOUND 2026-10-07 by reading the defaults before the first `d97r` checkpoint was scored | Nothing wrong was written. Had it been: `audit_score_leakage.py` averages every seed of an arm it finds in a directory, so `cross_attention` would have been reported at `n=6` — three models that learned the artefact and three that never saw a comment — against comment-bearing text, with no error, because stripping keeps the line count (same family as #39, #40, #49) | Three populations, three default directories: `scores/`, `scores_stripped/` (trained with comments, evaluated without), `scores_retrained/` (trained without); `explain_checkpoint.py` follows the same three. The audit refuses score files made from the text variant it is not reading, and a checkpoint trained on stripped text is its own arm, `<arm>_retrained`. **`calibrate.py` writes `calibration_report.json` wherever `calibrate.output_dir` points and replaces what is there — always name a directory for anything but the full model of record** | ✅ Fixed 2026-10-07 |
 | 62 | **"Training cannot import it" is not "safe to edit while a comparison group runs".** `report_seeds.py` compares all of `src/vulnloc` between the commits of an arm's seeds and refuses on any difference. FOUND 2026-10-07 22:08, two hours before it would have fired: commit `7ea7a9c` changed `src/vulnloc/explanation/generator.py` between `d97r` cross-attention's seed 42 (`0a4843c`) and seed 1 (`d5e5dda`), under a session rule that allowed `explanation/` edits because training does not import them | The arm's seed report would have been `[FAIL]` at midnight with nobody awake, the arm would have had no report in the morning, and the script that scores complete arms would have skipped it | `run_queue.py` passes `+seeds.allow_source_drift=true` to that one report, justified in a comment by the layer rule (L3 cannot import L5) and pinned by a test that the other two arms get no override; the changed file is written into the report's provenance — **quote it with the arm's numbers**. The rule is corrected everywhere it was written: **while a group runs, nothing under `src/vulnloc/` changes** | ✅ Fixed 2026-10-07; the running queue's own attempt at that report still fails once (it holds the old plan) |
-| 63 | **The reproduction check can refuse a correct checkpoint: the logits are half-precision, so exact ties are ordinary, and nothing fixes their order.** FOUND 2026-10-08: `score_checkpoint.py` refused `8afbf7da…` in four of six passes, each time on `line/ifa_mean` alone, by 0.002075 — one rank position in one of 482 units. Measured on the nine `d97r` score files: 3,244–6,225 distinct logit values over 41,065 lines; the best flagged line exactly tied with an unflagged line in 7–22 units per checkpoint; `training/metrics.py` ranks with `torch.argsort`, which promises no order among equals | The unattended script left the arm uncalibrated (right) and audited it at `n=2` (wrong; run `15fccf6d…`, void). On the numbers themselves: tie order can move a checkpoint's Top-1 or Top-5 by at most one unit (0.0021), an arm's mean by ≤ 0.0007 and its IFA by ≤ 0.05 — far inside the seed sd, so no comparison changes | **Re-run; never raise `score.tolerance`** — a pass that reproduces is kept, and none in several means a real mismatch. Batch scripts must treat a refusal as "arm incomplete" for every later step, the audit included. The held-out scoring has nothing to reproduce and is made once: it carries this jitter (`docs/EvaluationProtocol.md` §6). **Phase 8's metric code must define tie order**; `training/metrics.py` is deliberately unchanged — a defined order is a different metric from the one every logged run used | 🟨 Understood and bounded 2026-10-08; the definition is Phase 8's |
+| 63 | **The reproduction check can refuse a correct checkpoint: the logits are half-precision, so exact ties are ordinary, and nothing fixes their order.** FOUND 2026-10-08: `score_checkpoint.py` refused `8afbf7da…` in four of six passes, each time on `line/ifa_mean` alone, by 0.002075 — one rank position in one of 482 units. Measured on the nine `d97r` score files: 3,244–6,225 distinct logit values over 41,065 lines; the best flagged line exactly tied with an unflagged line in 7–22 units per checkpoint; `training/metrics.py` ranks with `torch.argsort`, which promises no order among equals | The unattended script left the arm uncalibrated (right) and audited it at `n=2` (wrong; run `15fccf6d…`, void). On the numbers themselves: tie order can move a checkpoint's Top-1 or Top-5 by at most one unit (0.0021), an arm's mean by ≤ 0.0007 and its IFA by ≤ 0.05 — far inside the seed sd, so no comparison changes | **Re-run; never raise `score.tolerance`** — a pass that reproduces is kept, and none in several means a real mismatch. Batch scripts must treat a refusal as "arm incomplete" for every later step, the audit included. The held-out scoring has nothing to reproduce and is made once: it carries this jitter (`docs/EvaluationProtocol.md` §6). **Phase 8's metric code must define tie order**; `training/metrics.py` is deliberately unchanged — a defined order is a different metric from the one every logged run used | ✅ **Defined 2026-10-08 (`b875d70`):** `evaluation/metrics/localization.py` reports the source-order value with both bounds beside it, and `evaluate_scores.py` refuses to write unless the scoring pass's logged value lies inside them (§1.29) |
+| 64 | **A generated table that marks "≥ 2 pooled sd" is marking one comparison among many.** MEASURED 2026-10-08 (run `52b9c998…`): Phase 8's `val` evaluation makes 93 comparisons (31 metrics × 3 pairs) and three reach 2 pooled sd — concat − `llm_only` on PR-AUC (+0.0206, 2.20) and on ECE (out of fold −0.0092, 3.77; in sample −0.0130, 3.04). With three seeds an arm, 2 pooled sd is a two-sample t of 2.45 on 4 degrees of freedom: two arms with no difference reach it with probability ≈ 0.07 in any one comparison — ≈ 6.6 of 93 if they were independent | The script's first run (`30aeff44…`) printed the bare word "resolved" beside them. Read as written that is "concat beats `llm_only`" — on validation, at three seeds, out of a search over 93. The same family as #37, one level up: not too few seeds for one comparison, but too many comparisons for the seeds | The tables now print how many comparisons were made, name the crossings and state the chance figure (`4281b3f`; `statistics.threshold_p_value`). **Claims rest only on the nine headline comparisons — Top-5, IFA, PR-AUC × the three pre-stated pairs — and a crossing anywhere is a candidate to check on a partition it was not seen on** | ✅ Reported with its denominator since `4281b3f` |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**
