@@ -2035,12 +2035,20 @@ is a recall-heavy one.
 
 ---
 
-## 1.28 `d97r` — D9.7 retrained on comment-stripped text: two arms in, concat paused (2026-10-08 05:46)
+## 1.28 `d97r` — D9.7 retrained on comment-stripped text: all three arms in, and the tie survives (2026-10-08 14:21)
 
-**Status: two arms of three — cross_attention (2026-10-07 22:58) and its `llm_only`
-control (2026-10-08 04:28). Concat's first seed was paused by the owner at 05:46 on
-2026-10-08 (§6 item 0a says how to continue), so A1's own comparison is not here yet.**
-Started pending the owner's decision on Q14 (ADR-010, Proposed).
+**Status: all nine runs finished; three seed reports at `n_seeds: 3`. With no comment in
+the text at training or at evaluation — so no tell — cross-attention does not beat
+concat and neither fused arm beats `llm_only`: no difference between arms reaches
+2 pooled sd.** The calibrated line F1, the score audit and the explanations come from
+`artifacts/queue/d97r_after.ps1`, which started when the queue ended. Run pending the
+owner's decision on Q14 (ADR-010, Proposed).
+
+| Arm, retrained without comments — `val`, 3 seeds | Top-5 | Top-1 | IFA | Seed report |
+|---|---|---|---|---|
+| cross_attention (the designed model) | 0.5394 ± 0.0116 | 0.2683 ± 0.0060 | 14.56 ± 0.43 | `bd2544c7…` |
+| concat | 0.5546 ± 0.0084 | 0.2621 ± 0.0222 | 14.06 ± 0.26 | `f3d754eb…` |
+| `llm_only` (same scaffold, no structural branch) | 0.5519 ± 0.0187 | 0.2801 ± 0.0062 | 14.72 ± 1.27 | `f814e521…` |
 
 `d97r` is D9.7's nine runs with exactly one more override,
 `+representation.strip_comments=true`: the comments — and with them the §1.25 tell — are
@@ -2155,12 +2163,82 @@ two commits differ in docs only).
   under the line, so it is **not resolved: a candidate in the control's favour, not a
   finding** (§1.16 is what happens when ~2 sd at three seeds is written down as one).
 - This is §1.22's reading — no fused arm beats fine-tuned `llm_only` in the same scaffold
-  — surviving the removal of the leak, for the one fused arm retrained so far. **Concat
-  is the remaining arm, and A1's own comparison (cross_attention − concat) waits for it.**
+  — surviving the removal of the leak. Concat follows.
+
+### The concat arm, three seeds — in at 14:21 on 2026-10-08
+
+| Run | Seed | Epochs run | Selected epoch | Top-5 | Top-1 | Minutes | Commit |
+|---|---|---|---|---|---|---|---|
+| `9ac7a146…` | 42 | 7 | 3 | 0.5456 | 0.2365 | 98.9 over two attempts | `fbc44e2`, resumed at `2e41629` |
+| `7579bc33…` | 1 | 7 | 3 | 0.5622 | 0.2759 | 101.4 | `1686536` |
+| `10b43ce5…` | 2 | 6 | 2 | 0.5560 | 0.2739 | 81.3 | `1686536` |
+
+Clean trees, the same card, coverage 97.04%, every cross-check "agrees". Seed report
+`f3d754eb…`, made by the queue itself, `n_seeds: 3`, no source drift (the commits differ
+in docs only). All three stopped on patience.
+
+- **Seed 42 is a resumed run — `resumed_at: epoch=6,batch=6,step=3944`.** The owner
+  paused the queue at 05:46 and resumed it at 10:59 on 2026-10-08. **Its selected
+  checkpoint predates the pause:** `best.pt` was written at 05:20 (epoch 3); after the
+  resume the run trained one more epoch (0.5415, no improvement) and stopped on
+  patience at 11:17. The seed's reported numbers therefore come from weights the
+  interruption never touched. It is also the arm's low Top-1 (0.2365 against 0.2759
+  and 0.2739), which is why concat's Top-1 sd is 0.0222.
+
+| Metric | Mean ± sd over 3 seeds |
+|---|---|
+| **Top-5** | **0.5546 ± 0.0084** |
+| **Top-1** | **0.2621 ± 0.0222** |
+| IFA | 14.06 ± 0.26 |
+| Line F1 at the logged threshold 0.5 | 0.0914 ± 0.0594 (P 0.3753 ± 0.0951, R 0.0560 ± 0.0385) |
+
+| Condition | Top-5 | Top-1 | Source |
+|---|---|---|---|
+| Comments at training and at evaluation — D9.7 as shipped, reads the tell | 0.6169 ± 0.0104 | 0.3645 ± 0.0073 | §1.22 |
+| Trained with comments, stripped at evaluation only | 0.5415 ± 0.0090 | 0.2759 ± 0.0072 | audit `9b87fbb2…`, §1.25 |
+| **Stripped at training and at evaluation (`d97r`)** | **0.5546 ± 0.0084** | **0.2621 ± 0.0222** | seed report `f3d754eb…` |
+
+- Retraining against stripping at evaluation only: +0.0131 Top-5 (1.51 pooled sd),
+  −0.0138 Top-1 (0.84 pooled sd). Not resolved — the same reading as the other two
+  arms. Against the number as shipped: −0.0622 Top-5, −0.1024 Top-1.
+- **A coincidence worth naming, because it looks like a copying error:** retrained
+  concat's Top-5, 0.5546 ± 0.0084, is digit for digit the Top-5 of D9.7's `llm_only`
+  checkpoints with comments stripped at evaluation (§1.25). Both are three counts out
+  of 482 units, and the counts happen to be the same three — 263, 268 and 271 — from
+  different checkpoints of different arms. Checked in the two artefacts.
+
+### The three arms, retrained — A1 on text with no tell
+
+| Difference | Top-5 | Top-1 | IFA (lower is better) |
+|---|---|---|---|
+| **cross_attention − concat (A1)** | **−0.0152 (1.51 pooled sd)** | +0.0062 (0.38) | +0.50 (1.43) |
+| cross_attention − `llm_only` | −0.0124 (0.80) | −0.0118 (1.92) | −0.15 (0.16) |
+| concat − `llm_only` | +0.0028 (0.19) | −0.0180 (1.10) | −0.66 (0.72) |
+
+Same-seed differences (42, 1, 2), cross_attention − concat: Top-5 +0.0062, −0.0249,
+−0.0270; Top-1 +0.0353, −0.0041, −0.0124; IFA +0.04, +1.25, +0.22.
+
+- **A1's null survives retraining on leak-free text: cross-attention does not beat
+  concatenation.** It is nominally behind on Top-5 (two seeds of three) and on IFA
+  (all three seeds), nominally ahead on Top-1 (one seed of three). Nothing reaches
+  2 pooled sd; nothing is resolved in either direction.
+- **Neither fused arm beats `llm_only`.** Concat's Top-5 is 0.0028 above it (0.19
+  pooled sd); both fused arms' Top-1 is below it. The largest standardized gap in the
+  table is cross_attention − `llm_only` on Top-1, 1.92 pooled sd: a candidate in the
+  control's favour, not a finding.
+- **The three Top-5 means span 0.0152.** As shipped they spanned 0.0007 (§1.22); with
+  comments stripped at evaluation only, 0.0193 (§1.25). The tie does not depend on the
+  tell.
+- **These are the leak-free validation numbers — if ADR-010 is accepted (Q14).** Every
+  arm is ≈ 0.06–0.08 Top-5 below the figure it was reported at with the tell in view,
+  and retraining did not resolvably recover any of it (the largest change against
+  stripping at evaluation only is concat's +0.0131, 1.51 pooled sd).
+- Three seeds an arm, validation-selected, one resumed run (concat seed 42), one seed
+  report made with a recorded source-drift override (cross_attention). `val` only.
 
 ### Not known yet
 
-Concat retrained; the calibrated line F1, ECE and threshold; the score
+The calibrated line F1, ECE and threshold; the score
 audit of these checkpoints (including the blank-line view); explanations made from them.
 `artifacts/queue/d97r_after.ps1` produces all of those once the queue ends.
 
@@ -2922,7 +3000,8 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
-| `d82a6a70…` `a1dce535…` `9296a0e5…` · `f814e521…` (seed report) | 2026-10-08 | `run_queue.py --only d97r` — D9.7's constants plus `+representation.strip_comments=true`, `llm_only`; commits `3bc918e` / `fbc44e2` (docs only between them) | 42, 1, 2 | llm_only | fused | 1.000 *(degenerate)* | **0.5519 ± 0.0187** | 14.72 | **§1.28: the scaffold control retrained on comment-stripped text.** Top-1 0.2801 ± 0.0062. None resumed. Indistinguishable from stripping at evaluation only (0.5546 ± 0.0084). **Retrained cross-attention does not beat it:** Top-5 −0.0124 (0.80 pooled sd, sign flips across seeds), Top-1 −0.0118 (1.92 pooled sd, same sign on all three seeds — a candidate in the control's favour, not a finding). Seeds 1 and 2 ran to the 10-epoch cap, selected at epoch 7. Concat still training. Validation-selected, `val`. Pending Q14 |
+| `9ac7a146…` `7579bc33…` `10b43ce5…` · `f3d754eb…` (seed report) | 2026-10-08 | `run_queue.py --only d97r` — D9.7's constants plus `+representation.strip_comments=true`, concat; commits `fbc44e2` / `1686536` (docs only between them) | 42, 1, 2 | concat | fused | 1.000 *(degenerate)* | **0.5546 ± 0.0084** | 14.06 | **§1.28: concat retrained on comment-stripped text — the last arm, and A1 on text with no tell.** Top-1 0.2621 ± 0.0222. **Cross-attention does not beat it** (Top-5 −0.0152, 1.51 pooled sd; Top-1 +0.0062, 0.38) **and neither fused arm beats `llm_only`** (concat − `llm_only` Top-5 +0.0028, 0.19). Nothing between arms reaches 2 pooled sd. Seed 42 is a resumed run (`resumed_at: epoch=6,batch=6,step=3944`; paused by the owner 05:46–10:59) whose selected checkpoint predates the pause. Validation-selected, `val`. Pending Q14 |
+| `d82a6a70…` `a1dce535…` `9296a0e5…` · `f814e521…` (seed report) | 2026-10-08 | `run_queue.py --only d97r` — D9.7's constants plus `+representation.strip_comments=true`, `llm_only`; commits `3bc918e` / `fbc44e2` (docs only between them) | 42, 1, 2 | llm_only | fused | 1.000 *(degenerate)* | **0.5519 ± 0.0187** | 14.72 | **§1.28: the scaffold control retrained on comment-stripped text.** Top-1 0.2801 ± 0.0062. None resumed. Indistinguishable from stripping at evaluation only (0.5546 ± 0.0084). **Retrained cross-attention does not beat it:** Top-5 −0.0124 (0.80 pooled sd, sign flips across seeds), Top-1 −0.0118 (1.92 pooled sd, same sign on all three seeds — a candidate in the control's favour, not a finding). Seeds 1 and 2 ran to the 10-epoch cap, selected at epoch 7. Concat is the row above. Validation-selected, `val`. Pending Q14 |
 | `ba7dcc5f…` `8afbf7da…` `ff980345…` · `bd2544c7…` (seed report) | 2026-10-07 | `run_queue.py --only d97r` — D9.7's constants plus `+representation.strip_comments=true`, cross_attention; commits `0a4843c` / `d5e5dda` / `5af24ba` (source drift in `explanation/generator.py` only — accepted, recorded in the report) | 42, 1, 2 | cross_attention | fused | 1.000 *(degenerate)* | **0.5394 ± 0.0116** | 14.56 | **§1.28: the designed model retrained on comment-stripped text — the first leak-free arm.** Top-1 0.2683 ± 0.0060. Indistinguishable from the D9.7 checkpoints with comments stripped at evaluation only (0.5353 ± 0.0200; 0.25 pooled sd), and 0.077 below the 0.6162 it was reported at with the tell in view. Seed 2 early-stopped after four epochs, selected at epoch 0. Its control is the row above. Validation-selected, `val`. Pending Q14 |
 | `bcf18403…` | 2026-10-07 | `run_queue.py --only d97rcheck` — `train_fused.py +fusion=cross_attention train=overfit_fused` with D9.7's constants and `+representation.strip_comments=true`, commit `0a4843c` | 42 | cross_attention | fused | — | Top-1 1.000 | — | **The overfit gate for the leak-free rerun. Never cite as a result.** Encoder training, comment-stripped text; Top-1 = 1.0000 over the last five of 150 epochs, read from the metric history. `d97r` started after it |
 | `84582530…` `baf55d15…` `f3b641bc…` / `0f391973…` `be36cca8…` `9e0e13ec…` / `9d89bb6d…` `3a1507ed…` `006b0ea1…` (scores) · `e8a27dc5…` `a38fd4db…` `5bada5f3…` (calibration) · `9b87fbb2…` `b6f750f2…` (score audits, fine-tuned) · `30a0d40b…` `18b2535c…` (frozen A1) · `7c64dfac…` `421bf67c…` (frozen A6) · `af4173a3…` (corpus report) | 2026-10-07 | `score_checkpoint.py +score.run_id=<run> +representation.strip_comments=true` ×9, `calibrate.py` per arm on `scores_stripped/`, `audit_score_leakage.py` with and without the switch, `report_comment_stripping.py` — clean `4ac5f7e` / `9dc3604` / `ae0cf3a` | 42, 1, 2 | cross_attention / concat / llm_only | fused | — | **comments stripped at evaluation: 0.5353 ± 0.0200 / 0.5415 ± 0.0090 / 0.5546 ± 0.0084** (as shipped 0.6162 / 0.6169 / 0.6169) | 14.13 / 14.34 / 13.89 | **§1.25: the D9.7 checkpoints on comment-stripped `val`.** Line F1 out of fold 0.2355 ± 0.0040 / 0.2338 ± 0.0059 / 0.2362 ± 0.0030 (as shipped 0.39). No unit is answered by the tell; the arms still tie. **Trained with comments, scored without — not the leak-free number; `d97r` is.** Stripper identical to the grammar on 6,586 of 6,586 clean units; 8–12% of flagged lines are comment-only. **Frozen screen (27 more scorings):** frozen `llm_only` does not read the tell, every arm with a structural branch does; fusion's lead over it is +0.010 to +0.029 on stripped text against +0.032 to +0.051 as logged. ADR-010 (Proposed), Q14 |
@@ -3018,7 +3097,27 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-08 11:05 (session 16): `d97r` IS RUNNING AGAIN — resumed at the owner's request
+#### Where it stands — 2026-10-08 14:25 (session 16): ALL NINE `d97r` RUNS ARE DONE — the follow-up scoring is under way
+
+- **14:21 — the ninth run and the third seed report are in.** Concat: `9ac7a146…`
+  (resumed once), `7579bc33…`, `10b43ce5…`; seed report `f3d754eb…`, `n_seeds: 3`.
+  **§1.28 has all three arms: on text with no tell, cross-attention does not beat
+  concat and neither fused arm beats `llm_only`.**
+- **14:22 — `d97r_after.ps1` took over, as designed.** It re-ran the failed
+  cross-attention seed report through the queue with the plan's override (the slate now
+  shows no `[FAIL]`), confirmed all three arms complete, and began scoring the nine
+  checkpoints on `val`. Then: calibration per checkpoint, the score audit, explanations
+  for the cross-attention arm. **Read `artifacts/queue/d97r_after.out` before quoting
+  anything from `artifacts/phase6/scores_retrained/`, `artifacts/phase6/retrained/` or
+  `artifacts/phase7/explanations_retrained/`** — every step's exit code is in it.
+- **Until that script has finished, still nothing under `configs/` or `src/vulnloc/`**
+  (scoring rebuilds each model from its run's archived config and the current code).
+  After it: no `d97r-*` step is running or paused, and both may be edited again.
+- **Then finish §1.28's "Not known yet"** with `python artifacts/queue/d97r_read.py`.
+- The owner's open decisions are unchanged — listed in the 05:50 block below. **Q14 now
+  has its evidence: all nine retrained runs.**
+
+#### Where it stood — 2026-10-08 11:05 (session 16): `d97r` running again — resumed at the owner's request
 
 - **Resumed at 10:59 with `artifacts/queue/d97r_resume.ps1`**, after 5 h 13 min paused
   (05:46 → 10:59). Checked first: clean tree at `2e41629`, nothing under `configs/` or

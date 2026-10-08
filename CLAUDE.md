@@ -77,22 +77,25 @@ count (ADR-010, **Proposed**; identical to the grammar's own comment nodes on 6,
 F1 0.2355 / 0.2338 / 0.2362 — against 0.616–0.617 and 0.39 as shipped; the arms still tie.
 Those are models *trained with* comments, so they are not the leak-free numbers either:
 **queue group `d97r` retrains the nine on stripped text** (`d97rcheck` first) — **started
-2026-10-07 18:04 by session 16, pending Q14; about a day.** **Two arms are in
-(`Memory.md` §1.28), 3 seeds each, `val`, trained and evaluated without comments:
-cross_attention Top-5 0.5394 ± 0.0116 / Top-1 0.2683 ± 0.0060 (seed report `bd2544c7…`,
-made with the recorded source-drift override, landmine #62); `llm_only` 0.5519 ± 0.0187 /
-0.2801 ± 0.0062 (`f814e521…`). Each is indistinguishable from stripping at evaluation
-only, and the designed model does not beat its control: Top-5 −0.0124 (0.80 pooled sd),
-Top-1 −0.0118 (1.92 pooled sd, same sign on every seed — a candidate in the control's
-favour, not a finding). **`d97r` IS RUNNING AGAIN since Thu 2026-10-08 10:59** — paused by
-the owner from 05:46 with 6 of 9 training runs finished, resumed at the owner's request
-with `artifacts\queue\d97r_resume.ps1`. `d97r-concat-seed42` continues as the same run
-(`9ac7a146…`, tag `resumed_at: epoch=6,batch=6,step=3944` — quote it beside every concat
-number); concat seeds 1 and 2 and the concat seed report follow, about 2–5 h, then ~1 h
-of scoring. `--status` shows one `[FAIL]`: the queue's first attempt at the
-cross-attention seed *report* — no training run failed, the report exists, and the
-follow-up script clears the mark after the last run. `Memory.md` §6 item 0a, "Where it
-stands", is the handoff.** Run
+2026-10-07 18:04 by session 16, pending Q14; about a day.** **ALL NINE ARE IN (Thu 2026-10-08 14:21,
+`Memory.md` §1.28) — `val`, 3 seeds each, trained and evaluated without comments:**
+
+| Arm, retrained | Top-5 | Top-1 | Seed report |
+|---|---|---|---|
+| cross_attention | 0.5394 ± 0.0116 | 0.2683 ± 0.0060 | `bd2544c7…` — made with the recorded source-drift override, landmine #62 |
+| concat | 0.5546 ± 0.0084 | 0.2621 ± 0.0222 | `f3d754eb…` — seed 42 resumed once, `resumed_at: epoch=6,batch=6,step=3944` |
+| `llm_only` | 0.5519 ± 0.0187 | 0.2801 ± 0.0062 | `f814e521…` |
+
+**The tie survives the removal of the leak.** Cross-attention does not beat concat (Top-5
+−0.0152, 1.51 pooled sd; Top-1 +0.0062, 0.38) and neither fused arm beats `llm_only`; the
+largest gap is cross_attention − `llm_only` on Top-1, −0.0118 at 1.92 pooled sd — a
+candidate in the control's favour, not a finding. Each arm retrained is indistinguishable
+from the same arm with comments stripped at evaluation only. **These, not 0.616–0.617, are
+the leak-free validation numbers — if the owner accepts ADR-010 (Q14).** The queue was
+paused by the owner from 05:46 to 10:59 on Thu 8. `artifacts/queue/d97r_after.ps1` then
+scores, calibrates, audits and explains these checkpoints on `val`: **read
+`artifacts/queue/d97r_after.out` before quoting anything it produced.** `Memory.md` §6
+item 0a, "Where it stands", is the handoff. Run
 `python scripts/run_queue.py --only d97rcheck d97r --status` first. While a `d97r-*` step
 is running or paused, **do not edit `configs/` or ANY file under `src/vulnloc/`** — not
 only what training imports: the seed report refuses an arm whose seeds straddle any
