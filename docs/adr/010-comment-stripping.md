@@ -1,9 +1,11 @@
 # ADR-010 — Comments Are Stripped From Source Lines Because the Corpus Encodes the Label in Them
 
-- **Status:** **Proposed** — 2026-10-07 (session 16). Awaiting the project owner (open
-  decision Q14, `Memory.md` §5). The transform is implemented and **off by default**:
-  unlike ADR-006's fix, turning it on changes every number already logged, so it is not
-  switched on for anyone until the owner accepts it.
+- **Status:** **Accepted** by the project owner, 2026-10-08 (closes **Q14**, `Memory.md`
+  §2 and §5; asked "accept ADR-010 and the nine `d97r` runs as the numbers of record",
+  answer: "yes"). The nine `d97r` checkpoints are the models of record and the held-out
+  evaluation is made on comment-stripped text. The transform stays an **explicit option**
+  (D10.3) — acceptance does not add a key to `configs/config.yaml` — and D10.4's move to
+  L0 is still a separate, undecided follow-up. Proposed 2026-10-07 (session 16).
 - **Date:** 2026-10-07
 - **Phase:** found in Phase 7; it concerns every phase from 3 on.
 - **Depends on:** ADR-001 (Big-Vul, LineVul release), ADR-003 (line-label trust), ADR-006
@@ -58,7 +60,7 @@ flagged lines" was this.
 
 ---
 
-## Decision (proposed)
+## Decision (proposed 2026-10-07, accepted 2026-10-08)
 
 **D10.1 — Comments are removed from every source line, label-blind.**
 `vulnloc.utils.text.strip_comments` removes `//` and `/* */` comments and keeps the line

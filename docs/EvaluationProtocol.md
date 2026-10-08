@@ -1,11 +1,13 @@
 # Held-Out Evaluation Protocol — `test` and `clean_eval`, once (Phase 8)
 
-**Status: DRAFT, 2026-10-07 (session 16).** Written while Phase 7 is still open, because
-the label leak found that day (`Memory.md` §1.25) changes what this evaluation must be.
-**It binds nothing until Phase 8 starts and the owner has read it.** On 2026-10-07 the
-owner authorised the held-out evaluation "when Phase 8 starts", after this protocol is
+**Status: DRAFT, 2026-10-07 (session 16); §2 and §3 decided by the owner 2026-10-08.**
+Written while Phase 7 is still open, because the label leak found that day (`Memory.md`
+§1.25) changes what this evaluation must be. **It binds nothing until Phase 8 starts and
+the owner has confirmed it as a whole — that confirmation is still owed.** On 2026-10-07
+the owner authorised the held-out evaluation "when Phase 8 starts", after this protocol is
 committed; that go-ahead was given before the leak was known, so two points below
-(§2, §3) are put back to the owner explicitly.
+(§2, §3) were put back to the owner explicitly. Both were answered on 2026-10-08 by the
+acceptance of ADR-010 (Q14, `Memory.md` §2).
 
 `Rules.md` §5.3: the held-out partitions are touched **once**, at the end, on the frozen
 configuration. Everything that could be chosen after seeing the numbers is fixed here.
@@ -24,20 +26,29 @@ The line-level localization of the three arms ADR-009 D9.7 compares, three seeds
 
 All three are reported side by side. No arm is selected on a held-out number.
 
-## 2. Text — **owner's decision (Q14)**
+## 2. Text — **decided by the owner 2026-10-08 (Q14, ADR-010 accepted)**
 
-**Proposed: comment-stripped text (ADR-010), for every arm and both partitions.** `test`
+**Comment-stripped text (ADR-010), for every arm and both partitions.** `test`
 carries the comment-terminator tell on 73 of its 546 line-labelled units, and `clean_eval`
 carries the same defect in another form. A held-out number on the shards as shipped would
 be inflated in the same way the validation numbers were.
 
-## 3. Checkpoints — **owner's decision (Q14)**
+## 3. Checkpoints — **decided by the owner 2026-10-08 (Q14, ADR-010 accepted)**
 
-**Proposed: the nine `d97r` checkpoints** — D9.7's configuration with exactly one more
-override, `+representation.strip_comments=true` — once all three arms have three finished
-seeds. If the owner decides against retraining, the nine D9.7 checkpoints are evaluated
-with comments stripped **at evaluation only**, and every table says so in its caption.
-The two sets are never mixed in one table.
+**The nine `d97r` checkpoints** — D9.7's configuration with exactly one more override,
+`+representation.strip_comments=true`. All three arms have three finished seeds
+(`Memory.md` §1.28):
+
+| Arm | Seed 42 | Seed 1 | Seed 2 |
+|---|---|---|---|
+| cross_attention | `ba7dcc5f…` | `8afbf7da…` | `ff980345…` |
+| concat | `9ac7a146…` (resumed once) | `7579bc33…` | `10b43ce5…` |
+| `llm_only` | `d82a6a70…` | `a1dce535…` | `9296a0e5…` |
+
+This protocol covers these nine and no others. The alternative this section used to
+carry — the nine D9.7 checkpoints, trained with comments, scored with comments stripped
+at evaluation only — was not chosen; those numbers exist on `val` (`Memory.md` §1.25) and
+are never mixed into a table with these.
 
 ## 4. Calibration and threshold
 
@@ -91,8 +102,10 @@ variant it is not reading (`Memory.md` §7 #61).
 
 ## 8. Order of work
 
-1. Owner decides Q14 and confirms §2 and §3. This file is committed as final.
-2. `val` (already permitted): score, calibrate and audit the nine checkpoints. For the
+1. Owner decides Q14 (**done 2026-10-08: §2 and §3**) and confirms this file as a whole
+   (**owed**). This file is then committed as final.
+2. `val` (already permitted; **done 2026-10-08**, `Memory.md` §1.28): score, calibrate and
+   audit the nine checkpoints. For the
    `d97r` checkpoints this is what `artifacts/queue/d97r_after.ps1` does once the queue
    ends: scores in `artifacts/phase6/scores_retrained/`, one calibrator and threshold per
    checkpoint in `artifacts/phase6/retrained/` (cross_attention) and

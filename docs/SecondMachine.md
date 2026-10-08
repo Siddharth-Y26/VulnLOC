@@ -181,8 +181,9 @@ RESULTS.md>)"** with their run ids, beside — never inside — the first machin
 
 ## 6. A second slate, proposed 2026-10-07 — the frozen A1 screen on comment-stripped text
 
-**Not started on either machine. The owner decides whether it runs, and where** (open
-decision Q14, `Memory.md` §5). It exists because of the label leak found that day
+**Not started on either machine. The owner decides whether it runs, and where.** (Q14
+itself closed on 2026-10-08 — ADR-010 accepted, `Memory.md` §2 — and that decision did not
+cover this slate.) It exists because of the label leak found that day
 (`Memory.md` §1.25): every frozen arm with a structural branch reads it, and frozen
 `llm_only` does not, so "fusion beats frozen `llm_only`" has to be re-measured on text
 without it. It is 18 frozen runs — about the size of this machine's first slate — and one

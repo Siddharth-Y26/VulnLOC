@@ -28,10 +28,10 @@
 |-------|-------|
 | **Active phase** | **Phase 7 — Explanation (7a), since 2026-10-07: Phases 5 and 6 are SIGNED (§1.1c, §1.1d).** Ablation A6 (attention direction) is running on the frozen cache as queue group `a6`. Phase 5's record, kept: **A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **D9.7 (fine-tuned confirmation): the six runs ADR-009 specifies are FINISHED (§1.22) — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, again no resolvable difference.** The added scaffold control `llm_only` × 3 finished on 2026-10-07: **0.6169 ± 0.0048 Top-5 — no fused arm beats it (§1.22)** |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15; Phases 5 and 6 SIGNED 2026-10-07.** ADR-008 and ADR-009 accepted 2026-09-15 |
-| **Last updated** | 2026-10-07 (session 16) |
-| **Open decision** | **Q14 — the comment-terminator label leak (§1.25, §5): strip comments and retrain, or repair at evaluation only. Raised 2026-10-07 15:30; it blocks the held-out evaluation and qualifies every line-level number.** Q13 answered and Q5 deferred by the owner (§2, §5). Still open, not blocking: ADR-006 and ADR-007 `Proposed` (ADR-007 blocks ablation A3's CPG arm); Q4 (explanation supervision) belongs to Phase 7; the paper's framing of the A1 null; scheduled defragmentation of D: (§7 #57) |
+| **Last updated** | 2026-10-08 (session 17: Q14 closed) |
+| **Open decision** | **None blocking a measurement. Q14 closed 2026-10-08: the owner accepted ADR-010 — the nine `d97r` checkpoints are the models of record and the held-out evaluation is made on comment-stripped text (§2). Owed by the owner before Phase 8 starts: the Phase 7 gate (§1.1e) and confirmation of `docs/EvaluationProtocol.md`.** Q13 answered and Q5 deferred by the owner (§2, §5). Still open, not blocking: ADR-006 and ADR-007 `Proposed` (ADR-007 blocks ablation A3's CPG arm); Q4 (explanation supervision) belongs to Phase 7; the paper's framing of the A1 null; scheduled defragmentation of D: (§7 #57) |
 | **Last commit** | Session 14's resume/queue commit on `phase-2/representation` (see `git log`). **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
-| **Best model run ID** | Semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
+| **Best model run ID** | **Models of record since 2026-10-08 (ADR-010 accepted, §2; `val` numbers in §1.28): cross_attention `ba7dcc5f…` / `8afbf7da…` / `ff980345…` (the full model), concat `9ac7a146…` / `7579bc33…` / `10b43ce5…`, `llm_only` `d82a6a70…` / `a1dce535…` / `9296a0e5…`.** Single-branch baselines, measured with comments in place: semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
 | **Split fingerprint** | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` (project-wise, 80/10/10, seed 42) |
 | **Blocking issues** | None. Q1/Q2/Q3/Q6/Q7/Q8 closed by ADR-001/002/003/004/005. Q5 closed 2026-10-07 (the learned type classifier is deferred, §2). Q4 belongs to Phase 7 |
 | **Biggest live constraint** | **~30% line-level label noise** (§1.6) — the ceiling on every line-level number this project will report. **And, since 2026-10-07, a formatting leak that inflates them (§1.25): ≈ 0.05 of `val` Top-5** |
@@ -1779,6 +1779,10 @@ scoreable lines — Top-5 0.3071** (Top-1 0.0000); the tell first, then source o
 
 ### What to do with every number until Q14 is decided
 
+*Q14 was decided on 2026-10-08 (§2): ADR-010 accepted. The rule below now holds for good
+for every number measured with comments in place (ADR-010 D10.7), and the held-out
+evaluation is made on comment-stripped text.*
+
 Quote it as measured, with **"on text carrying the §1.25 formatting leak"** beside it, and
 give the other-units figure where one exists. Do not start the held-out evaluation on the
 shards as they are: `test` carries the tell on 13.4% of its units.
@@ -1792,7 +1796,8 @@ keeps the line count.** Both forms of the defect are about comments, so removing
 from flagged and unflagged lines alike removes both. It is **off unless asked for**
 (`+representation.strip_comments=true`; the key is deliberately absent from
 `configs/config.yaml`, §7 #38), because every number logged before it was measured with
-comments in place. ADR-010 (**Proposed**) is the decision record; Q14 is still the owner's.
+comments in place. ADR-010 (**Proposed** when this was written; **accepted by the owner
+2026-10-08**, §2) is the decision record.
 
 `scripts/report_comment_stripping.py`, run `af4173a3…`, every partition's line-labelled
 units. It replaces the two scratch probes quoted above with logged figures.
@@ -2042,7 +2047,8 @@ the text at training or at evaluation — so no tell — cross-attention does no
 concat and neither fused arm beats `llm_only`: no difference between arms reaches
 2 pooled sd.** The calibrated line F1, the score audit and the explanations are below,
 and the arms tie there too (line F1 0.233–0.241, each checkpoint at its own threshold).
-Run pending the owner's decision on Q14 (ADR-010, Proposed).
+Run pending the owner's decision on Q14 (ADR-010, Proposed). **Decided 2026-10-08 (§2):
+ADR-010 accepted — these nine are the models of record.**
 
 | Arm, retrained without comments — `val`, 3 seeds | Top-5 | Top-1 | IFA | Seed report |
 |---|---|---|---|---|
@@ -2229,7 +2235,8 @@ Same-seed differences (42, 1, 2), cross_attention − concat: Top-5 +0.0062, −
 - **The three Top-5 means span 0.0152.** As shipped they spanned 0.0007 (§1.22); with
   comments stripped at evaluation only, 0.0193 (§1.25). The tie does not depend on the
   tell.
-- **These are the leak-free validation numbers — if ADR-010 is accepted (Q14).** Every
+- **These are the leak-free validation numbers — and, since the owner accepted ADR-010
+  on 2026-10-08 (Q14, §2), the validation numbers of record.** Every
   arm is ≈ 0.06–0.08 Top-5 below the figure it was reported at with the tell in view,
   and retraining did not resolvably recover any of it (the largest change against
   stripping at evaluation only is concat's +0.0131, 1.51 pooled sd).
@@ -2290,7 +2297,8 @@ CWE id for 10.7–12.3% of the units where both exist. Each pass's logits sit wi
 of the stored scores (tolerance 0.05). Same reading as §1.27: the templates name a cause
 for roughly one flagged line in twelve to fifteen, and say so for the rest. In
 `artifacts/phase7/explanations_retrained/`. No rater pack was drawn from these: the pilot
-pack (§1.27) stands until the owner decides Q14.
+pack (§1.27) stands until the owner decides Q14. *Q14 was decided on 2026-10-08;
+whether the pilot is redrawn from `ba7dcc5f…` is the owner's (§6 item 0a).*
 
 ### The reproduction check refused one checkpoint four times — exact ties, not a mismatch
 
@@ -2359,6 +2367,7 @@ Append-only. Format: date · decision · alternatives considered · rationale ·
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-10-08 | **ADR-010 accepted; Q14 closed. The nine `d97r` checkpoints are the models of record** (owner, asked in session 17 with the evidence complete: "accept ADR-010 and the nine `d97r` runs as the numbers of record"; answer: "yes"). Comments are stripped label-blind from every line the models see (`+representation.strip_comments=true`, still an explicit override — D10.3). The full model of record is the designed cross-attention architecture retrained on that text, `ba7dcc5f…` / `8afbf7da…` / `ff980345…`, with the calibrators in `artifacts/phase6/retrained/`; concat (`9ac7a146…` / `7579bc33…` / `10b43ce5…`) and `llm_only` (`d82a6a70…` / `a1dce535…` / `9296a0e5…`) are reported beside it. The held-out evaluation is made on stripped text with these nine. **This supersedes, as the checkpoints of record, `80fc5238` / `c193e3bc` / `829c3555` in the 2026-10-07 full-model row below — the architecture choice in that row stands — and "all nine D9.7 checkpoints" in the 2026-10-07 authorisation row** | (b) keep the D9.7 checkpoints and strip at evaluation only · (c) report as is, with a limitation paragraph | Measured (§1.28, ADR-010): on `val` each retrained arm is within 0.19–1.51 pooled sd of the same arm stripped at evaluation only, so the choice moves no number resolvably — what it changes is that these models never saw the tell. `test` carries the tell on 73 of 546 units, so (c) was not defensible. Every line-level number logged with comments in place stays in the record, labelled as measured on leaky text (D10.7). **Not decided here:** D10.4 (moving the transform to L0) and `a1r` (the frozen screen on stripped text) | **ADR-010 — proposed 2026-10-07, accepted 2026-10-08 (Q14)** |
 | 2026-10-07 | **The single held-out evaluation is authorised for the start of Phase 8** (owner, asked in session 16 with three options; answer: "When Phase 8 starts"). Before either split is read, the evaluation protocol — metrics, thresholds, intervals — is committed; then all nine D9.7 checkpoints are scored on `test` and on `clean_eval` once, each with its own `val`-fitted calibrator and threshold applied unchanged. No further check-in is needed | Ask again right before · run it the evening A6 ends, before Phase 7a | `Rules.md` §5.3: once, at the end. A protocol committed before the splits are read is what makes "once" checkable afterwards. **Phase 8 starts only after the owner signs the Phase 7 gate** — this is a go-ahead for the evaluation, not for skipping a gate | — |
 | 2026-10-07 | **The owner signed the Phase 6 gate** (asked with §1.1d written and Q5 answered in the same batch; answer: "Sign it"). Phase 7 is the current phase | Not yet — read §1.1d first | Four of four exit criteria: calibration with its reliability curve, a `val`-only threshold, the configuration frozen by the owner's morning decision, Q5 explicitly deferred. The deliverables that were not built are listed in §1.1d rather than ticked | — |
 | 2026-10-07 | **Q5 closed: the learned CWE-type classifier is deferred** (owner; answer: "Defer the classifier"). No model here predicts a vulnerability type. Phase 7a's explanations name a category **derived from templates** and say that it is | Train a CWE head on the frozen features (3 seeds, its own evaluation) · binary only, no type anywhere | Big-Vul carries a `CWE ID` per function (86 distinct among positives) but no model was trained on it, and a type head is a new objective with its own evaluation two days before the deadline. A template-derived category matches the deck's example output without claiming the model inferred it. Reversible: the `CWE ID` is already unit metadata | — |
@@ -2415,6 +2424,30 @@ Next:
 ```
 
 ---
+
+### 2026-10-08 afternoon (session 17) — the owner accepted ADR-010: Q14 closed, the `d97r` checkpoints are the models of record
+
+Phase: 7 (7a built; gate prepared, not signed).
+Did:
+  - Checked the finished `d97r` slate for the owner (13 of 13 done, nothing running).
+  - Recorded the owner's answer to Q14 — "yes" to accepting ADR-010 and the nine `d97r`
+    runs as the numbers of record (§2, §5).
+  - Carried the decision into the two protocols awaiting the owner: the evaluation
+    protocol's §2 and §3 are decided; the human-evaluation protocol names seed 42 of the
+    model of record (`ba7dcc5f…`, was `80fc5238…`) and stripped text.
+Files touched:
+  - `docs/adr/010-comment-stripping.md`, `docs/EvaluationProtocol.md`,
+    `docs/HumanEvalProtocol.md`, `docs/SecondMachine.md`, `docs/Memory.md`, `CLAUDE.md`.
+    Docs only — no code, no config, no run.
+Runs logged:
+  - none.
+Learned:
+  - ADR-010's own text gives two ranges for "retrained vs stripped at evaluation": the
+    per-arm figures are 0.25, 1.51 and 0.19 pooled sd, so the range is 0.19–1.51; its
+    Alternatives section says 0.25–1.51. §2 quotes the per-arm figures.
+Next:
+  - The owner's two steps, in §6 item 0a "Where it stands": the Phase 7 gate, then
+    confirmation of `docs/EvaluationProtocol.md`. Phase 8 starts after both.
 
 ### 2026-10-08 10:59 → 14:50 (session 16, the day) — `d97r` resumed and finished: on text with no tell the three arms tie
 
@@ -3222,7 +3255,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q11 | **Run ADR-009 D9.7's fine-tuned confirmation?** The frozen screen found cross_attention ≈ concat on Top-5 (+0.0014, 0.07 sd, §1.21) — the no-margin case D9.7 exists for. Phases.md's fifth Phase 5 criterion requires a negative A1 to be *investigated before Phase 6* | **Run it**: cross_attention and concat fine-tuned (`train.semantic_cache.enabled=false llm.frozen=false`, otherwise A1's constants), seeds 42/1/2, ~18–24 h, overnight, laptop kept awake · **Skip it**: report the frozen result, qualified, and record the skip as the owner's explicit decision · **Partial**: one fine-tuned seed per arm first as a probe (not citable — §7 #37) | **Run it.** It is the only way to learn whether fusion beats fine-tuned LLM-only (0.6141), which every fused arm currently loses to, and it is what closes criterion 5. A probe-only run would tempt a one-seed conclusion this project has retracted twice | **Phase 5 exit / Phase 6 start** | 🟨 **6 of 9 runs FINISHED; PAUSED 2026-10-04 21:51 at the owner's request** (running since 2026-10-02, session 14). The owner delegated the schedule ("do whatever you feel is best"; laptop free except Saturday daytime), so: **all nine runs in one resumable queue group** rather than two fixed nights — `d97-{cross_attention,concat}` seed by seed, then **`llm_only` fine-tuned in the fused scaffold × 3**, added so that "fusion beats fine-tuned LLM-only" is measured against a controlled arm instead of Phase 3's 0.6141 from a different scaffold (ADR-008 §D8.6). Interruptions are continued, not restarted (§7 #53). Live-encoder overfit check first (`d97check`). **2026-10-04: the six runs D9.7 specifies are FINISHED — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, no resolvable difference, agreeing with the frozen screen (§1.22).** The `llm_only` control is 0 of 3 (seed 42 paused at epoch 6); **do not quote that arm, or any fusion-vs-LLM-only statement, until all three are FINISHED**. **CLOSED 2026-10-07: nine of nine FINISHED; `llm_only` 0.6169 ± 0.0048 — neither fused arm beats it (§1.22). The owner signed the Phase 5 gate the same day (§2)** |
 | Q12 | **Commit the A1 write-up?** Memory.md §1.21 + ledger, Phases.md criterion-5 note, CLAUDE.md §3, `frontend/phases.json`, `docs/review3_panel_brief.md` — uncommitted since `d1003f6` | Commit now · commit with the D9.7 runs | Commit before any D9.7 run starts: a dirty tree tags every run `-dirty` (§7 #4), so the write-up must be committed first either way | Clean `git_sha` on D9.7 runs | ✅ **Closed 2026-10-02** — committed as `18ca52b` (frontend) and `6e64486` (write-up, code map, report material, bibliography), before any D9.7 run |
 | Q13 | **Scope under the one-week deadline (≈ 2026-10-09): which Phase 6–10 exit criteria are met, and which are deferred in writing?** §6 item 0a lists them criterion by criterion. Three blockers cannot be worked around this week: people other than the owner (human evaluation run, independent reader), this machine (no Docker, one GPU), and negatives (anything function-level needs the 148,983-function split) | **Defer the ❌ rows explicitly** and ship the rest · extend the deadline · cut whole phases (9 or 7) to protect 8 | **Defer the ❌ rows explicitly.** Phases 5–6 closed, 7a, Phase 8 on the frozen grid with `test` + `clean_eval`, Phase 9 without verified Docker, a paper *draft* whose limitations name every deferral. If something must be cut, cut Phase 9's UI before any Phase 8 ablation — the claims are the project | **Marking Phases 6–10 done at all** | 🟨 **PARTLY ANSWERED 2026-10-03.** Owner: three raters are available (human evaluation can run), a second GPU laptop exists (independent reproduction, clean-machine Docker), and Docker is installed Sat 3 evening. Those three rows move to ✅ in §6 item 0a. **Still unanswered:** deferring the function-level criteria (unit aggregation, DiverseVul, full external reproduction) and 7b; whether the external baseline runs as a balanced subsample or stays `(reported)`. (The second laptop's GPU is answered: 6 GB, `docs/SecondMachine.md`.) **Docker was not installed on Sat 3; it was installed on Sun 4 at 22:08 (session 15, to `D:\Docker`), rebooted and launched once — auto-start off, nothing built; the owner sets it up later**. **ANSWERED 2026-10-07 (§2): the function-level criteria and 7b are deferred, external baselines stay `(reported)` — the owner delegated the choice ("whatever is best") and can reverse it; the full model is the designed cross-attention architecture. Still the owner's: Q5 (CWE labels), which Phase 6's fourth criterion needs decided or deferred** — **answered the same afternoon: deferred, and the Phase 6 gate signed (§2)** |
-| Q14 | **What happens to the comment-terminator leak (§1.25, §7 #58)?** A flagged line that ended a block comment lost the slash of its `*/`; the tell is right 97–100% of the time on `train`/`val`/`test`, the nine D9.7 checkpoints use it, and ≈ 0.05 of every logged `val` Top-5 sits on the 12% of units it answers. `test` carries it on 13.4% of units; `clean_eval` has a related regime (flagged lines carry no comments at all) | **(a) Strip comments label-blind at L0/L1 (ADR-010), rebuild, retrain the headline** — 9 fine-tuned runs, 17–32 GPU-h on this laptop, or on machine 2 as one whole group · (b) repair or strip at **evaluation only**, re-score the existing checkpoints (minutes each) and report that, with the stratified table beside it · (c) report as is, with §1.25 as a limitation | **(b) now, (a) if the GPU-hours exist.** (b) gives a number the tell cannot inflate tonight, from checkpoints that already exist; it under-states what a leak-free-trained model would do, which is the safe direction. (a) is the real fix and is what ADR-006 did; it voids every line-level number and has to be the owner's call two days before the deadline. (c) is not defensible for `test` | **The held-out evaluation; every line-level claim** | 🟥 **OPEN — raised 2026-10-07 (session 16).** **Both are built (2026-10-07 evening).** (b) is measured: Top-5 0.535–0.555 on comment-stripped `val` against 0.616–0.617, line F1 0.234–0.236 against 0.39, arms still tied (§1.25). (a) is queue group `d97r`, with ADR-010 (Proposed) as its decision record. **(a) IS NOW MEASURED TOO (2026-10-08, §1.28): all nine runs retrained without comments — Top-5 0.5394 ± 0.0116 / 0.5546 ± 0.0084 / 0.5519 ± 0.0187, line F1 0.2359 / 0.2408 / 0.2330 (cross_attention / concat / `llm_only`). The arms tie, and each matches (b) for the same arm — so (b) did not under-state a leak-free-trained model, as this row had guessed. What is left is the owner's acceptance.** Neither has touched a held-out partition |
+| Q14 | **What happens to the comment-terminator leak (§1.25, §7 #58)?** A flagged line that ended a block comment lost the slash of its `*/`; the tell is right 97–100% of the time on `train`/`val`/`test`, the nine D9.7 checkpoints use it, and ≈ 0.05 of every logged `val` Top-5 sits on the 12% of units it answers. `test` carries it on 13.4% of units; `clean_eval` has a related regime (flagged lines carry no comments at all) | **(a) Strip comments label-blind at L0/L1 (ADR-010), rebuild, retrain the headline** — 9 fine-tuned runs, 17–32 GPU-h on this laptop, or on machine 2 as one whole group · (b) repair or strip at **evaluation only**, re-score the existing checkpoints (minutes each) and report that, with the stratified table beside it · (c) report as is, with §1.25 as a limitation | **(b) now, (a) if the GPU-hours exist.** (b) gives a number the tell cannot inflate tonight, from checkpoints that already exist; it under-states what a leak-free-trained model would do, which is the safe direction. (a) is the real fix and is what ADR-006 did; it voids every line-level number and has to be the owner's call two days before the deadline. (c) is not defensible for `test` | **The held-out evaluation; every line-level claim** | ✅ **CLOSED 2026-10-08 — the owner accepted ADR-010 with option (a): the nine `d97r` checkpoints are the models of record and the held-out evaluation is on stripped text (§2).** Raised 2026-10-07 (session 16); the history of how it was measured follows. **Both are built (2026-10-07 evening).** (b) is measured: Top-5 0.535–0.555 on comment-stripped `val` against 0.616–0.617, line F1 0.234–0.236 against 0.39, arms still tied (§1.25). (a) is queue group `d97r`, with ADR-010 (Proposed) as its decision record. **(a) IS NOW MEASURED TOO (2026-10-08, §1.28): all nine runs retrained without comments — Top-5 0.5394 ± 0.0116 / 0.5546 ± 0.0084 / 0.5519 ± 0.0187, line F1 0.2359 / 0.2408 / 0.2330 (cross_attention / concat / `llm_only`). The arms tie, and each matches (b) for the same arm — so (b) did not under-state a leak-free-trained model, as this row had guessed. What is left is the owner's acceptance.** Neither has touched a held-out partition |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
@@ -3245,7 +3278,37 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-08 14:50 (session 16): `d97r` IS COMPLETE — nothing is running or paused
+#### Where it stands — 2026-10-08 15:50 (session 17): Q14 CLOSED — ADR-010 accepted; two owner steps stand before Phase 8
+
+- **The owner accepted ADR-010 (Q14) this afternoon** (§2). The nine `d97r` checkpoints
+  are the models of record; the full model is `ba7dcc5f…` / `8afbf7da…` / `ff980345…`
+  with the calibrators in `artifacts/phase6/retrained/`. Every number logged with
+  comments in place stays in the record, labelled as measured on leaky text.
+- **Nothing is running or paused. No code, config or run changed** — `strip_comments`
+  stays an explicit override (ADR-010 D10.3), so no `config_hash` moves.
+- **Written into the documents the same hour:** ADR-010's status; `docs/EvaluationProtocol.md`
+  §2 and §3 (decided — the file as a whole is still a draft); `docs/HumanEvalProtocol.md`
+  §1 (the rater sample comes from seed 42 of the model of record, `ba7dcc5f…`; it named
+  `80fc5238…`; the seed is unchanged) and §2 (stripped text).
+- **The owner asked how to do the next two steps and was given them. Neither is done:**
+  1. **The Phase 7 gate.** Read `artifacts/phase7/sentences_for_review.md` — 19 template
+     sentences and 8 fixed forms, one page — and say which sentence numbers are of
+     concern, or that none is. Approve `docs/HumanEvalProtocol.md` as it now reads. Say
+     "sign". Record it the way §1.1c and §1.1d were recorded: a §2 row with the owner's
+     words, §1.1e's heading, `Phases.md`, `CLAUDE.md` §3 and `frontend/phases.json`.
+  2. **Confirm `docs/EvaluationProtocol.md`.** It is then committed as final.
+- **With both, Phase 8 starts:** the metric code first (`evaluation/` is still an empty
+  package), then the single held-out pass over `test` and `clean_eval` with the nine
+  checkpoints. The 2026-10-07 authorisation (§2) asks for no further check-in once the
+  protocol is committed.
+- **Still the owner's, not blocking:** whether raters start on the existing pilot pack
+  or on one redrawn from `ba7dcc5f…`; whether `a1r` runs, and where — while it runs on
+  this laptop nothing under `src/vulnloc/` changes, which would hold up Phase 8's code;
+  D10.4 (the transform at L0); scheduled optimisation of D: (admin).
+- **Not started, and not to be started before both steps above:** Phase 8 code, the
+  held-out evaluation.
+
+#### Where it stood — 2026-10-08 14:50 (session 16): `d97r` complete — nothing running or paused
 
 - **Everything `d97r` was started for is measured and written up in §1.28**: nine runs,
   three seed reports, nine score files, three calibrations, the audit, the explanations.

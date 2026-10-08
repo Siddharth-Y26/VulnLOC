@@ -31,6 +31,9 @@ the code wins; fix this file in the same session and note the drift.
    **ADR-009 (Accepted 2026-09-15) freezes the semantic encoder and caches its line
    features, taking A1 from 60-80 GPU-h to ~5 — so A1's claim is "with a fixed semantic
    representation". Two of its sections were amended by measurement; read them.**
+   **ADR-010 (Accepted 2026-10-08) strips comments from every line the models see,
+   because the corpus encodes the label in them a second way — the numbers of record are
+   the ones trained and evaluated with `+representation.strip_comments=true`.**
 5. **`docs/prior_work.yaml`** — the only published numbers this repo quotes, each with its
    source, its retrieval date, and the reason it is not comparable to ours. Read it before
    positioning this work against anyone else's; **never add a row from memory**.
@@ -65,13 +68,16 @@ at precision 1.0000 on `val`, 0.9744 on `test`, 0.9882 on `train`; "ends with `*
 flagged. All nine D9.7 checkpoints use it: Top-5 0.95–0.99 on the 58 `val` units it answers,
 **0.565–0.571 on the other 424**, against the logged 0.616–0.617. **A1's null survives** —
 the three arms tie on the other units too. Frozen, structural, Phase 3, A6 and machine-2
-numbers are unaudited. **Open decision Q14: strip comments and retrain, or repair at
-evaluation. Do not run the held-out evaluation on the shards as they are** — `test` carries
-the tell on 13.4% of its units. Every number below this paragraph was measured on that text.
+numbers are unaudited. **Q14 is CLOSED (2026-10-08): the owner accepted ADR-010 — comments
+are stripped and the headline was retrained (`Memory.md` §2). Do not run the held-out
+evaluation on the shards as they are** — `test` carries
+the tell on 13.4% of its units. Every number below this paragraph was measured on that text
+unless it says "stripped" or "retrained".
 
-**The same evening: the fix is built and measured, not yet accepted.**
+**The same evening the fix was built and measured; the owner accepted it on 2026-10-08.**
 `+representation.strip_comments=true` strips every comment label-blind and keeps the line
-count (ADR-010, **Proposed**; identical to the grammar's own comment nodes on 6,586 of
+count (ADR-010, **Accepted 2026-10-08** — still an explicit override, not a default;
+identical to the grammar's own comment nodes on 6,586 of
 6,586 clean units). The nine D9.7 checkpoints on comment-stripped `val`: **Top-5 0.5353 ±
 0.0200 / 0.5415 ± 0.0090 / 0.5546 ± 0.0084** (cross_attention / concat / `llm_only`), line
 F1 0.2355 / 0.2338 / 0.2362 — against 0.616–0.617 and 0.39 as shipped; the arms still tie.
@@ -91,7 +97,11 @@ Those are models *trained with* comments, so they are not the leak-free numbers 
 largest gap is cross_attention − `llm_only` on Top-1, −0.0118 at 1.92 pooled sd — a
 candidate in the control's favour, not a finding. Each arm retrained is indistinguishable
 from the same arm with comments stripped at evaluation only. **These, not 0.616–0.617, are
-the leak-free validation numbers — if the owner accepts ADR-010 (Q14).** The queue was
+the validation numbers of record: the owner accepted ADR-010 on 2026-10-08 (Q14 closed),
+and the nine `d97r` checkpoints are the models of record — the full model is
+`ba7dcc5f…` / `8afbf7da…` / `ff980345…`, calibrators in `artifacts/phase6/retrained/`.
+Owed by the owner before Phase 8: the Phase 7 gate and confirmation of
+`docs/EvaluationProtocol.md`.** The queue was
 paused by the owner from 05:46 to 10:59 on Thu 8 (one resumed run). **Calibrated, each
 checkpoint at its own `val` threshold, out of fold: line F1 0.2359 ± 0.0120 / 0.2408 ±
 0.0074 / 0.2330 ± 0.0118 (cross_attention / concat / `llm_only`) — a tie again, against
@@ -136,7 +146,9 @@ paused, `src/vulnloc/` and `configs/` may be edited again.
 **2026-10-07: the owner SIGNED the Phase 5 gate (morning) and the Phase 6 gate (afternoon); Phase 7 — 7a only — is the current phase.** Decided the
 same morning (`Memory.md` §2): **the full model is the architecture as designed —
 bidirectional cross-attention — at D9.7's configuration** (`80fc5238` / `c193e3bc` /
-`829c3555`; a choice, not a win: all three arms are reported); **the function-level criteria
+`829c3555`; a choice, not a win: all three arms are reported — **since 2026-10-08 the
+checkpoints of record are that configuration retrained without comments, `ba7dcc5f…` /
+`8afbf7da…` / `ff980345…`, ADR-010**); **the function-level criteria
 and the generative explainer (7b) are deferred in writing; external baselines stay
 `(reported)`**; weighted BCE gets no more seeds for now. **`test` and `clean_eval` have still
 never been evaluated on — once, at the end (`Rules.md` §5.3).** Owner deadline: the whole project in about a week;
@@ -516,7 +528,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 55 | **`nvidia-smi` cannot show a VRAM spill; the Windows counters can.** A resumed fine-tuned run sat at 3,692 MiB dedicated **plus 1,872 MiB shared** and ran 2.5× slower (5.0 vs 2.0 s/step) because the checkpoint had been loaded straight onto the card. Fixed: checkpoints load to host memory, and the loop releases PyTorch's cache whenever *reserved* memory exceeds the card. The baseline to compare a live D9.7 run against is **~2.0 s per optimizer step**; check with `Get-Counter '\GPU Process Memory(*)\Shared Usage'`. **A hardware-accelerated browser takes dedicated VRAM on the NVIDIA adapter (Brave: 162 MiB, measured 2026-10-04) — close it before a fine-tuned run.** |
 | 56 | **Windows can refuse the checkpoint rename, and that kills a fine-tuned run.** `save_checkpoint` writes `last.pt.tmp` and renames it over `last.pt`; on 2026-10-06 22:47 the rename raised `PermissionError: [WinError 5]` two hours into `72f067d0…` because something else had `last.pt` open (holder **not identified** — the prime suspect is Windows' scheduled defragmentation of D:, landmine #57; Defender real-time scanning is the other; neither is proven). Exit 1 is `[FAIL]`, which **the queue does not retry without `--retry-failed`**; it moves on, and the arm's seed report then runs on the seeds that did finish and is marked `done`. Recover with `run_queue.py --only d97 --retry-failed` (continues from the intact `last.pt`, same run id), then re-run that arm's seed report by hand and **check `n_seeds` in the report before quoting it**. **Fixed 2026-10-07:** the rename now waits out a lock for about two minutes before raising; the queue continues a run that crashed after a checkpoint by itself (`--retries`, default 2); and every seed report in the slate passes `+seeds.require_sufficient=true`, so a short one is `[FAIL]`, not `done`. Still check `n_seeds` before quoting a report made by hand. |
 | 57 | **An unattended laptop is not an idle laptop to us, but it is to Windows.** With nobody at the keyboard, Automatic Maintenance defragments D: — the hard disk the run checkpoints to — in passes Windows cancels after an hour (measured for one: 01:32 → 02:32). Four ended during training on the night of 2026-10-06 (21:20, 22:26, 23:26, 02:32). Measured during the 01:32 pass: D: 0% idle, a 32 MB write at 20 MB/s. It runs as SYSTEM; `Stop-ScheduledTask`, `schtasks /End` and `MSchedExe Stop` from a non-admin shell all reported success and stopped nothing. **Before a long run, the owner turns off scheduled optimisation for D: (Optimize Drives → Change settings), or runs it to completion first.** Same night, two more things a morning `--status` hides: a **GPU driver fault** (`nvlddmkm` 13 × 20, 153 × 2 at 01:12 → `CUDA error: unspecified launch failure`, exit 1, `[FAIL]`; the first since 2026-10-02), and a **VRAM spill that never trips the guard** — 3,810 MiB dedicated + 792 MiB shared, 536 s per 100 steps against a median of ~150, cleared by itself at the epoch boundary. **The guard is fixed (2026-10-07), from a measurement:** `scripts/probe_vram_spill.py` put the start of paging at ≈ 3,520 and ≈ 3,780 MiB reserved in two runs forty minutes apart — the budget is neither the card's 4,096 MiB nor a constant — while the old rule waited for 4,096. The loop now releases its cache when the *driver* reports no free memory (it did so from ≈ 3,290 MiB both times), which costs at most ~90 ms a step. Checked the same morning on a short fine-tuned probe (`3ee36f97…`, void): no spill in 23 samples and 1.01 s/step, against the night's ~1.2–1.5. Still read `releases_so_far` and the pace on the first full-length run. The defragmentation is still the owner's to switch off; a GPU fault is now retried by the queue. |
-| 58 | **A flagged line that ended a block comment has lost the slash of its `*/` — a second formatting leak that ADR-006's whitespace fix does not close** (`Memory.md` §1.25, found 2026-10-07). A line ending a comment with a bare `*` is flagged at precision 1.0000 on `val`, 0.9744 on `test`, 0.9882 on `train`; a line ending in `*/` is never flagged (0 of 8,474 on `train`). The nine D9.7 checkpoints use it: ≈ 0.05 of every logged `val` Top-5 and ≈ 0.07 of Top-1 sit on the 58 units it answers. It also causes parse damage (an unterminated comment swallows the code after it), so the structural branch may read it too. `clean_eval` has no positive tell but almost no flagged line there carries a comment at all. **Label every line-level number as measured on leaky text until Q14 is decided, and do not run the held-out evaluation on the shards as they are.** `python scripts/audit_label_leakage.py` and `python scripts/audit_score_leakage.py` are the two instruments; re-run both after any corpus change. The audit missed this for a month because it only asked whether a tell was *right* — **a tell that is never right is just as readable**, and it now reports both. |
+| 58 | **A flagged line that ended a block comment has lost the slash of its `*/` — a second formatting leak that ADR-006's whitespace fix does not close** (`Memory.md` §1.25, found 2026-10-07). A line ending a comment with a bare `*` is flagged at precision 1.0000 on `val`, 0.9744 on `test`, 0.9882 on `train`; a line ending in `*/` is never flagged (0 of 8,474 on `train`). The nine D9.7 checkpoints use it: ≈ 0.05 of every logged `val` Top-5 and ≈ 0.07 of Top-1 sit on the 58 units it answers. It also causes parse damage (an unterminated comment swallows the code after it), so the structural branch may read it too. `clean_eval` has no positive tell but almost no flagged line there carries a comment at all. **Label every line-level number measured with comments in place as measured on leaky text, and do not run the held-out evaluation on the shards as they are** (Q14 was decided on 2026-10-08: ADR-010 accepted — the held-out evaluation is made on comment-stripped text with the nine `d97r` checkpoints). `python scripts/audit_label_leakage.py` and `python scripts/audit_score_leakage.py` are the two instruments; re-run both after any corpus change. The audit missed this for a month because it only asked whether a tell was *right* — **a tell that is never right is just as readable**, and it now reports both. |
 | 59 | **A semantic-cache directory holds one cache per partition.** Building the comment-stripped features into `artifacts/semantic_cache/` would replace the cache of record every frozen run was logged against (reproducible only to 1.9e-6, #50). `write_cache` now refuses to replace one text variant with the other, and stripped evaluation reads `<dir>_stripped`. Build with `train.semantic_cache.dir=./artifacts/semantic_cache_stripped`. |
 | 60 | **A run-id prefix can be a number to Hydra.** `+score.run_id=920989e5` arrived as the float `92098900000.0`; the step failed, the batch went on, and an audit reported an arm at `n=2` where three checkpoints existed. `utils/config.py::run_id_text` now refuses a non-text run id. **Pass full 32-character ids from scripts, and read `n_seeds` before quoting any aggregate.** |
 | 61 | **A run trained on stripped text is "not a change of text", so its scores defaulted into `artifacts/phase6/scores/`** — beside the comment-trained checkpoints, where the score audit would have averaged both as one arm at `n=6` without an error (stripping keeps the line count). Caught before any `d97r` checkpoint was scored. Three populations now have three default directories — `scores/`, `scores_stripped/` (evaluated without comments), `scores_retrained/` (trained without them) — the audit refuses scores made from the other text variant, and a retrained checkpoint is its own arm (`<arm>_retrained`). **`calibrate.py` replaces the `calibration_report.json` in its output directory: always pass `+calibrate.output_dir=` for anything but the full model of record.** |

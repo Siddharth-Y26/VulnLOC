@@ -16,9 +16,13 @@ The **text of the explanation** the template explainer (`explanation/generator.p
 model's ranking — that is measured by the line-level metrics — and not the dataset's
 labels.
 
-The full model is the configuration the owner froze on 2026-10-07: bidirectional
-cross-attention, ADR-009 D9.7's fine-tuned runs. **One checkpoint supplies the sample:
-seed 42, run `80fc5238…`.** The seed was fixed here, before any explanation was read.
+The full model is the architecture the owner froze on 2026-10-07 — bidirectional
+cross-attention at ADR-009 D9.7's configuration — **retrained on comment-stripped text
+(`d97r`): the models of record since the owner accepted ADR-010 on 2026-10-08**
+(`Memory.md` §2). **One checkpoint supplies the sample: seed 42, run `ba7dcc5f…`.** The
+seed was fixed here on 2026-10-07, before any explanation was read, and has not changed.
+Until ADR-010 was accepted this line named `80fc5238…` — the same seed of the same
+architecture, trained with comments.
 
 ## 2. Population and sample
 
@@ -34,9 +38,9 @@ seed 42, run `80fc5238…`.** The seed was fixed here, before any explanation wa
   SHA-256 hash of `"42:<unit_id>"`. Deterministic, order-independent, and not chosen by
   anyone. No stratification: the sample's share of pattern-matched explanations is
   whatever the population's is, and is reported.
-- **Text variant:** the variant the headline numbers are reported on. If open decision
-  Q14 (`Memory.md` §5) results in comment stripping, the samples are drawn from, and
-  show, comment-stripped text.
+- **Text variant:** the variant the headline numbers are reported on — **comment-stripped
+  text, decided 2026-10-08 (Q14, `Memory.md` §5).** The samples are drawn from, and show,
+  comment-stripped text.
 
 `scripts/make_rater_pack.py` performs the draw and writes the pack; it logs an MLflow run
 and a `key.json` that maps sample ids to units, which the raters do not see.
@@ -104,7 +108,13 @@ Fixed now; computed by script from the three sheets, nothing by hand.
 ## 7. Order of work
 
 1. Owner approves this protocol (Phase 7 gate).
-2. Optional pilot on `val`: `python scripts/make_rater_pack.py +pack.run_id=80fc5238`
-   (add `+representation.strip_comments=true` for the stripped variant).
+2. Optional pilot on `val`. A pilot pack already exists at
+   `artifacts/phase7/rater_pack_stripped/`, drawn on 2026-10-07 from `80fc5238…` (trained
+   with comments, shown without). One from the model of record goes to its own directory,
+   so neither replaces the other:
+   `python scripts/make_rater_pack.py +pack.run_id=ba7dcc5ff8354cc4b6d7e7b76f876fd9
+   +representation.strip_comments=true
+   +pack.explanations_dir=./artifacts/phase7/explanations_retrained
+   +pack.output_dir=./artifacts/phase7/rater_pack_retrained`.
 3. Phase 8: evaluation protocol committed → held-out scoring → explanations on `test` →
    `make_rater_pack.py +pack.split=test +pack.final=true` → raters → agreement and report.
