@@ -2229,6 +2229,57 @@ Next:
 
 ---
 
+### 2026-10-07 20:00 → 2026-10-08 05:50 (session 16, the night) — two retrained arms in, two traps caught before they fired, paused
+
+Phase: 7 (7a built; gate prepared, not signed). Everything below is `val`.
+
+- **Owner:** away overnight ("keep working/training on your own"); at 05:45 asked to
+  pause — `run_queue.py --stop` at 05:46 — and to resume later.
+- **`d97r` ran unattended for eleven hours without a crash:** six fine-tuned runs
+  finished, each one attempt, none resumed; a seventh was paused mid-run.
+- **Two arms have three seeds (§1.28).** Cross-attention retrained without comments:
+  Top-5 0.5394 ± 0.0116. `llm_only` retrained: 0.5519 ± 0.0187. Each matches what its
+  comment-trained checkpoints score with comments stripped at evaluation only, and the
+  designed model does not beat its control (Top-1 −0.0118 at 1.92 pooled sd, same sign on
+  every seed: a candidate in the control's favour, not a finding).
+- **Trap 1, caught by reading defaults (§7 #61):** a checkpoint trained on stripped text is
+  "not a change of text", so its scores would have been written beside the comment-trained
+  ones and audited as one arm at `n=6`. Three populations now have three directories; the
+  audit refuses the other text variant.
+- **Trap 2, my own, caught two hours before it fired (§7 #62):** an edit to
+  `explanation/generator.py` between two seeds of an arm — allowed by a rule that only
+  protected what training imports — would have failed that arm's seed report at midnight.
+  The report carries the recorded override; the rule is now "nothing under `src/vulnloc/`
+  while a group runs".
+- **Unattended machinery, all under `artifacts/queue/`:** `d97r_after.ps1` (retry what
+  crashed, then score / calibrate / audit / explain complete arms; stands down if somebody
+  paused the queue — it did, correctly), `d97r_report_cross.ps1` (made the one report the
+  old plan could not), `d97r_resume.ps1` (continue the paused group).
+- **Repaired:** a path in §6 that an unescaped backslash had turned into two vertical-tab
+  characters; a scan of every tracked text file found no other control character.
+
+Files touched: `scripts/score_checkpoint.py`, `scripts/explain_checkpoint.py`,
+`scripts/audit_score_leakage.py`, `scripts/run_queue.py` and their four test files;
+`docs/Memory.md`, `CLAUDE.md`, `docs/EvaluationProtocol.md`. Nothing under `src/vulnloc/`
+or `configs/`. Tests: 1,265 passed, 2 skipped (22:11, `2f6e150`).
+
+Runs logged: `ba7dcc5f…` `8afbf7da…` `ff980345…` (cross_attention), seed report
+`bd2544c7…`; `d82a6a70…` `a1dce535…` `9296a0e5…` (`llm_only`), seed report `f814e521…`;
+`9ac7a146…` (concat seed 42) paused, unfinished.
+
+Learned:
+- **Before leaving a group unattended, read what its last step will check**, not only what
+  its training steps need. Both traps were visible in code that had not run yet.
+- A queue process keeps the plan it started with; editing `run_queue.py` changes the next
+  start, not the running one.
+- For the two arms measured, retraining without comments is not resolvably different from
+  stripping them at evaluation only (0.19 to 1.26 pooled sd on Top-5 and Top-1).
+
+Next: resume (`artifacts/queue/d97r_resume.ps1`), then finish §1.28 as §6 item 0a's
+"Where it stands" block says. The owner's six open decisions are listed there.
+
+---
+
 ### 2026-10-07 afternoon → evening (session 16, continued) — a second label leak, its fix, A6 and Phase 7a
 
 - **Owner, 14:45:** Q5 deferred, Phase 6 gate signed, the held-out evaluation authorised for
@@ -2967,7 +3018,80 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-07 18:15 (session 16): `d97r` IS RUNNING — the leak-free rerun
+#### Where it stands — 2026-10-08 05:50 (session 16): `d97r` IS PAUSED at the owner's request — to be resumed later
+
+**Nothing is running. Nothing is broken. Six of the nine training runs are finished, a
+seventh is paused mid-run, two have not started.**
+
+| Step | State | Run | `val` Top-5 / Top-1 |
+|---|---|---|---|
+| `d97r-overfit-cross_attention` (the gate) | done | `bcf18403…` | passed — never a result |
+| `d97r-cross_attention-seed42` / `seed1` / `seed2` | done | `ba7dcc5f…` `8afbf7da…` `ff980345…` | **0.5394 ± 0.0116 / 0.2683 ± 0.0060** |
+| `d97r-seed-report-cross_attention` | **`[FAIL]` in the slate — the report exists** | `bd2544c7…` | see below |
+| `d97r-llm_only-seed42` / `seed1` / `seed2` | done | `d82a6a70…` `a1dce535…` `9296a0e5…` | **0.5519 ± 0.0187 / 0.2801 ± 0.0062** |
+| `d97r-seed-report-llm_only` | done | `f814e521…` | |
+| `d97r-concat-seed42` | **`[paus]`** at step 3,944 (sixth epoch, 80.7 min in), `last.pt` written | `9ac7a146…` | — |
+| `d97r-concat-seed1`, `seed2`, `d97r-seed-report-concat` | pending | | |
+
+The two finished arms are written up in §1.28. Nothing has been scored, calibrated,
+audited or explained from these checkpoints yet — that step runs after all nine.
+
+**To resume — one command, any time the laptop is free and plugged in:**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File D:\project\artifacts\queue\d97r_resume.ps1
+```
+
+It refuses a dirty tree or a queue that is already running; otherwise it removes the STOP
+file, starts the queue in its own window (which continues `9ac7a146…` from its checkpoint —
+same run id, same learning curve — then runs concat seeds 1 and 2 and the concat seed
+report) and puts `d97r_after.ps1` behind it. **About 2–5 h of training, then about 1 h of
+scoring.** `python scripts/run_queue.py --stop` pauses it again.
+
+**The `[FAIL]` is not a failed training run and needs no repair by hand.** No training run
+failed that night: all six that finished did so on their first attempt, none resumed. The `[FAIL]`
+is the queue's first attempt at the cross-attention *seed report* — a ten-second
+aggregation step — which refused because one explainer file changed between two of the
+arm's seeds (§7 #62). The report was made minutes later with the recorded override
+(`bd2544c7…`, `n_seeds: 3`), so the arm's numbers are complete. The mark itself clears on
+resume: `d97r_after.ps1` runs `--only d97r --retry-failed` after the last concat run, and
+the queue's plan now carries the override. **Do not run `--retry-failed` by hand while the
+group is paused — it would also restart the paused training run.**
+
+**Until it is resumed and finished:**
+
+- **Change nothing under `configs/` or `src/vulnloc/`.** A paused run refuses to resume
+  under a different config (§7 #54); a package change between concat's seeds fails
+  concat's report (§7 #62). `scripts/`, `tests/`, `frontend/` and docs are fine,
+  committed at once.
+- `d97r-concat-seed42` will be a **resumed run**: quote its `resumed_at` tag beside
+  concat's numbers (§7 #53). The other eight are uninterrupted.
+- Do not quote a concat number, or A1's comparison on leak-free text, before concat has
+  three finished seeds and a report at `n_seeds: 3`.
+
+**When it has finished:** read `artifacts/queue/d97r_after.out` first (every step's exit
+code is in it), then `python artifacts/queue/d97r_read.py` (all three arms: runs,
+provenance, seed reports, calibration, audit, explanations) and
+`python artifacts/queue/d97r_stats.py` (within-arm and between-arm differences in pooled
+sd). Both only read. Then finish §1.28: the concat arm, cross_attention − concat, the
+calibrated line F1, the audit's blank-line view. Artefacts land in
+`artifacts/phase6/scores_retrained/`, `artifacts/phase6/retrained/` and
+`artifacts/phase7/explanations_retrained/` — never beside the comment-trained
+checkpoints' (§7 #61).
+
+**Still the owner's, unchanged by the night:** Q14 (accept ADR-010 and the retraining as
+the numbers of record); the Phase 7 gate (read `artifacts/phase7/sentences_for_review.md`,
+approve `docs/HumanEvalProtocol.md`, sign); whether raters start on the pilot pack; whether
+the second laptop runs `a1r`; confirming that the held-out evaluation runs on stripped
+text with the `d97r` checkpoints (`docs/EvaluationProtocol.md`, draft); turning off
+scheduled optimisation for D:. **Not started, and not to be started without the owner:**
+Phase 8 code, the held-out evaluation, `a1r`.
+
+The helper scripts under `artifacts/queue/` are git-ignored: they exist on this laptop
+only (`d97r_chain.ps1`, `d97r_gate.py`, `d97r_after.ps1`, `d97r_resume.ps1`,
+`d97r_report_cross.ps1`, `run_plan_step.py`, `d97r_read.py`, `d97r_stats.py`).
+
+#### Where it stood — 2026-10-07 18:15 → 2026-10-08 05:46 (session 16): the night `d97r` ran
 
 - **`d97r` was started at 18:04 by session 16, pending the owner's decision on Q14.** Its
   own console window ("VulnLoc d97r"), transcript `artifacts/queue/d97r_chain.out`. Step
@@ -3037,8 +3161,10 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   `d97r-concat-seed42` (run `9ac7a146…`, clean `fbc44e2`) paused cleanly at optimizer
   step 3,944, in its sixth epoch, 80.7 min in, with `last.pt` written (`kind=paused`).
   The queue exited, the GPU is free, and `d97r_after.ps1` stood down on the STOP file
-  without scoring anything. **State: 7 of 9 runs done; cross_attention and `llm_only`
-  have their three-seed reports (§1.28); concat has no finished seed.**
+  without scoring anything. **State: 6 of 9 training runs finished, a seventh paused
+  mid-run; cross_attention and `llm_only` have their three-seed reports (§1.28); concat
+  has no finished seed.** (This line first said "7 of 9 runs done" — a miscount of the
+  slate's seven finished *steps*, one of which is a seed report; corrected 05:55.)
   - **To continue:** `powershell -ExecutionPolicy Bypass -File
     D:\project\artifacts\queue\d97r_resume.ps1` — it removes the STOP file, starts
     the queue in its own window (same run id, same learning curve) and puts the

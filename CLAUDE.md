@@ -85,11 +85,15 @@ made with the recorded source-drift override, landmine #62); `llm_only` 0.5519 �
 only, and the designed model does not beat its control: Top-5 −0.0124 (0.80 pooled sd),
 Top-1 −0.0118 (1.92 pooled sd, same sign on every seed — a candidate in the control's
 favour, not a finding). **`d97r` IS PAUSED since Thu 2026-10-08 05:46, at the owner's
-request: 7 of 9 runs done, `d97r-concat-seed42` paused mid-run with its checkpoint.
+request: 6 of 9 training runs finished, a seventh (`d97r-concat-seed42`) paused mid-run
+with its checkpoint, two not started.
 Continue it with `powershell -ExecutionPolicy Bypass -File
 artifacts\queue\d97r_resume.ps1` (2–5 h of training, then ~1 h of scoring); that
-seed will be a resumed run. `--status` shows one expected `[FAIL]` (the cross-attention
-seed report's first attempt).** Run
+seed will be a resumed run. `--status` shows one `[FAIL]`: the queue's first attempt at
+the cross-attention seed *report* — no training run failed, the report exists, and the
+mark clears by itself on resume. Do not run `--retry-failed` by hand while the group is
+paused: it would restart the paused run. `Memory.md` §6 item 0a, "Where it stands", is
+the handoff.** Run
 `python scripts/run_queue.py --only d97rcheck d97r --status` first. While a `d97r-*` step
 is running or paused, **do not edit `configs/` or ANY file under `src/vulnloc/`** — not
 only what training imports: the seed report refuses an arm whose seeds straddle any
