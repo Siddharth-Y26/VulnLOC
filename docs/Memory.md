@@ -28,7 +28,7 @@
 |-------|-------|
 | **Active phase** | **Phase 7 — Explanation (7a), since 2026-10-07: Phases 5 and 6 are SIGNED (§1.1c, §1.1d).** Ablation A6 (attention direction) is running on the frozen cache as queue group `a6`. Phase 5's record, kept: **A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **D9.7 (fine-tuned confirmation): the six runs ADR-009 specifies are FINISHED (§1.22) — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, again no resolvable difference.** The added scaffold control `llm_only` × 3 finished on 2026-10-07: **0.6169 ± 0.0048 Top-5 — no fused arm beats it (§1.22)** |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15; Phases 5 and 6 SIGNED 2026-10-07; Phase 7 SIGNED 2026-10-08 — Phase 8 is the current phase.** ADR-008 and ADR-009 accepted 2026-09-15, ADR-010 on 2026-10-08 |
-| **Last updated** | 2026-10-10 20:50 (session 18: resumed at the owner's word — `a1r` on its last two runs, the held-out pass chained behind it; the ablation tables built — §6 item 0a) |
+| **Last updated** | 2026-10-10 21:15 (session 18: paused again at the owner's request — `a1r` at 17 of 18 runs, the held-out pass not started; the ablation tables built — §6 item 0a) |
 | **Open decision** | **None blocking a measurement. On 2026-10-08 the owner accepted ADR-010 (Q14), signed the Phase 7 gate and confirmed `docs/EvaluationProtocol.md` (§2); the single held-out evaluation is authorised and is made on comment-stripped text with the nine `d97r` checkpoints.** Q13 answered and Q5 deferred by the owner (§2, §5). Still open, not blocking: ADR-006 and ADR-007 `Proposed` (ADR-007 blocks ablation A3's CPG arm); Q4 (explanation supervision) belongs to Phase 7; the paper's framing of the A1 null; scheduled defragmentation of D: (§7 #57) |
 | **Last commit** | Session 14's resume/queue commit on `phase-2/representation` (see `git log`). **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
 | **Best model run ID** | **Models of record since 2026-10-08 (ADR-010 accepted, §2; `val` numbers in §1.28): cross_attention `ba7dcc5f…` / `8afbf7da…` / `ff980345…` (the full model), concat `9ac7a146…` / `7579bc33…` / `10b43ce5…`, `llm_only` `d82a6a70…` / `a1dce535…` / `9296a0e5…`.** Single-branch baselines, measured with comments in place: semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
@@ -3570,7 +3570,23 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-10 20:50 (session 18): `a1r` is running again, with the chain script waiting behind it
+#### Where it stands — 2026-10-10 21:15 (session 18): PAUSED again at the owner's request — `a1r` at 17 of 18 runs, the held-out pass NOT started
+
+- The owner, at about 21:09: *"pause for a bit i will continue later"*. `run_queue.py
+  --stop` was issued at 21:09. `a1r-sum-seed2` was in flight; a frozen run is not
+  resumable, so it finished by itself, and the queue exited at 21:12 without starting
+  another step.
+- `a1r` stands at 17 of 18 runs. Left: `a1r-gated-seed2` (about 18 min) and the six seed
+  reports. Five arms have three seeds, `gated` has two; no seed report exists, so no
+  `a1r` number is quoted (§7 #37).
+- The held-out pass was not started. The chain script found the `STOP` file when the
+  queue exited and ended — the last line of `artifacts/queue/a1r_then_heldout.out` says
+  so. Score files: 1 on `test`, 0 on `clean_eval`, as on 2026-10-08; nothing held-out has
+  been evaluated or looked at.
+- Nothing is running. The owner said they will continue later. The 20:50 block below
+  describes what was running before this pause and how it was started.
+
+#### Where it stood — 2026-10-10 20:50 (session 18): `a1r` is running again, with the chain script waiting behind it
 
 - The owner wrote *"continue"* at about 20:49, after the conversation was compacted.
   How session 18 read that word, and what the reading rests on, is the first row of §2.

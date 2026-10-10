@@ -61,6 +61,14 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-10 21:10 (session 18): PAUSED AGAIN AT THE OWNER'S REQUEST ("pause for a bit i
+will continue later").** `run_queue.py --stop` at 21:09: `a1r-sum-seed2`, in flight,
+finishes by itself and nothing more starts — `a1r` stands at 17 of 18 runs, with
+`a1r-gated-seed2` and the six seed reports left. **The held-out pass was not started**: the
+chain script ends on the `STOP` file, and there is still 1 score file of 18. Nothing is
+running; the owner said they will continue later (`Memory.md` §6 item 0a). The paragraphs
+below describe the state before this pause.
+
 **2026-10-10 20:50 (session 18): RESUMED AT THE OWNER'S WORD ("continue", after the
 conversation was compacted).** `python scripts/run_queue.py --only a1r` is running `a1r`'s
 last two runs and its six seed reports, and `artifacts\queue\a1r_then_heldout.ps1` waits
