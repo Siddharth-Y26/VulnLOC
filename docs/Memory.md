@@ -2568,12 +2568,148 @@ evaluation's "blank lines withheld" reading already removes it.
 
 ---
 
+## 1.32 `a1r` — the frozen A1 screen retrained on comment-stripped text: cross-attention leads concat and sum on `val`; a replication on new seeds is pre-stated here (2026-10-11)
+
+**Status: `val` only, validation-selected, three seeds an arm. A candidate under
+replication — not a finding, and not the models of record: with the encoder fine-tuned
+the same arms tie on the same text (§1.28).** §1.30 is reserved for the held-out results.
+
+The screen of §1.21 again, with exactly two more overrides
+(`+representation.strip_comments=true` and the stripped cache's own directory): six arms ×
+seeds 42 / 1 / 2, `train=fused`, frozen CodeBERT line features read from
+`artifacts/semantic_cache_stripped`, GCN depth 4 over AST with identifier subtokens. Queue
+group `a1r`, 2026-10-10 14:52 → 2026-10-11 00:14, with two pauses at the owner's request;
+no run was interrupted (a frozen run is not resumable and each finished). Gate:
+`a1rcheck`, `3c749001…`, Top-1 1.0000 from epoch 58. Every seed report says `n_seeds: 3`,
+every run cross-checks `agrees`, and no source drift was accepted — the commits the runs
+span differ in docs and scripts only. The arm rows below are the six seed reports'; the
+differences in pooled sd are `scripts/make_ablation_tables.py`'s arithmetic on them, and
+**its logged run — the tables of record, `artifacts/phase8/ablations.md` — is made once
+the held-out pass has ended** (nothing else writes to the tracking store while the pass
+runs); its run id is added here then.
+
+| Frozen, comment-stripped, `val`, 3 seeds | Top-5 | Top-1 | IFA ↓ | Top-5 by seed (42 / 1 / 2) | Selected epoch, of epochs evaluated | Runs (42 / 1 / 2) |
+|---|---|---|---|---|---|---|
+| cross_attention | **0.5325 ± 0.0102** | 0.2510 ± 0.0145 | **12.31 ± 0.30** | 0.5207 / 0.5394 / 0.5373 | 2, 2, 2 of 6, 6, 6 | `8cde0dd5` `7f9149ea` `53d468bb` |
+| concat | 0.4938 ± 0.0157 | 0.2151 ± 0.0213 | 14.54 ± 1.04 | 0.4917 / 0.4793 / 0.5104 | 1, 1, 4 of 5, 5, 8 | `6ce89a15` `5495b3bf` `06780cf6` |
+| sum | 0.5048 ± 0.0043 | 0.2517 ± 0.0196 | 16.85 ± 1.43 | 0.5083 / 0.5000 / 0.5062 | 5, 9, 5 of 9, 10, 9 | `d25cf429` `0eafe0f4` `6b95e590` |
+| gated | 0.5131 ± 0.0102 | 0.2441 ± 0.0060 | 16.23 ± 1.19 | 0.5062 / 0.5083 / 0.5249 | 8, 5, 5 of 10, 9, 9 | `bfc8abec` `2259f46f` `2d3d4629` |
+| `llm_only` | 0.4945 ± 0.0094 | 0.2254 ± 0.0012 | 13.85 ± 0.15 | 0.4855 / 0.5041 / 0.4938 | 1, 1, 2 of 5, 5, 6 | `3b6832aa` `3c3779a6` `91963e6c` |
+| `gnn_only` | 0.4481 ± 0.0041 | 0.1646 ± 0.0397 | 19.84 ± 1.33 | 0.4523 / 0.4440 / 0.4481 | 3, 9, 8 of 7, 10, 10 | `ea51fd68` `5f31909f` `3c1ede50` |
+
+Epochs are counted from 0. Top-1 is the value each run logged (ties in `argsort` order,
+§7 #63).
+
+### The comparisons the catalogue pre-states — 15 scaled, 11 past 2 pooled sd
+
+| First − second | Top-5 | Top-1 | IFA | Top-5 by seed (42 / 1 / 2) |
+|---|---|---|---|---|
+| cross_attention − concat (**A1's question**) | **+0.0387 (2.93 pooled sd)** | +0.0360 (1.97) | −2.23 (2.91) | +0.0290 / +0.0602 / +0.0270 |
+| cross_attention − sum | +0.0277 (3.52) | −0.0007 (0.04) | −4.53 (4.37) | +0.0124 / +0.0394 / +0.0311 |
+| cross_attention − gated | +0.0194 (1.89) | +0.0069 (0.62) | −3.91 (4.49) | +0.0145 / +0.0311 / +0.0124 |
+| cross_attention − `llm_only` | +0.0380 (3.88) | +0.0256 (2.48) | −1.54 (6.43) | +0.0353 / +0.0353 / +0.0436 |
+| cross_attention − `gnn_only` | +0.0844 (10.80) | +0.0864 (2.89) | −7.53 (7.80) | +0.0685 / +0.0954 / +0.0892 |
+
+### What this supports
+
+1. **On this screen cross-attention is ahead of concatenation: Top-5 +0.0387, 2.93
+   pooled sd, the same sign on every seed** — and every cross_attention seed (0.5207 –
+   0.5394) is above every concat seed (0.4793 – 0.5104). It is ahead of sum by +0.0277
+   (3.52) and of gated by +0.0194 (1.89 — not resolved). Its IFA is the lowest of the six
+   arms and crosses the threshold against all three other fusion arms. The only admissible
+   phrasing is the qualified one: *"with a fixed semantic representation, on
+   comment-stripped text, on validation, at three seeds"* (ADR-009 D9.1).
+2. **Against the single branches: +0.0380 over frozen `llm_only` (3.88 pooled sd, every
+   seed) and +0.0844 over `gnn_only` (10.80).**
+3. **"Every fusion arm beats frozen `llm_only` on every seed" (§1.21) does not survive
+   retraining without the tell.** It holds for cross_attention and gated (3 of 3 seeds
+   each). Concat − `llm_only` is −0.0007 (by seed +0.0062 / −0.0248 / +0.0166) and sum −
+   `llm_only` is +0.0103 (+0.0228 / −0.0041 / +0.0124); gated − `llm_only` is +0.0186.
+   These three are differences of the table's means, not among the catalogue's
+   comparisons.
+4. **Where the arms moved when the tell was removed.** Top-5 against §1.21 (text as
+   shipped) — a different training text and a different cache, so a description, not a
+   paired comparison: concat 0.5394 → 0.4938, sum 0.5304 → 0.5048, gated 0.5221 → 0.5131,
+   cross_attention 0.5408 → 0.5325, `llm_only` 0.4903 → 0.4945, `gnn_only` 0.4191 →
+   0.4481. The §1.21 checkpoints with comments stripped at evaluation only (§1.25) had
+   cross_attention at 0.5228 and concat at 0.5159: trained without the tell, concat falls
+   further and cross_attention does not.
+5. **Frozen cross-attention sits 0.007 below its own fine-tuned form** (0.5325 against
+   §1.28's 0.5394 ± 0.0116), while fine-tuning lifts `llm_only` from 0.4945 to 0.5519 and
+   concat from 0.4938 to 0.5546. Two comparison groups, three seeds each — a description.
+   *A reading, not a measurement:* what cross-attention adds over fixed features and what
+   fine-tuning the encoder adds may be largely the same thing, which would explain both a
+   lead when the encoder is frozen and a tie when it is not.
+
+### What it does not support
+
+- **Anything about the models of record.** Fine-tuned, on the same text, cross_attention
+  − concat is −0.0152 (1.51 pooled sd, the other sign) and cross_attention − `llm_only`
+  is −0.0124 (§1.28). The nine `d97r` checkpoints are unchanged, and every frozen arm
+  here is below every fine-tuned one (0.5394 – 0.5546).
+- **"Cross-attention beats concatenation" as a finding.** Four reasons, each enough:
+  - *Three seeds.* Two arms with no difference reach 2 pooled sd 7 times in 100 (§7 #64),
+    and this screen's fifteen scaled comparisons all share one reference arm's three
+    runs — if those three are fortunate, all fifteen move together. Eleven crossings are
+    not eleven confirmations.
+  - *The same screen has said otherwise.* On text with the tell it gave +0.0014 with the
+    sign flipping by seed (§1.21), and two results of this project were retracted at
+    exactly this stage (§7 #37).
+  - *Each number is the best of 5–10 noisy epochs.* A run's `val` Top-5 moves by up to
+    0.0996 from one epoch to the next (`8cde0dd5`: 0.5083 → 0.4108 → 0.5104), and the
+    reported value is the maximum, selected on the partition it is reported on. The seed
+    sd of those maxima understates what one more epoch could change. What the curves do
+    show: no concat run reaches above 0.5104 at any of its 18 logged epochs; cross_attention
+    is above 0.5104 at 8 of its 18, sum at 0 of 28, gated at 2 of 28, `llm_only` at 0 of
+    16. The lead is not one lucky epoch — and it is still one partition.
+  - *Validation only.* Ablations are validation-only by protocol
+    (`EvaluationProtocol.md` §9); nothing held-out exists or is planned for this screen.
+- **Not line F1.** At the logged 0.5 threshold recall is 0.02–0.05 for every arm; F1 there
+  is calibration under focal loss, not localization (§1.21).
+
+### The replication — written before its first run
+
+Queue group **`a1rep`**: cross_attention, concat, `llm_only`, sum, gated × **seeds 3, 4,
+5**, with `a1r`'s constants and `a1r`'s cache — 15 frozen runs, the core pair first.
+`gnn_only` is not run again; its distance from every arm is not in question. Each arm then
+gets two seed reports in `artifacts/adr010/`: `…frozen_stripped_replication_<arm>.json`
+(seeds 3 / 4 / 5 alone) and `…frozen_stripped_six_seeds_<arm>.json`. The `a1r` reports
+above are other files and stay as they are. Fixed now, before any of these runs exists:
+
+- **Primary: cross_attention − concat on `val` Top-5 over seeds 3 / 4 / 5 alone**, by the
+  convention of every table here (mean ± sample sd, pooled sd, each seed's own
+  difference).
+- **Read as replicated** if that difference is positive and at least 2 pooled sd. **Read
+  as not replicated** otherwise — and the table above is then reported as a three-seed
+  crossing that three new seeds did not repeat.
+- **Secondary, reported whatever they show:** cross_attention − sum, − gated and −
+  `llm_only` on Top-5; all four pairs on Top-1 and IFA; the six-seed tables. The six-seed
+  table is not a third measurement — three of its seeds are the ones that prompted the
+  other three.
+- No arm, seed, metric or run is dropped afterwards. A run that fails is re-run with its
+  own seed and the failure is recorded.
+- **What cannot change whatever it shows:** the models of record, the fine-tuned tie
+  (§1.28), and the held-out results. Only the wording of the frozen screen's sentence
+  about A1 depends on it.
+
+### Runs behind this section
+
+Training: the 18 runs in the first table. Seed reports (all at `344db7c`):
+cross_attention `afbe8d62…`, concat `541d0e55…`, sum `3d5be460…`, gated `69681049…`,
+`llm_only` `381d6133…`, `gnn_only` `12f535d1…`. The per-epoch values are each run's
+logged `eval/line/top_5_accuracy` history. Artefacts:
+`artifacts/adr010/seed_report_fused_frozen_stripped_<arm>.json`,
+`artifacts/phase8/ablations.{json,md}`.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-10-11 | **The `a1r` screen is run again on three new seeds — queue group `a1rep`, started after the held-out pass has ended** (session 18, on the owner's words shortly after midnight: *"train or build whatever you need to overnight, internet will be on till 4 am i guess"*, and *"keep the docs updated and context as well updated so theres no dip in your performance"*). cross_attention, concat, `llm_only`, sum, gated × seeds 3 / 4 / 5, `a1r`'s constants and cache; what is computed from them is written in §1.32 before the first run. **The choice of what to train is the session's, under that delegation; the owner can stop it with `python scripts/run_queue.py --stop`** | Leave `a1r`'s three-seed result as it is · re-run all six arms · add seeds only to the core pair | `a1r` put cross_attention 2.93 pooled sd ahead of concat on Top-5 — A1's own comparison — where the same screen on text with the tell showed nothing and the fine-tuned models tie. At three seeds that is a candidate (§7 #37, #64), and a frozen run costs about 15 minutes: fifteen runs fit in one night and need nobody. `gnn_only` is left out because nothing about it is in question. Run after the pass, so one GPU job at a time; before Phase 9's merge, so that `src/vulnloc/` is the same for all six seeds of an arm | — |
 | 2026-10-11 | **The held-out pass runs tonight, after `a1r`** (owner, asked at 23:55 on 2026-10-10 with two options — "a1r only", "Yes, after a1r tonight" — after resuming with *"continue"*; answer at about 00:00: **"Yes, after a1r tonight"**). On the bare "continue" session 18 restarted `a1r` alone at 23:54 and asked; the chain script was started at 00:00, only after the answer | `a1r` only, the pass on another day — the session's recommendation, because the pass then runs unattended until about 02:00–03:30 | The owner's to decide, and the owner named it. The row below read a bare "continue" as covering the pass, and the owner paused again twenty minutes later (*"pause for a bit i will continue later"*, 21:09) without saying why; so this time the question was put before anything was armed | — |
 | 2026-10-10 | **The pause of 18:52 ends: the `a1r` queue and the chain behind it run again from 20:50** (owner, after the conversation was compacted: *"continue"*). Session 18 reads the word as undoing the pause and nothing more: the 18:51 instruction was *"if anything is running, pause for a while and compact"*, and what was running then was `a1r` with the held-out pass chained behind it by the owner's 16:25 answer ("After a1r, tonight"). **The owner did not name the pass again — that it follows `a1r` rests on the 16:25 answer, and the reading is the session's** | Resume `a1r` alone and ask once more about the pass | The owner named and timed the pass four hours earlier; the pause was asked for "a while", for compaction, not as a change of plan; it is still tonight. The chain also leaves a window: `run_queue.py --stop` before `a1r` exits (about 45 min from the restart) ends it without the pass, exactly as at 19:01 | — |
 | 2026-10-10 | **The held-out pass continues tonight, when `a1r` has finished** (owner, asked at 16:25 with three options — "After a1r, tonight", "Now", "Not yet" — after replying "next" to session 18's report; answer: **"After a1r, tonight"**). It starts by itself when the `a1r` queue exits, from `artifacts/queue/heldout_pass.py` as written on 2026-10-08: only what is missing is scored, each checkpoint once per partition. The owner then left for a few hours: *"ill be back in a few hours fo what you need to"* | Now, pausing `a1r` · not yet | The pass was authorised on 2026-10-07/08 and paused by the owner for the disk; the restart is the owner's too, and this names it. Running it after `a1r` interrupts nothing and keeps one GPU job at a time | — |
