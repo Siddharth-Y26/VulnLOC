@@ -67,8 +67,13 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 `artifacts/queue/heldout_pass.py` — **that script is the only thing that starts the pass;
 never start it by hand beside it** (two instances could score a checkpoint twice). Phase 9
 is being built on branch `phase-9/serving` in its own worktree and is **not merged until
-`a1r` and the pass have both finished**: serving lives under `src/vulnloc/`. Phase 8 is
-still open — held-out numbers, the taxonomy review, half the clean-clone criterion.
+`a1r` and the pass have both finished**: serving lives under `src/vulnloc/`. **Built by
+17:05 as commit `3a119ba` on that branch** — the bundle, single-function inference, the
+FastAPI app, 41 tests; on the real checkpoint the served batch equals training's exactly
+and the logits differ by at most 0.09 (`Memory.md` §6 item 0a has the measurement and the
+seven things still to do: merge, model card, export, latency, demo page, Docker, write-up).
+Phase 8 is still open — held-out numbers, the taxonomy review, half the clean-clone
+criterion.
 
 **2026-10-10 15:00 (session 18): QUEUE GROUP `a1r` IS RUNNING — the frozen A1 screen
 retrained on comment-stripped text, 18 runs + 6 seed reports, started 14:52, expect 5–7 h.**

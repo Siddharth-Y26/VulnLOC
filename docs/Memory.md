@@ -3590,6 +3590,26 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
 - **When the pass ends:** §1.30 — the held-out results, read against
   `docs/EvaluationProtocol.md` and nothing else; then the held-out figures
   (`make_phase8_figures.py +figures.split=test`, and `clean_eval`).
+- **Phase 9 at 17:05 — built, on branch `phase-9/serving`, NOT merged** (worktree
+  `…/scratchpad/wt9`; run its code with `PYTHONPATH=<worktree>\src` from `D:\project`):
+  - `src/vulnloc/serving/{bundle,inference,schemas,app}.py` + `static/index.html`;
+    `scripts/{export_serving_bundle,serve,measure_latency}.py`; a `serve` compose service;
+    `docs/MODEL_CARD.md` (validation numbers only); 41 tests; `import-linter` keeps
+    "serving never imports training".
+  - **Measured on the real checkpoint `ba7dcc5f…`, development build, not a logged run:**
+    48 `val` functions, 3,272 lines — the served batch equals training's collated batch
+    exactly (0 differing tensors), same top line 48 of 48, logit difference median
+    0.0004 / p99 0.005 / max 0.090 (CPU fp32 against stored GPU mixed precision). Two
+    seeds of one arm differ by > 0.33 somewhere in every one of 488 functions, so the
+    export's bound is 0.2. Under load, beside training: median 0.38 s a function.
+  - **Not done, in order:** (1) merge after `a1r` and the pass; (2) add the held-out
+    numbers to the model card; (3) export the bundle of record —
+    `python scripts/export_serving_bundle.py +explainer=template +export.run_id=ba7dcc5ff8354cc4b6d7e7b76f876fd9 +export.scores_dir=./artifacts/phase6/scores_retrained +export.calibration_report=./artifacts/phase6/retrained/calibration_report.json`;
+    (4) `python scripts/measure_latency.py +latency.bundle=./artifacts/serving/ba7dcc5f`
+    on an idle machine; (5) start `scripts/serve.py` and look at the demo page; (6)
+    Docker, never beside training, and "on a clean machine" is the second laptop's;
+    (7) `Memory.md` §1.33, `Phases.md`, a decision-log row for `httpx` (dev extra) and
+    for serving seed 42.
 - The 15:00 block below is unchanged except where this one says otherwise.
 
 #### Where it stood — 2026-10-10 15:00 (session 18): `a1r` IS RUNNING; the held-out pass is still paused, untouched
