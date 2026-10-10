@@ -340,14 +340,22 @@ class Analyzer:
         valid = batch["line_valid"][0]  # [L]
         logits = output["line_logits"][0].float().cpu()[valid]  # [n]
         scoreable = (output["line_mask"][0].cpu() & valid)[valid]  # [n]
+        # A line with no code on it is never offered as a finding. The model does score
+        # some of them — a run of empty lines is tokenized into newline tokens, so a
+        # stripped comment block can outrank real code (Memory.md §1.31) — and the
+        # evaluation reports this reading as "blank lines withheld".
+        blank = torch.tensor(
+            [not text.strip() for text in unit.lines[: int(logits.shape[0])]], dtype=torch.bool
+        )  # [n]
+        offered = scoreable & ~blank
         probabilities = self.calibrator.probabilities(logits.double())
         pred = Prediction(
             unit_id=unit_id,
             probabilities=tuple(
                 float(value) if usable else 0.0
-                for value, usable in zip(probabilities.tolist(), scoreable.tolist(), strict=True)
+                for value, usable in zip(probabilities.tolist(), offered.tolist(), strict=True)
             ),
-            scoreable=tuple(bool(usable) for usable in scoreable.tolist()),
+            scoreable=tuple(bool(usable) for usable in offered.tolist()),
             threshold=self.threshold,
         )
 
@@ -371,9 +379,11 @@ class Analyzer:
         )
         diagnostics = {
             "lines": unit.n_lines,
-            "lines_scored": int(scoreable.sum()),
+            "lines_scored": int(offered.sum()),
             "lines_beyond_cap": max(0, unit.n_lines - self.n_lines),
-            "lines_without_features": int((~scoreable).sum()),
+            # Lines that carry code and still gave the model nothing to score.
+            "lines_without_features": int((~scoreable & ~blank).sum()),
+            "blank_lines": int(blank.sum()),
             "flagged": len(pred.flagged_lines),
             "explanations_rejected": rejected,
             "seconds": time.perf_counter() - started,

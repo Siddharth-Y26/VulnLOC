@@ -232,11 +232,17 @@ def test_lines_past_the_cap_are_counted_not_scored(flags_everything: Analyzer) -
     assert all(entry["line"] <= LINE_CAP for entry in analysis.contract["vulnerable_lines"])
 
 
-def test_a_comment_is_removed_before_the_model_sees_the_line(flags_everything: Analyzer) -> None:
+def test_a_line_with_no_code_is_never_offered_as_a_finding(flags_everything: Analyzer) -> None:
+    # Line 3 of LONGER is a comment and nothing else: blank once stripped. With a threshold
+    # of zero every line the model can score is flagged — and the blank one still is not,
+    # though a run of empty lines carries newline tokens the model does score.
     analysis = flags_everything.analyze(LONGER)
-    # Line 3 is a comment and nothing else: blank once stripped, so it carries no code.
-    by_line = {entry["line"]: entry["code"] for entry in analysis.contract["vulnerable_lines"]}
-    assert by_line.get(3, "") == ""
+    flagged = analysis.contract["vulnerable_lines"]
+    assert flagged
+    assert 3 not in {entry["line"] for entry in flagged}
+    assert all(entry["code"] for entry in flagged)
+    assert analysis.diagnostics["blank_lines"] >= 1
+    assert analysis.diagnostics["lines_scored"] == len(flagged)
 
 
 @pytest.mark.parametrize("code", ["   \n\t\n", "/* only a comment */\n"])

@@ -71,6 +71,11 @@ predicts 0.4–1.0) on bins of 9 to 39 lines each.
 
 - **Only the first 512 lines of a function are scored.** On `val` 17.1% of the flagged
   lines lie past that cap. The service reports how many lines it did not score.
+- **The service never flags a line with no code on it.** The model itself does score
+  some empty lines — a stripped comment block leaves a run of them, and the tokenizer
+  gives every second one a newline token — so the service leaves blank lines out of the
+  ranking. That is the evaluation's "blank lines withheld" reading (Top-5 0.550 ± 0.012
+  for the arm on `val`, against 0.539 with every line a candidate; run `52b9c998…`).
 - **Long functions.** The functions whose flagged lines are missed on every seed have a
   median of 117 scored lines, against 46 overall (`Memory.md` §1.31, run `42f8f27c…`).
 - **Blank and syntax-only lines.** 19.4% of the flagged lines on `val` are blank after

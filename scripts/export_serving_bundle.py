@@ -60,6 +60,7 @@ from vulnloc.serving.inference import Analyzer, featurize
 from vulnloc.training.fused_datasets import collate_fused
 from vulnloc.training.graph_datasets import load_node_vocab, load_subtoken_vocab
 from vulnloc.training.line_scores import load_scores
+from vulnloc.training.semantic_cache import corpus_fingerprints
 from vulnloc.training.tracking import start_run
 from vulnloc.utils.config import run_id_text, strip_comments_enabled
 from vulnloc.utils.exceptions import ConfigError, ModelError
@@ -394,7 +395,9 @@ def build_bundle(cfg: DictConfig) -> tuple[dict[str, Any], Path]:
         "git_sha": str(run.data.tags.get("git_sha", "")),
         "config_hash": str(run.data.tags.get("config_hash", "")),
         "seed": int(run_cfg.seed),
-        "split_fingerprint": str(run.data.tags.get("split_fingerprint", "")),
+        # Training runs do not tag it; it is read from the split artefact the run's own
+        # config points at, which is the one its datasets were built from.
+        "split_fingerprint": corpus_fingerprints(run_cfg, CHECK_SPLIT)[0],
         "exported_at": datetime.now(UTC).isoformat(timespec="seconds"),
         **model_manifest(run_cfg, node_size=int(node_meta["size"]), subtoken_size=subtoken_size),
         "calibration": {
