@@ -1,0 +1,214 @@
+"""The Phase 8 figures say what they are drawn from, and draw only what was measured.
+
+``scripts/make_phase8_figures.py`` turns the evaluation's JSON into SVG. A chart cannot be
+unit-tested for looking right; what can be pinned is that it is well-formed, that every
+number in it came out of the artefact, that a bin too thin to be a measurement is not
+drawn as one, and that a held-out figure says it is held-out.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+import xml.etree.ElementTree as ET  # noqa: S405 - parsing SVG this test just generated
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from vulnloc.utils.exceptions import ConfigError
+
+REPO = Path(__file__).resolve().parents[2]
+SCRIPT = REPO / "scripts" / "make_phase8_figures.py"
+SVG = "{http://www.w3.org/2000/svg}"
+
+
+def _load() -> Any:
+    """Import ``scripts/make_phase8_figures.py`` by path — ``scripts/`` is not a package."""
+    spec = importlib.util.spec_from_file_location("vulnloc_scripts_make_phase8_figures", SCRIPT)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+figures = _load()
+
+
+def _metric(values: list[float]) -> dict[str, Any]:
+    mean = sum(values) / len(values)
+    spread = (sum((value - mean) ** 2 for value in values) / (len(values) - 1)) ** 0.5
+    return {"mean": mean, "std": spread, "values": values}
+
+
+def _evaluation(*, held_out: bool = False) -> dict[str, Any]:
+    """A two-arm, three-seed evaluation report with one thick and one thin reliability bin."""
+    arms, runs = {}, {}
+    for offset, arm in enumerate(("llm_only_retrained", "cross_attention_retrained")):
+        arms[arm] = {
+            "n_seeds": 3,
+            "seeds": [1, 2, 42],
+            "metrics": {
+                "ranking/all_lines/top_5": _metric([0.50 + offset / 100, 0.52, 0.54]),
+                "ranking/all_lines/ifa": _metric([14.0, 15.0, 16.0 + offset]),
+                "pooled/pr_auc": _metric([0.16, 0.17, 0.18]),
+                "pooled/base_rate": _metric([0.066, 0.066, 0.066]),
+            },
+        }
+        for seed in (1, 2, 42):
+            runs[f"{arm}-{seed}"] = {
+                "arm": arm,
+                "seed": seed,
+                "ranking": {"all_lines": {"units": 482}},
+                "source_order": {
+                    "all_lines": {"metrics": {"top_5": {"source": 0.307}, "ifa": {"source": 29.8}}}
+                },
+                "pooled": {
+                    "reliability": [
+                        {"count": 9000, "mean_probability": 0.05, "positive_rate": 0.04},
+                        {"count": 400, "mean_probability": 0.30, "positive_rate": 0.33},
+                        {"count": 3, "mean_probability": 0.90, "positive_rate": 0.67},
+                        {"count": 0, "mean_probability": 0.0, "positive_rate": 0.0},
+                    ]
+                },
+            }
+    return {
+        "split": "test" if held_out else "val",
+        "held_out": held_out,
+        "strip_comments": True,
+        "n_bins": 15,
+        "run_id": "abcdef0123456789",
+        "arms": arms,
+        "runs": runs,
+    }
+
+
+def _failures() -> dict[str, Any]:
+    def row(flagged: int, found: float | None, chance: float | None) -> dict[str, Any]:
+        return {
+            "flagged": flagged,
+            "flagged_units": 7,
+            "found_in_top_k": found,
+            "found_by_chance": chance,
+        }
+
+    return {
+        "run_id": "fedcba9876543210",
+        "ranked_units": 482,
+        "k": 10,
+        "seeds": [1, 2, 42],
+        "kinds": {
+            "ranked": {
+                "blank": row(100, 0.1, 0.2),
+                "call": row(300, 0.4, 0.2),
+                "label": row(0, None, None),
+            }
+        },
+    }
+
+
+def _write(tmp_path: Path, evaluation: dict[str, Any], failures: dict[str, Any] | None) -> Path:
+    directory = tmp_path / "phase8"
+    directory.mkdir()
+    name = f"evaluation_{evaluation['split']}.json"
+    (directory / name).write_text(json.dumps(evaluation), encoding="utf-8")
+    if failures is not None:
+        (directory / "failure_cases.json").write_text(json.dumps(failures), encoding="utf-8")
+    return directory
+
+
+def _make(isolated_cfg: Any, directory: Path, *overrides: str) -> dict[str, Path]:
+    cfg = isolated_cfg(
+        f"+figures.input_dir={directory.as_posix()}",
+        f"+figures.output_dir={(directory / 'figures').as_posix()}",
+        *overrides,
+    )
+    written: dict[str, Path] = figures.make(cfg)
+    return written
+
+
+def test_every_figure_is_well_formed_svg_that_names_its_run(
+    tmp_path: Path, isolated_cfg: Any
+) -> None:
+    written = _make(isolated_cfg, _write(tmp_path, _evaluation(), _failures()))
+    assert set(written) == {"arms", "reliability", "found_by_kind"}
+    for name, path in written.items():
+        root = ET.parse(path).getroot()  # noqa: S314 - generated by this test
+        assert root.tag == f"{SVG}svg", name
+        described = root.find(f"{SVG}desc")
+        assert described is not None
+        run = "fedcba98" if name == "found_by_kind" else "abcdef01"
+        assert run in (described.text or ""), name
+
+
+def test_arms_come_in_the_tables_order_with_the_baseline_they_are_read_against() -> None:
+    panels = figures.arm_panels(_evaluation())
+    assert [panel["label"] for panel in panels] == [
+        "Top-5 accuracy",
+        "IFA — lower is better",
+        "Line-level PR-AUC",
+    ]
+    assert [point["label"] for point in panels[0]["points"]] == ["cross_attention", "llm_only"]
+    assert panels[0]["points"][0]["values"] == [0.51, 0.52, 0.54]
+    assert panels[0]["reference"] == {"value": 0.307, "label": "from the top"}
+    assert panels[1]["reference"]["value"] == 29.8
+    assert panels[2]["reference"] == {"value": 0.066, "label": "share flagged"}
+
+
+def test_a_thin_bin_is_shown_and_kept_off_the_line(tmp_path: Path, isolated_cfg: Any) -> None:
+    written = _make(isolated_cfg, _write(tmp_path, _evaluation(), None))
+    root = ET.parse(written["reliability"]).getroot()  # noqa: S314 - generated by this test
+    lines = root.findall(f"{SVG}polyline")
+    assert len(lines) == 3  # one per seed of the arm of record
+    assert all(len(line.attrib["points"].split()) == 2 for line in lines)
+    hollow = [c for c in root.findall(f"{SVG}circle") if "hollow" in c.attrib["class"]]
+    filled = [c for c in root.findall(f"{SVG}circle") if "s1f" in c.attrib["class"]]
+    assert (len(hollow), len(filled)) == (3, 6)  # the empty bin is not drawn at all
+    assert "3 lines" in (hollow[0].find(f"{SVG}title").text or "")  # type: ignore[union-attr]
+
+
+def test_kinds_are_ordered_by_lift_and_the_total_is_weighted_by_flagged_lines() -> None:
+    rows = figures.found_rows(_failures())
+    assert [row["label"] for row in rows] == ["call", "blank", "every kind"]
+    assert rows[-1]["model"] == pytest.approx((300 * 0.4 + 100 * 0.1) / 400)
+    assert rows[-1]["chance"] == pytest.approx(0.2)
+    assert rows[0]["note"] == "300 flagged in 7 units"
+
+
+def test_a_held_out_figure_says_so_and_draws_no_validation_only_chart(
+    tmp_path: Path, isolated_cfg: Any
+) -> None:
+    directory = _write(tmp_path, _evaluation(held_out=True), _failures())
+    written = _make(isolated_cfg, directory, "+figures.split=test")
+    assert set(written) == {"arms", "reliability"}
+    text = written["arms"].read_text(encoding="utf-8")
+    assert "held-out, the one evaluation" in text
+    assert "validation:" not in text
+
+
+def test_a_missing_evaluation_or_arm_is_an_error_not_an_empty_figure(
+    tmp_path: Path, isolated_cfg: Any
+) -> None:
+    directory = _write(tmp_path, _evaluation(), None)
+    with pytest.raises(ConfigError, match="missing"):
+        _make(isolated_cfg, directory, "+figures.split=clean_eval")
+    with pytest.raises(ConfigError, match="no run of this arm"):
+        _make(isolated_cfg, directory, "+figures.arm=sum_retrained")
+
+
+@pytest.mark.parametrize(
+    ("low", "high", "ticks", "decimals"),
+    [
+        (0.27, 0.61, [0.3, 0.4, 0.5, 0.6], 1),
+        (0.049, 0.208, [0.05, 0.1, 0.15, 0.2], 2),
+        (11.0, 32.1, [15.0, 20.0, 25.0, 30.0], 0),
+        (0.0, 1.0, [0.0, 0.25, 0.5, 0.75, 1.0], 2),
+    ],
+)
+def test_axis_ticks_are_round_numbers(
+    low: float, high: float, ticks: list[float], decimals: int
+) -> None:
+    assert figures.nice_ticks(low, high) == (ticks, decimals)
