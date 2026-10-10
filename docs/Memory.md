@@ -3958,9 +3958,9 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
      `…frozen_stripped_six_seeds_<arm>.json` with `n_seeds: 6`); the two `pending` tables
      in `docs/ablations.yaml` set to `run`; `python scripts/make_ablation_tables.py`; the
      outcome written into §1.32 against the plan that section already holds.
-  2. *Phase 9, once no group is running:* the merge of `phase-9/serving` (`6b93d58`; a
-     trial merge on 2026-10-10 had no conflict); the held-out numbers of §1.30 into
-     `docs/MODEL_CARD.md`; the bundle of record; latency on an idle machine; the demo
+  2. *Phase 9, once no group is running:* the merge of `phase-9/serving` (now `c2e4d92`:
+     the model card carries the held-out numbers of §1.30 since 2026-10-11 01:00; a trial
+     merge on 2026-10-10 had no conflict); the bundle of record; latency on an idle machine; the demo
      page's result state; Docker; §1.33.
   3. *The owner's:* the failure-taxonomy review (`docs/FailureTaxonomy.md` §6); the rest
      of the clean-clone criterion; the human evaluation, for which the `test` rater pack

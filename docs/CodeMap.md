@@ -103,7 +103,7 @@ Data steps, in this order: `prepare_data.py` → `audit_data.py` → `build_spli
 | `train_structural.py` | Trains the GNN-only branch. |
 | `train_fused.py` | Trains one A1 arm (fusion). |
 | `run_queue.py` | Runs the whole experiment slate unattended and resumably. |
-| `report_seeds.py` | Averages seeds into a reportable number — and refuses runs that are not true replicates. |
+| `report_seeds.py` | Averages seeds into a reportable number — and refuses runs that are not true replicates. `+seeds.seeds=[…]` reports chosen seeds of a group alone. |
 | `report_phase4.py`, `report_representation.py` | Assemble phase exit criteria / corpus statistics. |
 | `audit_label_leakage.py` | The ADR-006 guard: can the label be read off the formatting? Re-run after any corpus change. |
 | `probe_vram.py`, `probe_vram_fused.py` | Measure what fits in the 4 GiB card. |
