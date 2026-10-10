@@ -286,14 +286,24 @@ before the single held-out pass was started.**
     (faithfulness) and §4.5 (efficiency) are not built.
   - *2026-10-08, measured on `val`* (run `52b9c998…`, `Memory.md` §1.29): no per-unit
     metric separates the three arms; each beats source order (Top-5 0.54–0.55 against
-    0.31). Nothing has been computed on `test` or `clean_eval`.
+    0.31). Nothing had been computed on `test` or `clean_eval` then.
+  - *2026-10-11, held out* (runs `f3a7dbdf…` on `test` and `c5609b93…` on
+    `clean_eval`, `Memory.md` §1.30): the single pass is made. Top-5 and IFA separate
+    no two arms on either partition; every arm beats source order (Top-5 0.46–0.48
+    against 0.26 on `test`, 0.40–0.42 against 0.16 on `clean_eval`); concat −
+    `llm_only` on PR-AUC, the one `val` candidate, repeats on both (+0.0201 at 2.01
+    pooled sd, +0.0235 at 2.54).
 - Baseline reproductions under **our** splits
 - Complete ablation grid (`ResearchPlan.md` §5)
   - *2026-10-10:* the grid as it stands is catalogued in `docs/ablations.yaml` and
     rendered by `scripts/make_ablation_tables.py` — A1, A2, A4, A5, A6, A8 and A9 from
     logged runs at three seeds; A3, A7 and A10 stated as not run, with the reason. Every
-    run is checked against the conditions its table declares. `a1r` (the frozen screen on
-    comment-stripped text) is running; the tables of record are made when it ends.
+    run is checked against the conditions its table declares.
+  - *2026-10-11:* `a1r` (the frozen screen on comment-stripped text) finished and the
+    tables of record are run `922719b5…` — 84 scaled comparisons, 28 on Top-5
+    (`Memory.md` §1.32). On that screen cross_attention leads concat on Top-5 by 2.93
+    pooled sd at three seeds: a candidate. Queue group `a1rep` runs the screen again
+    on seeds 3, 4 and 5; what it is read for was written down first.
 - Statistical significance testing across seeds
   - *2026-10-08:* built as the protocol states it — mean ± sample sd, differences paired
     by seed in pooled sd, a bootstrap interval over units — **and deliberately no
@@ -309,11 +319,19 @@ before the single held-out pass was started.**
   - *2026-10-10:* `scripts/make_phase8_figures.py` draws the arms, the reliability curve
     and found-against-chance by kind of line from the evaluation's JSON; with
     `evaluate_scores.py`, `make_ablation_tables.py` and `sample_failures.py` every table
-    and figure of this phase now comes from a script. Drawn for `val` only.
+    and figure of this phase now comes from a script. Drawn for `val`, and on
+    2026-10-11 for `test` and `clean_eval`.
 
 **Exit criteria**
 - [ ] Every table cell traceable to a run ID
+  - *2026-10-11:* the held-out tables (`artifacts/phase8/evaluation_<split>.md`) and
+    the ablation tables (`artifacts/phase8/ablations.md`) name the runs behind every
+    row. Not ticked by a session; for the owner at the gate.
 - [ ] Ablations confirm or refute each novelty claim explicitly
+  - *2026-10-11:* A1 with the encoder fine-tuned — not confirmed, on `val` and held
+    out (`Memory.md` §1.28, §1.30). A1 with the encoder frozen, on comment-stripped
+    text — a candidate in its favour, under replication (§1.32). A3, A7 and A10 are
+    not run. Not ticked.
 - [ ] Failure taxonomy documented with ≥ 20 inspected cases
   - *2026-10-10:* **drafted, not met.** Thirty cases were read by session 18 and by no
     person. The owner reviews them against `docs/FailureTaxonomy.md` §6; a session does

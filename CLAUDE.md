@@ -61,6 +61,38 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-11 01:15 (session 18): THE HELD-OUT PASS IS DONE — `test` and `clean_eval` were
+scored and evaluated once, every step exit 0 (`Memory.md` §1.30). Neither partition is
+scored or evaluated again, and `docs/EvaluationProtocol.md`, `src/vulnloc/evaluation/` and
+`scripts/evaluate_scores.py` stay as they are.** Held out, three seeds an arm,
+comment-stripped text (cross_attention / concat / `llm_only`):
+
+| | Top-5 | IFA | PR-AUC | Top-5, source order |
+|---|---|---|---|---|
+| `test` (541 units, `f3a7dbdf…`) | 0.4646 ± 0.0105 / 0.4781 ± 0.0245 / 0.4664 ± 0.0070 | 22.50 / 21.16 / 23.43 | 0.1739 / 0.1685 / 0.1484 | 0.2606 |
+| `clean_eval` (1,367 units, `c5609b93…`) | 0.3977 ± 0.0103 / 0.4160 ± 0.0085 / 0.3982 ± 0.0150 | 23.77 / 24.18 / 22.54 | 0.1092 / 0.1185 / 0.0950 | 0.1580 |
+
+**Cross-attention does not beat concat, and neither fused arm beats `llm_only`, on Top-5 or
+IFA on either partition; every arm beats reading from the top.** The one pre-stated `val`
+candidate repeats: concat − `llm_only` on PR-AUC is +0.0201 (2.01 pooled sd) on `test` and
++0.0235 (2.54) on `clean_eval`, positive on every seed — a statement about lines pooled
+across functions at three seeds, **not** "fusion improves localization". One `test` unit
+of 541 still carries a tell line after stripping (a comment that lost both slashes); it
+moves each arm's Top-5 by 0.001. `clean_eval` measures label quality, not generalization
+(landmine #10).
+
+**The same night `a1r` finished (`Memory.md` §1.32): on the frozen screen retrained
+without comments, cross_attention leads concat on `val` Top-5 by +0.0387 (0.5325 ± 0.0102
+against 0.4938 ± 0.0157; 2.93 pooled sd; every seed) — a candidate, not a finding, and not
+the models of record, which tie.** **QUEUE GROUP `a1rep` HAS BEEN RUNNING SINCE 00:49 — the
+same screen on seeds 3, 4 and 5: 15 frozen runs and 10 seed reports, about four hours.**
+The session started it under the owner's "train or build whatever you need to overnight"
+(`Memory.md` §2); what it is read for was committed before its first run. Check
+`python scripts/run_queue.py --only a1rep --status`. **While it runs, nothing under
+`configs/` or `src/vulnloc/` changes and the main tree stays clean** — so Phase 9
+(`phase-9/serving`, `6b93d58`) is still unmerged. `Memory.md` §6 item 0a is the handoff.
+The paragraphs below describe the state before this.
+
 **2026-10-11 00:00 (session 18): RESUMED — `a1r` AT 23:54 ON THE OWNER'S "continue", AND
 THE HELD-OUT PASS CHAINED BEHIND IT AT 00:00 ON THE OWNER'S ANSWER ("Yes, after a1r
 tonight", `Memory.md` §2).** `a1r-gated-seed2` is running and the six seed reports follow
@@ -288,9 +320,10 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 5 | ✅ **DONE — 5 / 5, gate signed by the owner 2026-10-07** (`Memory.md` §1.1c). ADR-008 and ADR-009 accepted 2026-09-15. Six arms × seeds 42/1/2, frozen CodeBERT from cache, AST + subtokens, commit `d1003f6` (`Memory.md` §1.21). **Cross-attention does NOT beat concat on Top-5: 0.5408 ± 0.0181 vs 0.5394 ± 0.0198 (0.07 sd).** Every fusion arm beats frozen llm_only (0.4903) on every seed; **none beats Phase 3's fine-tuned LLM-only (0.6141)** — freezing costs 0.124. Only phrase it as "with a fixed semantic representation". Criterion 5 ("investigate before Phase 6"): **D9.7's fine-tuned confirmation agrees — 0.6162 ± 0.0184 vs 0.6169 ± 0.0104 (`Memory.md` §1.22).** **The `llm_only` scaffold control is in (2026-10-07): 0.6169 ± 0.0048 — no fused arm beats it.** |
 | Phase 6 | ✅ **DONE — 4 / 4, gate signed by the owner 2026-10-07** (`Memory.md` §1.1d). Full-model configuration frozen by the owner's decision (the designed cross-attention model, D9.7's runs). **Calibrated and thresholded on `val` (`Memory.md` §1.24, run `569c9701…`): ECE 0.1704 ± 0.0330 → 0.0137 ± 0.0104; line F1 0.2954 ± 0.0855 at the logged 0.5 → 0.3898 ± 0.0190 out of fold, 3 seeds. Concat (0.3908 ± 0.0030) and `llm_only` (0.3936 ± 0.0072) tie with it at their own thresholds — the F1 gap every run logged at 0.5 was the threshold.** Thresholds are per checkpoint (0.1686 / 0.1083 / 0.2159) — never average a calibrator across seeds. Still over-confident above p = 0.8 (observed 0.67–0.81). **Q5 is closed: the owner deferred the learned CWE-type classifier — Phase 7a names a template-derived category and says so.** Unit-level aggregation is deferred in writing. |
 | Phase 7 | ✅ **DONE — 4 / 4, gate signed by the owner 2026-10-08** (`Memory.md` §1.1e, §2): the owner read every sentence the explainer can emit, named none of concern, and approved `docs/HumanEvalProtocol.md`. 7a only. Every flagged line on `val` gets a verified explanation (13,908 of 13,908, three seeds, `Memory.md` §1.27); a weakness pattern names a cause for about one in twelve, and the rest say so. **The page the owner read is `artifacts/phase7/sentences_for_review.md` (`python scripts/list_explanation_sentences.py` regenerates it; re-read it if a template changes).** A pilot rater pack (100 `val` samples) is at `artifacts/phase7/rater_pack_stripped/`. 7b is deferred in writing. |
-| Phase 8 | 🟨 **Started 2026-10-08 on `val` at the owner's instruction, before the Phase 7 gate** (`Memory.md` §2). Built: the line-level metric suite with tie bounds, bootstrap intervals, the source-order baseline and the ceilings (`scripts/evaluate_scores.py`); **2026-10-10: the ablation tables (`docs/ablations.yaml`, `scripts/make_ablation_tables.py`) — the tables of record wait for `a1r`; and the failure taxonomy as a draft (`scripts/sample_failures.py`, `docs/FailureTaxonomy.md`) — its criterion stays open until the owner reviews the cases; and the figures (`scripts/make_phase8_figures.py`, `val` only so far).** The suite passes from a fresh clone (1,434 passed, 5 skipped at `a63a62e`) — the cheap half of the clean-clone criterion; a fresh environment, the data pipeline and a reproduced run are not done. The function-level parts are deferred in writing. **The single `test` / `clean_eval` evaluation still waits for the Phase 7 gate and the owner's confirmation of the protocol.** |
-| Phases 9–10 | ⬜ Not started. |
-| Tests | **1,434 passing, 5 skipped — from a fresh clone of `a63a62e`, no artefacts** (2026-10-10; two of the five skip only because a clone has no checkpoint and no generated figures). Ten figure tests were added after that run and pass alone. ruff / black on every file touched since; the pre-commit hooks (black, ruff, mypy, import-linter) pass on every commit. |
+| Phase 8 | 🟨 **Started 2026-10-08 on `val` at the owner's instruction, before the Phase 7 gate** (`Memory.md` §2). Built: the line-level metric suite with tie bounds, bootstrap intervals, the source-order baseline and the ceilings (`scripts/evaluate_scores.py`); **2026-10-10: the ablation tables (`docs/ablations.yaml`, `scripts/make_ablation_tables.py`) — the tables of record are run `922719b5…` (2026-10-11); and the failure taxonomy as a draft (`scripts/sample_failures.py`, `docs/FailureTaxonomy.md`) — its criterion stays open until the owner reviews the cases; and the figures (`scripts/make_phase8_figures.py`, `val` only so far).** The suite passes from a fresh clone (1,434 passed, 5 skipped at `a63a62e`) — the cheap half of the clean-clone criterion; a fresh environment, the data pipeline and a reproduced run are not done. The function-level parts are deferred in writing. **The single `test` / `clean_eval` evaluation was made on 2026-10-11 (`Memory.md` §1.30): Top-5 and IFA separate no two arms on either partition, every arm beats source order, and concat's PR-AUC lead over `llm_only` repeats on both.** Still open: the taxonomy review (the owner's), the rest of the clean-clone criterion, and `a1rep`, the replication of `a1r`'s frozen-screen result (§1.32). |
+| Phase 9 | 🟨 **Built on branch `phase-9/serving` (`6b93d58`), not merged** — it merges when no comparison group is running (`a1rep` is, 2026-10-11). `Memory.md` §6 item 0a lists what is left. |
+| Phase 10 | ⬜ Not started. |
+| Tests | **1,434 passing, 5 skipped — from a fresh clone of `a63a62e`, no artefacts** (2026-10-10; two of the five skip only because a clone has no checkpoint and no generated figures). Ten figure tests were added after that run and pass alone; seven more on 2026-10-11 (the seed filter, the `a1rep` group) — the two files they are in pass, 93 tests. ruff / black on every file touched since; the pre-commit hooks (black, ruff, mypy, import-linter) pass on every commit. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -483,7 +516,9 @@ python scripts/make_rater_pack.py +pack.run_id=80fc5238 +representation.strip_co
                                                             # the human-evaluation sample (docs/HumanEvalProtocol.md)
 python scripts/run_queue.py --only d97rcheck                # the leak-free rerun: overfit on stripped text — READ Top-1 first
 python scripts/run_queue.py --only d97r                     # ...then D9.7's nine runs on stripped text, arm by arm (17–32 h)
-python scripts/run_queue.py --only a1rcheck a1r             # the frozen A1 screen on stripped text (own cache dir) — NOT started
+python scripts/run_queue.py --only a1rcheck a1r             # the frozen A1 screen on stripped text (own cache dir) — done 2026-10-11, Memory.md §1.32
+python scripts/run_queue.py --only a1rep                    # ...and again on seeds 3, 4, 5: five arms, 15 runs, then two seed reports an arm
+                                                            #   (the new seeds alone; all six). What it is read for: Memory.md §1.32
 
 python scripts/run_queue.py --only a6check                  # A6 (attention direction): overfit the two one-way arms — READ Top-1 first
 python scripts/run_queue.py --only a6                       # A6: both / sem_from_str / str_from_sem × 3 seeds, frozen, + 3 seed reports
@@ -662,6 +697,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 64 | **A generated table that marks "≥ 2 pooled sd" is marking one comparison among many.** Phase 8's `val` evaluation makes 93 comparisons (31 metrics × 3 pairs); three reach 2 pooled sd, all concat − `llm_only` (PR-AUC +0.0206 at 2.20; ECE). With three seeds an arm that threshold is a two-sample t of 2.45 on 4 degrees of freedom — **two arms with no difference reach it with probability ≈ 0.07 in any one comparison**, ≈ 6.6 of 93 if independent. The script's first run (`30aeff44…`) printed the bare word "resolved" beside them; it now prints the denominator and the chance figure. Same family as #37, one level up: not too few seeds for one comparison, too many comparisons for the seeds. **Claims rest only on the nine headline comparisons (Top-5, IFA, PR-AUC × the three pre-stated pairs); a crossing anywhere is a candidate to check on a partition it was not seen on.** `Memory.md` §1.29, §7 #64. |
 | 65 | **A rate per kind of line reads as a property of the kind until you count the units behind it.** On `val`, 25.3% of preprocessor lines are flagged against 6.9% of all lines — and the 145 flagged ones sit in 13 of 482 units, a fifth of them in one function. It looked like a third formatting tell for the minute it took to count. Same family as #13 and #40. `sample_failures.py` prints the unit count and the largest unit's share beside every rate; do the same for any per-kind figure. `Memory.md` §1.31, §7 #65. |
 | 66 | **`report_phase4.py` sorts a group's `seeds` and not its `run_ids`** — zipping them labels runs with the wrong seed (`46ab8056…` is seed 42, not 1). No mean moves. `make_ablation_tables.py` reads each run's seed from what the run logged. `Memory.md` §7 #66. |
+| 67 | **A group that gains seeds turns its old seed-report command into a different report.** After `a1rep`, an `a1r` seed report re-run by hand would aggregate six seeds and write over the three-seed file of record; nothing refuses. Pass `'+seeds.seeds=[42,1,2]'`. `a1rep`'s own reports name their seeds and write to other files. `Memory.md` §7 #67. |
 
 
 ---

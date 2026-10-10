@@ -28,7 +28,7 @@
 |-------|-------|
 | **Active phase** | **Phase 7 — Explanation (7a), since 2026-10-07: Phases 5 and 6 are SIGNED (§1.1c, §1.1d).** Ablation A6 (attention direction) is running on the frozen cache as queue group `a6`. Phase 5's record, kept: **A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **D9.7 (fine-tuned confirmation): the six runs ADR-009 specifies are FINISHED (§1.22) — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, again no resolvable difference.** The added scaffold control `llm_only` × 3 finished on 2026-10-07: **0.6169 ± 0.0048 Top-5 — no fused arm beats it (§1.22)** |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15; Phases 5 and 6 SIGNED 2026-10-07; Phase 7 SIGNED 2026-10-08 — Phase 8 is the current phase.** ADR-008 and ADR-009 accepted 2026-09-15, ADR-010 on 2026-10-08 |
-| **Last updated** | 2026-10-11 00:00 (session 18: `a1r` on its last run, the held-out pass chained behind it at the owner's answer — §6 item 0a) |
+| **Last updated** | 2026-10-11 01:15 (session 18: the held-out pass is done — §1.30; `a1r` is done — §1.32; `a1rep` is running — §6 item 0a) |
 | **Open decision** | **None blocking a measurement. On 2026-10-08 the owner accepted ADR-010 (Q14), signed the Phase 7 gate and confirmed `docs/EvaluationProtocol.md` (§2); the single held-out evaluation is authorised and is made on comment-stripped text with the nine `d97r` checkpoints.** Q13 answered and Q5 deferred by the owner (§2, §5). Still open, not blocking: ADR-006 and ADR-007 `Proposed` (ADR-007 blocks ablation A3's CPG arm); Q4 (explanation supervision) belongs to Phase 7; the paper's framing of the A1 null; scheduled defragmentation of D: (§7 #57) |
 | **Last commit** | Session 14's resume/queue commit on `phase-2/representation` (see `git log`). **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
 | **Best model run ID** | **Models of record since 2026-10-08 (ADR-010 accepted, §2; `val` numbers in §1.28): cross_attention `ba7dcc5f…` / `8afbf7da…` / `ff980345…` (the full model), concat `9ac7a146…` / `7579bc33…` / `10b43ce5…`, `llm_only` `d82a6a70…` / `a1dce535…` / `9296a0e5…`.** Single-branch baselines, measured with comments in place: semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
@@ -2368,7 +2368,9 @@ Artefacts: `artifacts/adr010/` (seed reports), `artifacts/phase6/scores_retraine
 ## 1.29 Phase 8 — the full line-level metric suite on `val`: no per-unit metric separates the arms; one pooled metric crosses the threshold (2026-10-08)
 
 **Status: built and measured on `val` only. The Phase 7 gate is not signed and the
-evaluation protocol is not confirmed; no held-out partition has been read.** The nine
+evaluation protocol is not confirmed; no held-out partition has been read.** **(2026-10-11:
+the held-out pass has since been made — §1.30, which also checks this section's one
+candidate.)** The nine
 `d97r` checkpoints — the models of record (§2) — trained and evaluated without comments,
 three seeds an arm. Run `52b9c998…` (`scripts/evaluate_scores.py`, clean `4281b3f`); the
 same numbers were first logged as `30aeff44…` at `b875d70`, before the wording of one
@@ -2469,6 +2471,231 @@ are inside them. Wherever a comparison below uses Top-1, it uses the source-orde
 Evaluation: `52b9c998…` (of record, `4281b3f`), `30aeff44…` (same numbers, `b875d70`,
 table wording since corrected). Inputs: the nine score runs, three calibrations and the
 audit listed under §1.28. Artefacts: `artifacts/phase8/evaluation_val.json` and `.md`.
+
+---
+
+## 1.30 The held-out evaluation — `test` and `clean_eval`, once: Top-5 and IFA separate no two arms; concat's PR-AUC lead over `llm_only` repeats on both (2026-10-11)
+
+**Status: done, once, by `docs/EvaluationProtocol.md` as confirmed on 2026-10-08. These
+are the project's held-out numbers; neither partition is scored or evaluated again.** The
+nine `d97r` checkpoints, comment-stripped text, each checkpoint's own `val` calibrator and
+threshold applied unchanged. Every checkpoint was scored once per partition — `ba7dcc5f…`
+on `test` on 2026-10-08 (`21e80fb8…`), the other seventeen files on 2026-10-11 between
+00:15 and 00:42 — and `artifacts/queue/heldout_pass.out` is the transcript: every step
+exited 0. Evaluation runs `f3a7dbdf…` (`test`) and `c5609b93…` (`clean_eval`), both at
+`344db7c`; tables in `artifacts/phase8/evaluation_<split>.md`.
+
+### `test` — 541 units ranked, positive rate 0.0494
+
+| `test`, mean ± sd over 3 seeds | cross_attention | concat | `llm_only` | source order |
+|---|---|---|---|---|
+| Top-1 | 0.2625 ± 0.0176 | 0.2428 ± 0.0221 | 0.2446 ± 0.0065 | 0.0000 |
+| Top-3 | 0.3993 ± 0.0085 | 0.3919 ± 0.0231 | 0.3795 ± 0.0136 | 0.1848 |
+| **Top-5** | 0.4646 ± 0.0105 | 0.4781 ± 0.0245 | 0.4664 ± 0.0070 | 0.2606 |
+| Top-10 | 0.5977 ± 0.0093 | 0.6137 ± 0.0193 | 0.5995 ± 0.0217 | 0.4196 |
+| **IFA** (mean) | 22.50 ± 0.89 | 21.16 ± 0.56 | 23.43 ± 2.12 | 39.13 |
+| MFR (always IFA + 1) | 23.50 ± 0.89 | 22.16 ± 0.56 | 24.43 ± 2.12 | 40.13 |
+| MAR | 34.00 ± 0.55 | 32.43 ± 0.72 | 34.56 ± 2.08 | 48.89 |
+| Recall@1% LOC | 0.1310 ± 0.0057 | 0.1092 ± 0.0179 | 0.1154 ± 0.0023 | 0.0011 |
+| Recall@5% LOC | 0.2124 ± 0.0061 | 0.1995 ± 0.0316 | 0.1913 ± 0.0085 | 0.0317 |
+| Recall@20% LOC | 0.4688 ± 0.0097 | 0.4835 ± 0.0145 | 0.4640 ± 0.0268 | 0.1963 |
+| **PR-AUC** | 0.1739 ± 0.0287 | 0.1685 ± 0.0125 | 0.1484 ± 0.0067 | — |
+| Line precision at the `val` threshold | 0.1884 ± 0.0337 | 0.1871 ± 0.0354 | 0.1613 ± 0.0120 | — |
+| Line recall | 0.3296 ± 0.0380 | 0.3232 ± 0.0611 | 0.3511 ± 0.0651 | — |
+| Line F1 | 0.2384 ± 0.0294 | 0.2322 ± 0.0132 | 0.2190 ± 0.0018 | — |
+| ECE | 0.0216 ± 0.0020 | 0.0153 ± 0.0012 | 0.0247 ± 0.0031 | — |
+| Top-5, blank lines withheld (533 units) | 0.4728 ± 0.0099 | 0.4847 ± 0.0239 | 0.4734 ± 0.0071 | 0.2852 |
+
+### `clean_eval` — 1,367 units ranked, positive rate 0.0274
+
+| `clean_eval`, mean ± sd over 3 seeds | cross_attention | concat | `llm_only` | source order |
+|---|---|---|---|---|
+| Top-1 | 0.1578 ± 0.0040 | 0.1600 ± 0.0110 | 0.1526 ± 0.0150 | 0.0000 |
+| Top-3 | 0.3121 ± 0.0066 | 0.3168 ± 0.0046 | 0.3019 ± 0.0140 | 0.0819 |
+| **Top-5** | 0.3977 ± 0.0103 | 0.4160 ± 0.0085 | 0.3982 ± 0.0150 | 0.1580 |
+| Top-10 | 0.5411 ± 0.0223 | 0.5523 ± 0.0092 | 0.5474 ± 0.0192 | 0.3197 |
+| **IFA** (mean) | 23.77 ± 0.36 | 24.18 ± 0.84 | 22.54 ± 2.52 | 47.02 |
+| MFR (always IFA + 1) | 24.77 ± 0.36 | 25.18 ± 0.84 | 23.54 ± 2.52 | 48.02 |
+| MAR | 33.33 ± 0.34 | 33.48 ± 1.09 | 31.71 ± 2.40 | 55.44 |
+| Recall@1% LOC | 0.0873 ± 0.0017 | 0.0863 ± 0.0080 | 0.0840 ± 0.0106 | 0.0032 |
+| Recall@5% LOC | 0.1653 ± 0.0035 | 0.1696 ± 0.0114 | 0.1671 ± 0.0203 | 0.0213 |
+| Recall@20% LOC | 0.4637 ± 0.0127 | 0.4729 ± 0.0037 | 0.4741 ± 0.0219 | 0.1669 |
+| **PR-AUC** | 0.1092 ± 0.0144 | 0.1185 ± 0.0102 | 0.0950 ± 0.0082 | — |
+| Line precision at the `val` threshold | 0.1243 ± 0.0162 | 0.1281 ± 0.0230 | 0.1047 ± 0.0143 | — |
+| Line recall | 0.2903 ± 0.0241 | 0.3306 ± 0.0481 | 0.3210 ± 0.0517 | — |
+| Line F1 | 0.1731 ± 0.0128 | 0.1820 ± 0.0159 | 0.1566 ± 0.0137 | — |
+| ECE | 0.0307 ± 0.0004 | 0.0303 ± 0.0013 | 0.0336 ± 0.0011 | — |
+| Top-5, blank lines withheld (1,367 units) | 0.3997 ± 0.0100 | 0.4179 ± 0.0078 | 0.4004 ± 0.0160 | 0.1814 |
+
+Ties in source order on both. Median IFA is 4–6 per checkpoint on `test` (source order 13)
+and 7–8 on `clean_eval` (21), against means of 21–24: the long tail of §1.29 again.
+
+### The nine headline comparisons, on each partition
+
+| First − second | Partition | Top-5 | IFA | PR-AUC |
+|---|---|---|---|---|
+| cross_attention − concat | `test` | −0.0136 (0.72 pooled sd) | +1.34 (1.80) | +0.0054 (0.24) |
+| | `clean_eval` | −0.0183 (1.94) | −0.41 (0.63) | −0.0093 (0.75) |
+| cross_attention − `llm_only` | `test` | −0.0018 (0.21) | −0.94 (0.57) | +0.0255 (1.22) |
+| | `clean_eval` | −0.0005 (0.04) | +1.23 (0.68) | +0.0142 (1.21) |
+| concat − `llm_only` | `test` | +0.0117 (0.65) | −2.28 (1.47) | **+0.0201 (2.01)** |
+| | `clean_eval` | +0.0178 (1.46) | +1.63 (0.87) | **+0.0235 (2.54)** |
+
+Each partition makes 81 comparisons (27 metrics × 3 pairs). **Seven reach 2 pooled sd on
+`test` and four on `clean_eval`**; chance alone gives about 5.7 of 81 if they were
+independent, which they are not (§7 #64).
+
+- `test`: cross_attention − concat on ECE (+0.0064, 3.87) and MAR (+1.56, 2.45);
+  cross_attention − `llm_only` on Recall@1% LOC (+0.0156, 3.60; blank lines withheld
+  +0.0158, 3.95) and Recall@5% LOC (+0.0212, 2.86); concat − `llm_only` on ECE (−0.0095,
+  4.02) and PR-AUC (+0.0201, 2.01).
+- `clean_eval`: cross_attention − concat on Top-5 with blank lines withheld (−0.0183,
+  2.05); cross_attention − `llm_only` on ECE (−0.0029, 3.56); concat − `llm_only` on ECE
+  (−0.0033, 2.77) and PR-AUC (+0.0235, 2.54).
+
+### What this supports
+
+1. **A1's answer, held out: cross-attention does not beat concatenation.** On Top-5 the
+   difference is −0.0136 on `test` and −0.0183 on `clean_eval` — concat is ahead on both,
+   as it was on `val` (−0.0152), and on none of the three does the primary reading reach
+   2 pooled sd (1.51, 0.72, 1.94). By seed the pattern is the same three times: seed 42's
+   pair favours cross_attention slightly (+0.0062 / +0.0037 / +0.0015 on `val` / `test` /
+   `clean_eval`), seeds 1 and 2 favour concat. Three partitions, the same nine
+   checkpoints — that is one set of seeds seen three times, not three confirmations.
+2. **Neither fused arm beats fine-tuned `llm_only` at pointing inside a function.**
+   cross_attention − `llm_only` on Top-5 is −0.0018 and −0.0005; concat − `llm_only` is
+   +0.0117 and +0.0178, under 1.5 pooled sd on both. Top-1, Top-3, Top-5, Top-10 and IFA
+   cross the threshold for no pair on either partition in the primary reading. The
+   per-unit metrics that do cross on one partition — MAR and Recall@1% / 5% LOC on
+   `test`, Top-5 with blank lines withheld on `clean_eval` — are listed above and none
+   crosses on the other.
+3. **Every arm beats reading the function from the top, on both partitions.** Top-5
+   0.46–0.48 against 0.26 on `test` and 0.40–0.42 against 0.16 on `clean_eval`; IFA 21–23
+   against 39 and 23–24 against 47.
+4. **The one `val` candidate that was pre-stated and checked: concat − `llm_only` on
+   PR-AUC repeats.** §1.29 named it (+0.0206, 2.20 pooled sd) as a candidate for this
+   pass. It is +0.0201 (2.01) on `test` and +0.0235 (2.54) on `clean_eval`, positive on
+   every seed on each: +0.0148 / +0.0172 / +0.0283 and +0.0200 / +0.0262 / +0.0243 (seeds
+   42 / 1 / 2). Concat's ECE is also the lowest on all three partitions. **What may be
+   said:** *across lines pooled over functions, the concat model's scores order flagged
+   lines above clean ones better than fine-tuned `llm_only`'s — by about 0.02 average
+   precision on validation and on both held-out partitions, at three seeds.* The
+   partitions re-sample functions, not seeds: it is still three checkpoints against three.
+5. **Both fused arms are above `llm_only` on PR-AUC on every seed of every partition** —
+   eighteen of eighteen seed pairs across `val`, `test` and `clean_eval`
+   (cross_attention − `llm_only`: +0.0041 / +0.0224 / +0.0500 on `test`, +0.0223 /
+   +0.0013 / +0.0189 on `clean_eval`). For cross_attention the mean difference does not
+   reach the threshold on any partition (0.84, 1.22, 1.21): its own seed sd is the
+   largest of the three arms.
+
+### What it does not support
+
+- **"Fusion improves localization."** PR-AUC pools lines across functions; within a
+  function — which is what Top-k and IFA measure, and what a developer reading one
+  function needs — no arm is ahead. *A reading, not a measurement:* a structural branch
+  may help decide how suspicious a function's lines are *relative to another
+  function's*, without helping to order the lines of one.
+- **The `val` candidate in the control's favour.** §1.28 carried cross_attention −
+  `llm_only` on Top-1 at −0.0118 (1.92 pooled sd). Held out it is +0.0179 (1.34) on
+  `test` and +0.0052 on `clean_eval`: the sign reversed. It was noise.
+- **Any single-partition crossing above.** cross_attention's lead on Recall@1% / 5% LOC
+  over `llm_only` on `test` is +0.0007 / −0.0048 on `val` and +0.0033 / −0.0018 on
+  `clean_eval`; its MAR deficit against concat (+0.80 on `val`, +1.56 on `test`) is not
+  there on `clean_eval` (−0.15). None was pre-stated, and none holds on all three.
+- **Generalization from `clean_eval`.** It measures label quality, not new projects —
+  66.5% of its projects are also in `train` (landmine #10). Its functions are the longest
+  (source-order IFA 47 against 39 and 30), which is why every number there is lower.
+- **Function-level detection, an external detector, or anything about the frozen screen
+  or an ablation** (`EvaluationProtocol.md` §9). §1.32's result is validation-only and
+  stays so.
+
+### Validation against held-out, and the calibration
+
+| | `val` (§1.29) | `test` | `clean_eval` |
+|---|---|---|---|
+| Top-5, the three arms | 0.5394 / 0.5546 / 0.5519 | 0.4646 / 0.4781 / 0.4664 | 0.3977 / 0.4160 / 0.3982 |
+| Top-5, source order | 0.3071 | 0.2606 | 0.1580 |
+| IFA, source order | 29.78 | 39.13 | 47.02 |
+| Line F1 at the `val` threshold | 0.2359 / 0.2408 / 0.2330 (out of fold) | 0.2384 / 0.2322 / 0.2190 | 0.1731 / 0.1820 / 0.1566 |
+| ECE | 0.0133 / 0.0076 / 0.0168 (out of fold) | 0.0216 / 0.0153 / 0.0247 | 0.0307 / 0.0303 / 0.0336 |
+| Positive rate | 0.0664 | 0.0494 | 0.0274 |
+
+- **Top-5 is 0.07–0.09 lower on `test` than on `val` and 0.14–0.15 lower on
+  `clean_eval`, and source order falls with it** (0.31 → 0.26 → 0.16): the partitions
+  differ in how long their functions are. The margin over source order is 0.23–0.25 on
+  `val`, 0.20–0.22 on `test` and 0.24–0.26 on `clean_eval`. The `val` numbers were also
+  validation-selected — the epoch was chosen on them — and these are not.
+- **The `val` threshold transfers to `test`** (line F1 0.22–0.24 against 0.23–0.24 out
+  of fold) **and not to `clean_eval`** (0.16–0.18), where flagged lines are less than
+  half as frequent. ECE rises from `val` to `test` and again to `clean_eval`, by 1.4–2.0×
+  at each step: the calibrator was fitted where 6.6% of lines are flagged.
+
+### Noise floors
+
+- **Units.** Each checkpoint's 95% bootstrap interval over units is about ± 0.042 on
+  Top-5 on `test` (`ba7dcc5f…`: 0.4677 [0.4269, 0.5102]; IFA 22.09 [18.46, 25.91]) and
+  ± 0.026 on `clean_eval` (0.4082 [0.3826, 0.4338]; IFA 23.36 [21.25, 25.56]). All nine
+  intervals overlap on each partition, and every arm difference above is inside one.
+- **Ties.** The best flagged line is exactly tied with a clean one in 17–38 of 541
+  `test` units and 55–139 of 1,367 `clean_eval` units per checkpoint. The arm means'
+  bounds: `test` Top-5 unchanged at four decimals, IFA within ± 0.04; `clean_eval` Top-5
+  0.3977 … 0.3975 / 0.4165 … 0.4155 / 0.3984 … 0.3977, IFA within ± 0.05.
+
+### Ceilings, beside every number above
+
+| | `test` | `clean_eval` |
+|---|---|---|
+| Line-labelled units, all scored | 546 | 1,393 |
+| Units ranked (a flagged line inside the 512-line cap) | 541 | 1,367 |
+| Flagged lines in the partition | 2,779 | 4,499 |
+| …past the line cap | 48 (1.73%) | 141 (3.13%) |
+| …inside the cap | 2,731 | 4,358 |
+| …of those, blank after comment stripping | 192 | 55 |
+| …of those, with no features | 43 | 21 |
+| Units whose flagged lines are all blank | 8 | 0 |
+
+And about 30% of the line labels are wrong (§1.6, n = 20), which no count here measures.
+
+### Leak audit of the held-out scores
+
+Runs `9c9d1d15…` (`test`) and `f2aa9b90…` (`clean_eval`), on comment-stripped text.
+
+- **`clean_eval`: no unit a tell can answer.** As the protocol expected.
+- **`test`: one unit, not zero.** `bigvul-181496`, line 6, reads
+  `* Eliminate warning about unused variable. *` — a flagged comment that lost **both**
+  slashes, so no parser sees a comment and the label-blind stripper has nothing to
+  remove. ADR-010's own evidence counted it in advance
+  (`artifacts/representation/comment_stripping.json`, run `af4173a3…`: lost-slash lines
+  left after stripping — `train` 6, `val` 0, `test` 1, `clean_eval` 1). All nine
+  checkpoints have a flagged line of that unit in their top five and none ranks the tell
+  line first (the three cross_attention seeds put it 2nd of 10; the explainer says so in
+  its text for that line). The unit has three flagged lines among ten scored, so a
+  top-five hit there says little, and it is a Top-1 miss for all nine. Without it each
+  arm's Top-5 is lower by 0.0009–0.0010 (540 units: 0.4636 / 0.4772 / 0.4654) and its
+  Top-1 higher by 0.0004–0.0005 — the same for every arm.
+  **Reported as it is: the held-out text was not perfectly free of the tell, by one
+  function in 541.**
+
+### Explanations and the rater pack, on `test`
+
+The designed model's three seeds (`explain-test` runs `c0bb255d…`, `3cbc0f9a…`,
+`3fc4afa5…`): 5,040 + 5,477 + 3,835 = **14,352 flagged lines explained, 14,352
+verified, none rejected**; 437 / 411 / 448 of 546 units have at least one line above the
+threshold. A weakness pattern names a cause for 6.0% / 5.1% / 7.7% of the flagged lines
+(about one in twelve on `val`, §1.27) and for 10.5% / 9.5% / 10.3% of the top-ranked
+ones. The rater pack — 100 samples from `ba7dcc5f…`'s 437 flagged `test` units, three
+rating sheets, run `dd8003f8…` — is at `artifacts/phase7/rater_pack_test/`; the flagged
+line is a labelled line in 31 of the 100. **No rating exists yet**; that is the human
+evaluation (`docs/HumanEvalProtocol.md`).
+
+### Runs behind this section
+
+Scoring: seventeen runs on 2026-10-11 (`score-test` × 8, `ae7fd055…` first; `score-
+clean_eval` × 9, `393b41e9…` first), all `FINISHED` at `344db7c`, and `21e80fb8…` on
+2026-10-08. Evaluation `f3a7dbdf…`, `c5609b93…`; audits
+`9c9d1d15…`, `f2aa9b90…`; explanations `c0bb255d…`, `3cbc0f9a…`, `3fc4afa5…`; rater pack
+`dd8003f8…`. Figures: `artifacts/phase8/figures/{arms,reliability}_{test,clean_eval}.svg`.
+Score files: `artifacts/phase6/scores_retrained/<run>_<split>.npz`.
 
 ---
 
@@ -2584,9 +2811,9 @@ no run was interrupted (a frozen run is not resumable and each finished). Gate:
 every run cross-checks `agrees`, and no source drift was accepted — the commits the runs
 span differ in docs and scripts only. The arm rows below are the six seed reports'; the
 differences in pooled sd are `scripts/make_ablation_tables.py`'s arithmetic on them, and
-**its logged run — the tables of record, `artifacts/phase8/ablations.md` — is made once
-the held-out pass has ended** (nothing else writes to the tracking store while the pass
-runs); its run id is added here then.
+**its logged run is `922719b5…`** (2026-10-11 00:48, at `c6373cf`, made once the held-out
+pass had ended) — the tables of record, `artifacts/phase8/ablations.md`: 84 scaled
+comparisons, 28 of them on Top-5, 25 past the threshold.
 
 | Frozen, comment-stripped, `val`, 3 seeds | Top-5 | Top-1 | IFA ↓ | Top-5 by seed (42 / 1 / 2) | Selected epoch, of epochs evaluated | Runs (42 / 1 / 2) |
 |---|---|---|---|---|---|---|
@@ -3707,7 +3934,39 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-11 00:00 (session 18): `a1r` on its last run; the held-out pass chained behind it at the owner's answer
+#### Where it stands — 2026-10-11 01:15 (session 18): the held-out pass is DONE; `a1r` is done; `a1rep` is running
+
+- **The held-out pass ran from 00:15 to 00:47 and every step exited 0**
+  (`artifacts/queue/heldout_pass.out`): eighteen score files, the two evaluations, the two
+  leak audits, explanations of the designed model's three seeds on `test`, and the rater
+  pack. **Results: §1.30.** Neither partition is scored or evaluated again. Figures:
+  `artifacts/phase8/figures/{arms,reliability}_{test,clean_eval}.svg`.
+- **`a1r` finished at 00:14** with three seeds an arm. Results, and the tables of record
+  (`922719b5…`): §1.32.
+- **`a1rep` has been running since 00:49** (`artifacts/queue/a1rep.out`): fifteen frozen
+  runs — cross_attention and concat on seeds 3, 4 and 5 first, then `llm_only`, sum and
+  gated — and ten seed reports; about four hours. The session started it under the
+  owner's words of that night (§2, first row). What it is read for is in §1.32 and was
+  committed (`c6373cf`) before its first run. Slate:
+  `python scripts/run_queue.py --only a1rep --status`.
+- **The owner, shortly after midnight:** *"train or build whatever you need to overnight,
+  internet will be on till 4 am i guess"*, and *"keep the docs updated and context as
+  well updated so theres no dip in your performance"*.
+- **What is left, in order:**
+  1. *After `a1rep`:* its ten reports in `artifacts/adr010/`
+     (`…frozen_stripped_replication_<arm>.json` with `n_seeds: 3`,
+     `…frozen_stripped_six_seeds_<arm>.json` with `n_seeds: 6`); the two `pending` tables
+     in `docs/ablations.yaml` set to `run`; `python scripts/make_ablation_tables.py`; the
+     outcome written into §1.32 against the plan that section already holds.
+  2. *Phase 9, once no group is running:* the merge of `phase-9/serving` (`6b93d58`; a
+     trial merge on 2026-10-10 had no conflict); the held-out numbers of §1.30 into
+     `docs/MODEL_CARD.md`; the bundle of record; latency on an idle machine; the demo
+     page's result state; Docker; §1.33.
+  3. *The owner's:* the failure-taxonomy review (`docs/FailureTaxonomy.md` §6); the rest
+     of the clean-clone criterion; the human evaluation, for which the `test` rater pack
+     now exists (`artifacts/phase7/rater_pack_test/`); the Phase 8 gate.
+
+#### Where it stood — 2026-10-11 00:00 (session 18): `a1r` on its last run; the held-out pass chained behind it at the owner's answer
 
 - The owner wrote *"continue"* at about 23:53 on 2026-10-10. Session 18 restarted the
   `a1r` queue alone at 23:54 (`a1r-gated-seed2`, then the six seed reports; transcript
@@ -4768,6 +5027,7 @@ Things that cost time once and should not cost time twice.
 | 64 | **A generated table that marks "≥ 2 pooled sd" is marking one comparison among many.** MEASURED 2026-10-08 (run `52b9c998…`): Phase 8's `val` evaluation makes 93 comparisons (31 metrics × 3 pairs) and three reach 2 pooled sd — concat − `llm_only` on PR-AUC (+0.0206, 2.20) and on ECE (out of fold −0.0092, 3.77; in sample −0.0130, 3.04). With three seeds an arm, 2 pooled sd is a two-sample t of 2.45 on 4 degrees of freedom: two arms with no difference reach it with probability ≈ 0.07 in any one comparison — ≈ 6.6 of 93 if they were independent | The script's first run (`30aeff44…`) printed the bare word "resolved" beside them. Read as written that is "concat beats `llm_only`" — on validation, at three seeds, out of a search over 93. The same family as #37, one level up: not too few seeds for one comparison, but too many comparisons for the seeds | The tables now print how many comparisons were made, name the crossings and state the chance figure (`4281b3f`; `statistics.threshold_p_value`). **Claims rest only on the nine headline comparisons — Top-5, IFA, PR-AUC × the three pre-stated pairs — and a crossing anywhere is a candidate to check on a partition it was not seen on** | ✅ Reported with its denominator since `4281b3f` |
 | 65 | **A rate per kind of line reads as a property of the kind until you count the units behind it.** MEASURED 2026-10-10 (run `42f8f27c…`, §1.31): on `val`, 25.3% of preprocessor lines are flagged against 6.9% of all lines — and the 145 flagged ones sit in **13** of 482 units, a fifth of them in one function. The first table printed 37.7% (under a narrower rule) with no unit count; it looked like a third formatting tell for the minute it took to count. Same family as #13 and #40: a figure that rests on a handful of functions is about those functions | ✅ `sample_failures.py` prints the unit count and the largest unit's share beside every rate |
 | 66 | **`report_phase4.py` sorts a group's `seeds` and not its `run_ids`.** Zipping the two labels runs with the wrong seed: `46ab8056…` is seed 42 and came out as seed 1 in the first ablation table. No mean or sd moves — only which run a reader would open for which seed. Found 2026-10-10 by comparing the table with `run_queue.py --status` | ✅ `make_ablation_tables.py` reads each run's seed from what the run logged, and refuses a seed report that disagrees with it. `phase4_report.json` itself is unchanged |
+| 67 | **A group that gains seeds turns its old seed-report command into a different report.** `a1r`'s reports select on `{fusion_kind, frozen, strip_comments}`. Once `a1rep` has run, the same command by hand aggregates six seeds and writes over the three-seed file of record — and nothing refuses, because six runs with identical parameters *are* replicates. Noticed 2026-10-11 while adding the group, before any `a1rep` run existed | ✅ `report_seeds.py` takes `+seeds.seeds=[…]`; `a1rep`'s reports name their seeds and write to files of their own. **An `a1r` seed report re-run by hand needs `'+seeds.seeds=[42,1,2]'`.** The queue does not re-run them: they are recorded `done` |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**

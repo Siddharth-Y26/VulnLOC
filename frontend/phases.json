@@ -1,6 +1,6 @@
 {
   "_comment": "Mirrors CLAUDE.md section 3 and docs/Phases.md. This file is a SUMMARY and is not authoritative — when it disagrees with docs/Memory.md, Memory.md wins and this file is the thing to fix. Update it in the same commit as any phase change. 'does' is one short sentence shown under each stage; keep it that way (owner, 2026-09-15). Measured numbers are NOT written here — the page reads them from the seed reports via /api/results.",
-  "_updated": "2026-10-07",
+  "_updated": "2026-10-11",
   "stages": [
     {
       "id": "normalize",
@@ -76,8 +76,8 @@
       "id": "evaluate",
       "phase": 8,
       "name": "Evaluation",
-      "state": "planned",
-      "does": "Final benchmark numbers against other tools."
+      "state": "trained",
+      "does": "Held-out numbers on the test and clean-evaluation data, measured once. Measured on the dataset only; not run on your code."
     },
     {
       "id": "serve",
