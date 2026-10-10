@@ -689,6 +689,62 @@ def test_the_a6_reports_do_not_read_stripped_runs():
             assert "strip_comments: False" in next(a for a in step.args if "seeds.where" in a)
 
 
+# --- a1rep: the a1r screen on three new seeds (Memory.md §1.32) --------------------------
+
+A1REP_ARMS = ("cross_attention", "concat", "llm_only", "sum", "gated")
+
+
+def test_a_replication_run_differs_from_its_a1r_arm_in_the_seed_alone():
+    """Anything else that differed would be what the replication measured instead."""
+    for arm in A1REP_ARMS:
+        original = next(s for s in _group("a1r") if s.name == f"a1r-{arm}-seed42")
+        for seed in run_queue.A1REP_SEEDS:
+            again = next(s for s in _group("a1rep") if s.name == f"a1rep-{arm}-seed{seed}")
+
+            assert set(again.args) ^ set(original.args) == {"seed=42", f"seed={seed}"}
+            assert again.script == original.script and not again.resumable
+
+
+def test_the_replication_uses_no_seed_the_first_screen_used():
+    assert not set(run_queue.A1REP_SEEDS) & {42, 1, 2}
+    assert len(set(run_queue.A1REP_SEEDS)) == 3
+
+
+def test_the_replication_runs_the_core_pair_first_and_builds_no_cache():
+    runs = [s.name for s in _group("a1rep") if s.script == "scripts/train_fused.py"]
+
+    assert len(runs) == 15
+    assert runs[:6] == [
+        f"a1rep-{arm}-seed{seed}"
+        for seed in run_queue.A1REP_SEEDS
+        for arm in ("cross_attention", "concat")
+    ]
+    assert not [s for s in _group("a1rep") if s.script == "scripts/build_semantic_cache.py"]
+
+
+def test_each_replication_arm_is_reported_alone_and_with_the_first_three_seeds():
+    """Two files an arm, neither of them the a1r report of record."""
+    reports = {s.name: s for s in _group("a1rep") if s.script == run_queue.SEED_REPORT_SCRIPT}
+    first = {s.name: s for s in _group("a1r") if s.script == run_queue.SEED_REPORT_SCRIPT}
+
+    assert len(reports) == 10
+    for arm in A1REP_ARMS:
+        alone = reports[f"a1rep-seed-report-{arm}"]
+        together = reports[f"a1rep-six-seed-report-{arm}"]
+        record = first[f"a1r-seed-report-{arm}"]
+        where = next(a for a in record.args if "seeds.where" in a)
+
+        assert where in alone.args and where in together.args
+        assert "+seeds.seeds=[3,4,5]" in alone.args
+        assert "+seeds.seeds=[42,1,2,3,4,5]" in together.args
+        assert "+seeds.min_seeds=6" in together.args
+        tags = {next(a for a in s.args if "seeds.tag" in a) for s in (alone, together, record)}
+        assert len(tags) == 3
+        for step in (alone, together):
+            assert run_queue.REQUIRE_SUFFICIENT in step.args
+            assert "+seeds.output_dir=./artifacts/adr010" in step.args
+
+
 # --- a fresh machine must name its groups -----------------------------------------------
 
 

@@ -56,6 +56,8 @@ Usage::
     python scripts/report_seeds.py +seeds.min_seeds=5
     python scripts/report_seeds.py train=structural '+seeds.where={gnn_kind: gcn, gnn_depth: 4}'
     python scripts/report_seeds.py train=fused '+seeds.where={fusion_kind: sum}' +seeds.tag=sum
+    python scripts/report_seeds.py train=fused '+seeds.where={fusion_kind: sum}'
+        '+seeds.seeds=[3,4,5]' +seeds.tag=sum_replication   # (one line) those seeds only
 """
 
 from __future__ import annotations
@@ -246,6 +248,10 @@ def _collect(
     # is exactly what the comparability guard refuses — correctly, but unhelpfully.
     where = OmegaConf.select(cfg, "seeds.where") or {}
     selector = {str(k): str(v) for k, v in dict(where).items()}
+    # A second, narrower selector: which seeds. A group that gains seeds later — a
+    # replication of an earlier three — must be reportable as the later seeds alone, and
+    # `where` holds one value per parameter. A run that logged no seed is never selected.
+    wanted_seeds = {str(seed) for seed in OmegaConf.select(cfg, "seeds.seeds") or []}
 
     def _matches(run: Any, key: str, wanted: str) -> bool:
         """Does this run's parameter match, treating an absent one as off?
@@ -268,6 +274,14 @@ def _collect(
                 {
                     "run_id": run.info.run_id,
                     "reason": f"outside the requested group: {', '.join(sorted(mismatch))}",
+                }
+            )
+            continue
+        if wanted_seeds and run.data.params.get("seed") not in wanted_seeds:
+            excluded.append(
+                {
+                    "run_id": run.info.run_id,
+                    "reason": f"outside the requested seeds: seed={run.data.params.get('seed')}",
                 }
             )
             continue

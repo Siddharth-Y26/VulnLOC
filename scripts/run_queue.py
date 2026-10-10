@@ -70,6 +70,10 @@ POLL_SECONDS = 15.0
 SEED_REPORT_SCRIPT = "scripts/report_seeds.py"
 REQUIRE_SUFFICIENT = "+seeds.require_sufficient=true"
 
+A1REP_SEEDS = (3, 4, 5)
+"""The seeds of group ``a1rep`` — chosen before any of them was run, and none of them a
+seed the ``a1r`` screen used (42, 1, 2). ``Memory.md`` §1.32."""
+
 STRIP_COMMENTS = "+representation.strip_comments=true"
 """The override that removes the second formatting leak (``Memory.md`` §1.25). The key is
 absent from ``configs/config.yaml`` on purpose, hence the ``+``."""
@@ -804,6 +808,77 @@ def build_plan() -> list[Step]:
             )
         )
 
+    # --- Memory.md §1.32: the a1r screen again, on three seeds it has not seen ---------
+    # Added 2026-10-11. On comment-stripped text with the encoder frozen, cross_attention
+    # leads concat on `val` Top-5 by 2.9 pooled sd over seeds 42 / 1 / 2 — where the same
+    # screen on text with the tell showed nothing, and the fine-tuned models of record
+    # tie. Two arms with no difference reach that threshold 7 times in 100 at three seeds
+    # (§7 #64), so the five arms the result is about are run on three new seeds. What is
+    # computed from them was written into §1.32 before the first of these runs started.
+    # `gnn_only` is left out: its distance from every other arm is not in question.
+    #
+    # a1r's constants and a1r's cache — nothing is rebuilt (§7 #50, #59). Each arm gets two
+    # reports: the new seeds alone, which is the replication, and all six. The a1r reports
+    # of record are other files and are not touched; **an a1r seed report re-run by hand
+    # after this group would aggregate six seeds — pass `+seeds.seeds=[42,1,2]`.**
+    for seed in A1REP_SEEDS:
+        for arm in ("cross_attention", "concat"):
+            steps.append(
+                Step(
+                    name=f"a1rep-{arm}-seed{seed}",
+                    group="a1rep",
+                    why=f"Replication of the a1r core pair: {arm}, frozen, stripped, seed {seed}.",
+                    script="scripts/train_fused.py",
+                    args=[f"+fusion={arm}", "train=fused", f"seed={seed}", *a1r_constants],
+                )
+            )
+    for seed in A1REP_SEEDS:
+        for arm in ("llm_only", "sum", "gated"):
+            steps.append(
+                Step(
+                    name=f"a1rep-{arm}-seed{seed}",
+                    group="a1rep",
+                    why=f"Replication of a1r arm {arm}: frozen, stripped, seed {seed}.",
+                    script="scripts/train_fused.py",
+                    args=[f"+fusion={arm}", "train=fused", f"seed={seed}", *a1r_constants],
+                )
+            )
+    new_seeds = ",".join(str(seed) for seed in A1REP_SEEDS)
+    all_seeds = ",".join(str(seed) for seed in (42, 1, 2, *A1REP_SEEDS))
+    for arm in ("cross_attention", "concat", "llm_only", "sum", "gated"):
+        where = f"+seeds.where={{fusion_kind: {arm}, frozen: True, strip_comments: True}}"
+        steps.append(
+            Step(
+                name=f"a1rep-seed-report-{arm}",
+                group="a1rep",
+                why=f"The replication alone: frozen, stripped {arm} on seeds {new_seeds}.",
+                script="scripts/report_seeds.py",
+                args=[
+                    "train=fused",
+                    where,
+                    f"+seeds.seeds=[{new_seeds}]",
+                    f"+seeds.tag=frozen_stripped_replication_{arm}",
+                    "+seeds.output_dir=./artifacts/adr010",
+                ],
+            )
+        )
+        steps.append(
+            Step(
+                name=f"a1rep-six-seed-report-{arm}",
+                group="a1rep",
+                why=f"Both sets together: frozen, stripped {arm} on all six seeds.",
+                script="scripts/report_seeds.py",
+                args=[
+                    "train=fused",
+                    where,
+                    f"+seeds.seeds=[{all_seeds}]",
+                    f"+seeds.min_seeds={3 + len(A1REP_SEEDS)}",
+                    f"+seeds.tag=frozen_stripped_six_seeds_{arm}",
+                    "+seeds.output_dir=./artifacts/adr010",
+                ],
+            )
+        )
+
     # Every seed report in the slate must fail, not pass, when a seed is missing. Without
     # this the report after a crashed run is written on the seeds that survived, exits 0
     # and is recorded `done` — and is then never run again once the missing seed finishes
@@ -1176,7 +1251,7 @@ def main() -> int:
         metavar="GROUP",
         help="Run only these groups, in plan order (phase3, phase4, p5check, phase5, "
         "d97check, d97, m2check, m2, m2ftcheck, m2ft, a6check, a6, d97rcheck, d97r, "
-        "a1rcheck, a1r).",
+        "a1rcheck, a1r, a1rep).",
     )
     parser.add_argument(
         "--until",

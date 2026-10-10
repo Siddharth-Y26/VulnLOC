@@ -65,8 +65,8 @@ ablations:
         store: laptop_1
         encoder: frozen
         text: stripped
-        status: pending
-        memory: "§1.25 (queue groups a1rcheck / a1r)"
+        status: run
+        memory: "§1.32 (queue groups a1rcheck / a1r, 2026-10-10)"
         reference: cross_attention
         arms:
           cross_attention:
@@ -91,6 +91,73 @@ ablations:
           - {first: cross_attention, second: concat, expects: first_higher}
           - {first: cross_attention, second: sum, expects: first_higher}
           - {first: cross_attention, second: gated, expects: first_higher}
+
+      - key: a1_frozen_stripped_replication
+        title: Frozen encoder, comment-stripped text — the same screen on seeds 3, 4 and 5 alone
+        store: laptop_1
+        encoder: frozen
+        text: stripped
+        status: pending
+        memory: "§1.32 (queue group a1rep; the plan was written before the runs)"
+        note: >-
+          A replication: three seeds the table above never saw, the same constants and the
+          same semantic cache. `gnn_only` was not run again. What this table is read for was
+          fixed in `Memory.md` §1.32 before its first run started.
+        reference: cross_attention
+        arms:
+          cross_attention:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_replication_cross_attention.json
+            expect: {fusion_kind: cross_attention}
+          concat:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_replication_concat.json
+            expect: {fusion_kind: concat}
+          sum:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_replication_sum.json
+            expect: {fusion_kind: sum}
+          gated:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_replication_gated.json
+            expect: {fusion_kind: gated}
+          llm_only:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_replication_llm_only.json
+            expect: {fusion_kind: llm_only}
+        comparisons:
+          - {first: cross_attention, second: concat, expects: first_higher}
+          - {first: cross_attention, second: sum, expects: first_higher}
+          - {first: cross_attention, second: gated, expects: first_higher}
+          - {first: cross_attention, second: llm_only, expects: first_higher}
+
+      - key: a1_frozen_stripped_six_seeds
+        title: Frozen encoder, comment-stripped text — both sets of seeds together (42, 1, 2, 3, 4, 5)
+        store: laptop_1
+        encoder: frozen
+        text: stripped
+        status: pending
+        memory: "§1.32 (queue groups a1r and a1rep)"
+        note: >-
+          The two tables above pooled. Not a third measurement: three of its six seeds are
+          the ones whose result prompted the other three.
+        reference: cross_attention
+        arms:
+          cross_attention:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_six_seeds_cross_attention.json
+            expect: {fusion_kind: cross_attention}
+          concat:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_six_seeds_concat.json
+            expect: {fusion_kind: concat}
+          sum:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_six_seeds_sum.json
+            expect: {fusion_kind: sum}
+          gated:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_six_seeds_gated.json
+            expect: {fusion_kind: gated}
+          llm_only:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_six_seeds_llm_only.json
+            expect: {fusion_kind: llm_only}
+        comparisons:
+          - {first: cross_attention, second: concat, expects: first_higher}
+          - {first: cross_attention, second: sum, expects: first_higher}
+          - {first: cross_attention, second: gated, expects: first_higher}
+          - {first: cross_attention, second: llm_only, expects: first_higher}
 
       - key: a1_finetuned_as_shipped
         title: Fine-tuned encoder, text as shipped (ADR-009 D9.7)
@@ -178,8 +245,8 @@ ablations:
         store: laptop_1
         encoder: frozen
         text: stripped
-        status: pending
-        memory: "§1.25 (queue groups a1rcheck / a1r)"
+        status: run
+        memory: "§1.32 (queue groups a1rcheck / a1r, 2026-10-10)"
         reference: cross_attention
         arms:
           cross_attention:

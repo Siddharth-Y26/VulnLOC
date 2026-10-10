@@ -406,6 +406,55 @@ def test_an_absent_parameter_matches_a_requested_off_value() -> None:
     assert excluded and excluded[0]["run_id"] == RUN_B
 
 
+def _search_over(found: list[Any]) -> Any:
+    class _Search:
+        def get_run(self, run_id: str) -> Any:  # pragma: no cover - unused here
+            raise AssertionError
+
+        def search_runs(self, **_: Any) -> list[Any]:
+            return found
+
+    return _Search()
+
+
+def test_a_seed_filter_reports_the_later_seeds_of_a_group_alone() -> None:
+    """A replication is the group's new seeds — the first three are not folded in again."""
+    from omegaconf import OmegaConf
+
+    found = [_run("1" * 32, seed=42), _run("2" * 32, seed=1), _run("3" * 32, seed=3)]
+    found.append(_run("4" * 32, seed=4))
+    cfg = OmegaConf.create({"train": {"name": "semantic"}, "seeds": {"seeds": [3, 4]}})
+
+    runs, excluded = report_seeds._collect(_search_over(found), "1", cfg)
+
+    assert [r.data.params["seed"] for r in runs] == ["3", "4"]
+    assert {entry["run_id"] for entry in excluded} == {"1" * 32, "2" * 32}
+    assert all("outside the requested seeds" in entry["reason"] for entry in excluded)
+
+
+def test_without_a_seed_filter_every_seed_of_the_group_is_aggregated() -> None:
+    from omegaconf import OmegaConf
+
+    found = [_run("1" * 32, seed=42), _run("3" * 32, seed=3)]
+    cfg = OmegaConf.create({"train": {"name": "semantic"}})
+
+    runs, excluded = report_seeds._collect(_search_over(found), "1", cfg)
+
+    assert [r.data.params["seed"] for r in runs] == ["42", "3"]
+    assert excluded == []
+
+
+def test_a_run_that_logged_no_seed_is_never_selected_by_a_seed_filter() -> None:
+    from omegaconf import OmegaConf
+
+    unseeded = _run("5" * 32, seed=3)
+    del unseeded.data.params["seed"]
+    cfg = OmegaConf.create({"train": {"name": "semantic"}, "seeds": {"seeds": [3]}})
+
+    with pytest.raises(ConfigError):
+        report_seeds._collect(_search_over([unseeded]), "1", cfg)
+
+
 def test_arms_sharing_a_train_name_get_separate_reports() -> None:
     """All six A1 arms are `train=fused`; untagged, each report would overwrite the last."""
     module = _load()
