@@ -2472,6 +2472,102 @@ audit listed under §1.28. Artefacts: `artifacts/phase8/evaluation_val.json` and
 
 ---
 
+## 1.31 Phase 8 — where the model of record misses, on `val`: a draft taxonomy and two counts that need no reader (2026-10-10)
+
+**§1.30 is deliberately not written: that number is reserved for the held-out pass, and
+its absence is how §6 item 0a tells a session that the pass is unfinished.**
+
+**Status: a DRAFT. Thirty cases were read by session 18 and by nobody else; Phase 8's
+"≥ 20 inspected cases" criterion stays open until the owner has reviewed them
+(`docs/FailureTaxonomy.md` §6).** Validation only — `scripts/sample_failures.py` refuses
+any other partition. Run `42f8f27c…` (clean `1363561`); `335adb30…` is the same draw and
+the same counts at `6c9114d`, before the sheet printed the chance column. Sheet:
+`artifacts/phase8/failure_cases.md`.
+
+**A failure** is defined before any is read: a unit whose first flagged line the model of
+record (cross_attention retrained, `ba7dcc5f…` / `8afbf7da…` / `ff980345…`) ranks outside
+the top 10 on **every** seed, under the evaluation's ranking. **107 of 482 ranked units.**
+Thirty were drawn by content hash (seed 1337).
+
+### Counted over every failure — no reading involved
+
+| A unit that… | Of the 107 failures | Of the 482 ranked units |
+|---|---|---|
+| has every flagged line inside the cap blank, unscoreable or syntax alone | 10 | 11 |
+| has a flagged line that is blank after comment stripping | 17 | 76 |
+| has a flagged line whose text also stands on an unflagged line | 22 | 94 |
+| has a top-10 line on, or within three lines of, a flagged line (seed 42) | 31 | 383 |
+
+Scored lines per unit, median: **117 for the failures, 46 for every ranked unit**; no
+failure has fewer than 25.
+
+### Counted over every flagged line — which kinds of line the model finds
+
+Lines sorted into kinds by rule (one stripped line at a time, first match wins). *Found*:
+share of the kind's flagged lines in the top 10 of their own function, mean of three
+seeds. *By chance*: the same for a ranking drawn at random, `min(1, 10 / n)` per line.
+
+| Kind | Flagged | In units | Flagged, % of the kind | Found | By chance |
+|---|---|---|---|---|---|
+| assignment | 679 | 212 | 9.1 | 0.324 | 0.187 |
+| condition or loop header | 499 | 208 | 9.7 | 0.352 | 0.179 |
+| call | 428 | 194 | 8.4 | 0.405 | 0.260 |
+| other (continuation lines, literals) | 286 | 126 | 7.3 | 0.408 | 0.251 |
+| blank | 274 | 76 | 3.3 | 0.095 | 0.205 |
+| syntax alone | 271 | 83 | 3.9 | 0.077 | 0.183 |
+| preprocessor | 145 | **13** | 25.3 | 0.025 | 0.061 |
+| return or jump | 136 | 54 | 7.9 | 0.206 | 0.259 |
+| declaration | 90 | 58 | 6.3 | 0.256 | 0.229 |
+| **every kind** | 2,808 | 482 | 6.9 | **0.281** | **0.203** |
+
+### What this supports
+
+- **Per flagged line the model is above a random ranking, and not by much: 0.281 against
+  0.203.** A different quantity from the per-unit Top-10 of 0.667 (§1.29), which needs
+  only one flagged line of a function.
+- **The lift is on statements** — assignments, conditions, calls, continuation lines:
+  1.6–2.0 times chance.
+- **On blank lines, syntax-only lines, bare returns and preprocessor lines the model is
+  below chance.** It ranks them down, as their label rates teach (3.3% and 3.9% against
+  6.9%), so **the 545 flagged lines that are blank or syntax alone — 19.4% of the 2,808 —
+  are close to unreachable for it.** The blank ones are §1.25's residue (a flagged
+  comment line, stripped); the 271 syntax-only ones were not counted before.
+- **Ten of the 107 failures had nothing to find**, and those ten are 10 of the 11 such
+  units in the partition. A ceiling, not an error.
+- **Failures are long functions**, and 29% of them (31 of 107) are near misses in the
+  three-line sense.
+
+### What it does not support
+
+- **Any share of the 107 by category.** The eight categories of `docs/FailureTaxonomy.md`
+  (guard flagged and the guarded statements ranked, 7 of 30; declaration or definition
+  flagged, 4; a twin statement ranked instead, 2; a rewritten block, 3; format-string
+  calls, 3; nothing to find, 2; one line of a longer statement, 1; no relation seen, 8)
+  are a session's reading of thirty cases, unreviewed.
+- **"The model found the real bug and the label is wrong"** for the cases where its top
+  ranks sit beside the flagged line. Nobody opened a fix commit.
+- **Anything general about preprocessor lines**: 145 flagged lines in 13 units, a fifth
+  of them in one. The first table printed the rate without the unit count and it read as
+  a property of the kind; the script now prints both (§7 #65).
+- Anything about `test`, `clean_eval`, the other two arms or the frozen models.
+
+### One mechanism, checked by hand
+
+In case 08 the model's top ranks are **empty lines**: alternate lines of a stripped
+comment block are ranked 1st, 2nd, 5th and 7th and the lines between hold the "no
+features" sentinel. The CodeBERT tokenizer turns a run of empty lines into newline-pair
+tokens (`ĊĊ`), each attributed to the line it starts on, so every second empty line has
+semantic features. Checked by tokenizing such a run — a property of the tokenizer, not a
+logged measurement. It is the top-ranked line in 4 of 482 units, all failures; the
+evaluation's "blank lines withheld" reading already removes it.
+
+### Runs behind this section
+
+`42f8f27c…` (of record), `335adb30…` (superseded). Inputs: the three `val` score files of
+§1.28. Artefacts: `artifacts/phase8/failure_cases.{md,json}`.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -2552,13 +2648,19 @@ Did:
     `ResearchPlan.md` §5 — which reports, which conditions, which difference would count)
     and `scripts/make_ablation_tables.py`. 25 tests. Dry run on the real artefacts: 14
     tables run, 2 pending on `a1r`, 69 scaled comparisons.
+  - Built the failure-case draw (`scripts/sample_failures.py`, 39 tests), ran it on `val`,
+    read the thirty cases and drafted `docs/FailureTaxonomy.md` (§1.31).
 Files touched:
   - `docs/ablations.yaml`, `scripts/make_ablation_tables.py`,
-    `tests/unit/test_make_ablation_tables.py`, `docs/Memory.md`, `docs/Phases.md`,
-    `CLAUDE.md`.
+    `tests/unit/test_make_ablation_tables.py`, `scripts/sample_failures.py`,
+    `tests/unit/test_sample_failures.py`, `docs/FailureTaxonomy.md`, `docs/Memory.md`,
+    `docs/Phases.md`, `CLAUDE.md`.
 Runs logged:
   - `19e49b8f…` : the stripped semantic cache, rebuilt (a data artefact, not a result).
   - `3c749001…` : `a1r` overfit gate — Top-1 1.0000 from epoch 58. Never a result.
+  - `42f8f27c…` : failure cases on `val` — 107 of 482 units missed on every seed; per
+    flagged line the model finds 0.281 in the top 10 against 0.203 by chance.
+    (`335adb30…`: the same draw before the chance column.)
 Learned:
   - **`report_phase4.py` sorts a group's `seeds` and not its `run_ids`** — zipping the
     two labels runs with the wrong seed (`46ab8056…` is seed 42 and came out as seed 1).
@@ -2568,6 +2670,10 @@ Learned:
     condition that is checked against the run is worth more than one that is typed.
   - Rebuilding a semantic cache moves it by 2.9e-6 (§6 item 0a). Whatever was scored
     against the old build is reproducible to that, not bitwise.
+  - A fifth of the flagged lines on `val` are blank or syntax alone, and the model ranks
+    those kinds below chance (§1.31). The blank ones were known; the brace-only ones were
+    not counted before.
+  - A per-kind label rate needs its unit count beside it (§7 #65).
 Next:
   - When `a1r` ends: read each seed report's `n_seeds`, mark the two `pending` tables
     `run` in `docs/ablations.yaml`, run `scripts/make_ablation_tables.py`, write it up.
@@ -3495,8 +3601,13 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   `scripts/make_ablation_tables.py` — Phase 8's ablation tables from the 27 seed reports
   that exist, every run checked against the parameters its table declares. The tables of
   record are made after `a1r` ends, when its two tables stop being `pending`.
-- **Still not built in Phase 8:** figures, the failure taxonomy (≥ 20 inspected cases),
-  the clean-clone check.
+- **Also built (15:30): the failure taxonomy, as a draft** — `scripts/sample_failures.py`
+  (a failure defined by rule, cases drawn by content hash, `val` only; run `42f8f27c…`),
+  the sheet `artifacts/phase8/failure_cases.md`, and `docs/FailureTaxonomy.md`: 107 of
+  482 units missed on every seed, 30 read by the session, eight categories. **§1.31 has
+  the counts. The criterion is not ticked: the owner reviews the cases
+  (`docs/FailureTaxonomy.md` §6).**
+- **Still not built in Phase 8:** figures, the clean-clone check.
 
 #### Where it stood — 2026-10-08 18:20 (session 17): THE HELD-OUT PASS IS PAUSED at the owner's request — 1 of 18 score files exists, nothing is evaluated
 
@@ -4380,6 +4491,8 @@ Things that cost time once and should not cost time twice.
 | 62 | **"Training cannot import it" is not "safe to edit while a comparison group runs".** `report_seeds.py` compares all of `src/vulnloc` between the commits of an arm's seeds and refuses on any difference. FOUND 2026-10-07 22:08, two hours before it would have fired: commit `7ea7a9c` changed `src/vulnloc/explanation/generator.py` between `d97r` cross-attention's seed 42 (`0a4843c`) and seed 1 (`d5e5dda`), under a session rule that allowed `explanation/` edits because training does not import them | The arm's seed report would have been `[FAIL]` at midnight with nobody awake, the arm would have had no report in the morning, and the script that scores complete arms would have skipped it | `run_queue.py` passes `+seeds.allow_source_drift=true` to that one report, justified in a comment by the layer rule (L3 cannot import L5) and pinned by a test that the other two arms get no override; the changed file is written into the report's provenance — **quote it with the arm's numbers**. The rule is corrected everywhere it was written: **while a group runs, nothing under `src/vulnloc/` changes** | ✅ Fixed 2026-10-07; the running queue's own attempt at that report still fails once (it holds the old plan) |
 | 63 | **The reproduction check can refuse a correct checkpoint: the logits are half-precision, so exact ties are ordinary, and nothing fixes their order.** FOUND 2026-10-08: `score_checkpoint.py` refused `8afbf7da…` in four of six passes, each time on `line/ifa_mean` alone, by 0.002075 — one rank position in one of 482 units. Measured on the nine `d97r` score files: 3,244–6,225 distinct logit values over 41,065 lines; the best flagged line exactly tied with an unflagged line in 7–22 units per checkpoint; `training/metrics.py` ranks with `torch.argsort`, which promises no order among equals | The unattended script left the arm uncalibrated (right) and audited it at `n=2` (wrong; run `15fccf6d…`, void). On the numbers themselves: tie order can move a checkpoint's Top-1 or Top-5 by at most one unit (0.0021), an arm's mean by ≤ 0.0007 and its IFA by ≤ 0.05 — far inside the seed sd, so no comparison changes | **Re-run; never raise `score.tolerance`** — a pass that reproduces is kept, and none in several means a real mismatch. Batch scripts must treat a refusal as "arm incomplete" for every later step, the audit included. The held-out scoring has nothing to reproduce and is made once: it carries this jitter (`docs/EvaluationProtocol.md` §6). **Phase 8's metric code must define tie order**; `training/metrics.py` is deliberately unchanged — a defined order is a different metric from the one every logged run used | ✅ **Defined 2026-10-08 (`b875d70`):** `evaluation/metrics/localization.py` reports the source-order value with both bounds beside it, and `evaluate_scores.py` refuses to write unless the scoring pass's logged value lies inside them (§1.29) |
 | 64 | **A generated table that marks "≥ 2 pooled sd" is marking one comparison among many.** MEASURED 2026-10-08 (run `52b9c998…`): Phase 8's `val` evaluation makes 93 comparisons (31 metrics × 3 pairs) and three reach 2 pooled sd — concat − `llm_only` on PR-AUC (+0.0206, 2.20) and on ECE (out of fold −0.0092, 3.77; in sample −0.0130, 3.04). With three seeds an arm, 2 pooled sd is a two-sample t of 2.45 on 4 degrees of freedom: two arms with no difference reach it with probability ≈ 0.07 in any one comparison — ≈ 6.6 of 93 if they were independent | The script's first run (`30aeff44…`) printed the bare word "resolved" beside them. Read as written that is "concat beats `llm_only`" — on validation, at three seeds, out of a search over 93. The same family as #37, one level up: not too few seeds for one comparison, but too many comparisons for the seeds | The tables now print how many comparisons were made, name the crossings and state the chance figure (`4281b3f`; `statistics.threshold_p_value`). **Claims rest only on the nine headline comparisons — Top-5, IFA, PR-AUC × the three pre-stated pairs — and a crossing anywhere is a candidate to check on a partition it was not seen on** | ✅ Reported with its denominator since `4281b3f` |
+| 65 | **A rate per kind of line reads as a property of the kind until you count the units behind it.** MEASURED 2026-10-10 (run `42f8f27c…`, §1.31): on `val`, 25.3% of preprocessor lines are flagged against 6.9% of all lines — and the 145 flagged ones sit in **13** of 482 units, a fifth of them in one function. The first table printed 37.7% (under a narrower rule) with no unit count; it looked like a third formatting tell for the minute it took to count. Same family as #13 and #40: a figure that rests on a handful of functions is about those functions | ✅ `sample_failures.py` prints the unit count and the largest unit's share beside every rate |
+| 66 | **`report_phase4.py` sorts a group's `seeds` and not its `run_ids`.** Zipping the two labels runs with the wrong seed: `46ab8056…` is seed 42 and came out as seed 1 in the first ablation table. No mean or sd moves — only which run a reader would open for which seed. Found 2026-10-10 by comparing the table with `run_queue.py --status` | ✅ `make_ablation_tables.py` reads each run's seed from what the run logged, and refuses a seed report that disagrees with it. `phase4_report.json` itself is unchanged |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**
