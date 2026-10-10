@@ -107,11 +107,20 @@ Data steps, in this order: `prepare_data.py` → `audit_data.py` → `build_spli
 | `report_phase4.py`, `report_representation.py` | Assemble phase exit criteria / corpus statistics. |
 | `audit_label_leakage.py` | The ADR-006 guard: can the label be read off the formatting? Re-run after any corpus change. |
 | `probe_vram.py`, `probe_vram_fused.py` | Measure what fits in the 4 GiB card. |
+| `score_checkpoint.py` | Phase 6: writes every line's score for one checkpoint; every later metric is computed from these files. Refuses `test` / `clean_eval` unless told this is the one evaluation. |
+| `calibrate.py` | Phase 6: Platt calibration and the max-F1 threshold, per checkpoint, on `val` only. |
+| `audit_score_leakage.py` | Did the scored checkpoints read a formatting tell? (`Memory.md` §1.25) |
+| `explain_checkpoint.py`, `make_rater_pack.py` | Phase 7a: explain and verify every flagged line; draw the human-evaluation sample. |
+| `evaluate_scores.py` | Phase 8: the whole line-level metric suite for every arm, from score files. The one place a results table may come from. |
+| `make_ablation_tables.py` | Phase 8: every ablation table, from the seed reports named in `docs/ablations.yaml`; refuses a run that did not log the conditions its table declares. |
+| `sample_failures.py` | Phase 8: the cases for the failure taxonomy — drawn by rule, with what can be counted about them. `val` only. |
+| `make_phase8_figures.py` | Phase 8: the figures, drawn from the evaluation's JSON. |
 
 ## Config — `configs/`
 Hydra, one group per knob: `data/ experiment/ fusion/ gnn/ graph/ head/ llm/ train/ ui/`.
 Experiments change YAML, never `.py`. Note `+fusion=` and `+gnn=` need the leading `+`.
 
 ## Tests — `tests/`
-879 passing. Failure modes matter more than happy paths; line mapping is property-tested,
-graph builders have golden files.
+1,434 passing from a fresh clone on 2026-10-10 (`CLAUDE.md` §3 has the current count).
+Failure modes matter more than happy paths; line mapping is property-tested, graph
+builders have golden files.
