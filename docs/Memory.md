@@ -2574,6 +2574,8 @@ Append-only. Format: date · decision · alternatives considered · rationale ·
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-10-10 | **The held-out pass continues tonight, when `a1r` has finished** (owner, asked at 16:25 with three options — "After a1r, tonight", "Now", "Not yet" — after replying "next" to session 18's report; answer: **"After a1r, tonight"**). It starts by itself when the `a1r` queue exits, from `artifacts/queue/heldout_pass.py` as written on 2026-10-08: only what is missing is scored, each checkpoint once per partition. The owner then left for a few hours: *"ill be back in a few hours fo what you need to"* | Now, pausing `a1r` · not yet | The pass was authorised on 2026-10-07/08 and paused by the owner for the disk; the restart is the owner's too, and this names it. Running it after `a1r` interrupts nothing and keeps one GPU job at a time | — |
+| 2026-10-10 | **Phase 9 is started while Phase 8 is still open** (owner, same question round, two options — "Yes, start Phase 9", "No, stay in Phase 8"; answer: **"Yes, start Phase 9"**). Built on a worktree branch and **merged only after `a1r`'s seed reports and the held-out pass are done**: serving lives under `src/vulnloc/`, and nothing there changes while a comparison group runs (§7 #62). Phase 8 is not closed by this — its box for the taxonomy waits for the owner's review, its clean-clone criterion is half met, and its held-out numbers do not exist yet | Stay in Phase 8 and wait three hours for `a1r` | `Phases.md` blocks Phase 9 on 6 and 7, both signed; Phase 8 had nothing left a session could do without the owner or the GPU. Same shape as the 2026-10-08 row that started Phase 8 before the Phase 7 gate: the owner sets the order of work, and a phase is still closed only by its criteria | — |
 | 2026-10-10 | **`a1r` runs, on this laptop; the held-out pass stays paused.** The owner opened session 18 with one sentence — *"kindly continue the next steps bui;ding/training"* — and nothing else. Session 18 reads it as: **build** Phase 8's remaining pieces, and **train** the one group still pending on this machine, `a1r` (the frozen A1 screen on comment-stripped text — "whether `a1r` runs, and where" was the owner's, 2026-10-08). `a1rcheck` passed and `a1r` was started at 14:52. The same sentence was first read as the owner's word to continue the paused held-out pass, and the pass was launched at about 14:38: **the session's permission system refused the launch as an irreversible action before any process started** — `artifacts/queue/heldout_pass.out` has no new line, no file was written, nothing held-out was read. It was not retried. **The pass therefore still waits for the owner to say so in words that name it** | Resume the pass on the strength of "continue" · start nothing and ask first | "Training" names `a1r` and nothing else here: it is reversible, its own cache directory and its own comparison group, and it is the leak-free form of the claim §1.25 found most exposed to the leak. The held-out pass is made once; the authorisation of 2026-10-07/08 stands, but the pause was the owner's and so is the restart, and a sentence that does not mention evaluation is not that | — |
 | 2026-10-08 | **The owner confirmed `docs/EvaluationProtocol.md`; it is final, and the single held-out evaluation goes ahead.** Asked (session 17, about 17:05) to read it — including §5.1's metric definitions and §6's note on what 2 pooled sd is worth, both written that afternoon on `val` — and reply "protocol confirmed" or say what to change, the owner answered: *"yes I have already done all these please proceed forward I read through all this"*. No change was requested. The protocol is committed as final **before** any held-out file is read; then the nine `d97r` checkpoints are scored on `test` and on `clean_eval`, one pass each, with their `val`-fitted calibrators and thresholds applied unchanged | Change a definition first · wait | This is the condition the 2026-10-07 authorisation row set ("the evaluation protocol … is committed; then all nine … are scored … once"), with the checkpoints as superseded by the ADR-010 row. Everything a number depends on was fixed on `val`, in writing, before the partitions were opened (`Rules.md` §5.3) | — |
 | 2026-10-08 | **The owner signed the Phase 7 gate and approved `docs/HumanEvalProtocol.md`.** Asked in the same message to read `artifacts/phase7/sentences_for_review.md` (every sentence the explainer can emit: 19 template sentences, 8 fixed forms) and the human-evaluation protocol, then reply "sign Phase 7" or name the sentence of concern; the answer is the one quoted in the row above. **No sentence was named as a concern.** Phase 7's fourth criterion — explanations reviewed for absence of attack instructions — is met by the owner's statement that the page was read; the other three were met on 2026-10-07 (§1.1e). Phase 8 is the current phase | Not yet · a sentence to reword first | Four of four exit criteria. What was not built is listed in §1.1e and stays deferred: 7b, node importances, token-level attention. The protocol as approved draws the rater sample from seed 42 of the model of record (`ba7dcc5f…`), on `test`, on comment-stripped text | — |
@@ -3567,7 +3569,30 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-10 15:00 (session 18): `a1r` IS RUNNING; the held-out pass is still paused, untouched
+#### Where it stands — 2026-10-10 16:30 (session 18): `a1r` running, THE HELD-OUT PASS CHAINED BEHIND IT at the owner's word, Phase 9 started on a branch
+
+- **Two owner decisions at 16:25 (§2):** the held-out pass runs **tonight, after `a1r`**;
+  Phase 9 starts now. The owner is away for a few hours and said to do what is needed.
+- **The chain:** `artifacts/queue/a1r_then_heldout.ps1` (git-ignored) waits for the `a1r`
+  queue process to exit, then runs `artifacts/queue/heldout_pass.py`. Transcripts:
+  `artifacts/queue/a1r_then_heldout.out`, then `heldout_pass.out`. **Exactly one thing
+  starts the pass — that script. Do not also start it by hand:** two instances could
+  score one checkpoint twice. If the chain is found dead with the pass unfinished, the
+  2026-10-08 block below is the instruction (one command; it skips what exists).
+- **`a1r` at 16:25:** 6 of 18 runs done — cross_attention and concat, three seeds each;
+  `llm_only`, `gnn_only`, sum and gated follow, then the six seed reports. About 19:30.
+- **While either runs: the main tree stays clean and nothing under `src/vulnloc/` or
+  `configs/` changes.** Phase 9 is on branch `phase-9/serving`, in a worktree of its
+  own, and is **not merged** until both have finished. Docs-only commits (branch
+  `phase-8/tables`) are still fast-forwarded in between steps.
+- **When `a1r` ends:** read each seed report's `n_seeds`; mark the two `pending` tables
+  `run` in `docs/ablations.yaml`; `python scripts/make_ablation_tables.py`; write §1.32.
+- **When the pass ends:** §1.30 — the held-out results, read against
+  `docs/EvaluationProtocol.md` and nothing else; then the held-out figures
+  (`make_phase8_figures.py +figures.split=test`, and `clean_eval`).
+- The 15:00 block below is unchanged except where this one says otherwise.
+
+#### Where it stood — 2026-10-10 15:00 (session 18): `a1r` IS RUNNING; the held-out pass is still paused, untouched
 
 - **The owner's instruction, whole:** *"kindly continue the next steps bui;ding/training"*
   (§2 has how it was read). Pre-flight at 14:36: GPU empty, D: 100% idle, no Docker, no
