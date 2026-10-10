@@ -1,0 +1,475 @@
+# The ablation catalogue — which logged runs answer which claim (Phase 8).
+#
+# `ResearchPlan.md` §5 names ten ablations, each testing one claim. This file says, for
+# each, which seed reports hold its runs, under which conditions they were made, and which
+# difference would count as the claim holding. `scripts/make_ablation_tables.py` renders
+# it into `artifacts/phase8/ablations.md`; no number is written here, and none may be.
+#
+# What the script checks against this file before it writes anything:
+#   * every run of an arm logged the parameters the arm and its table declare — a table
+#     marked `text: stripped` whose runs trained with comments is refused, not rendered;
+#   * every report was selected on `val` — ablations are validation-only
+#     (`docs/EvaluationProtocol.md` §9);
+#   * a table marked `status: run` has all its reports, and one marked `pending` has none.
+#
+# A table is ONE comparison group under ONE set of conditions. Arms measured on different
+# text, with a different encoder regime or on a different machine never share a table
+# (`Memory.md` §7 #49, #61).
+#
+# `expects` on a comparison is the direction the claim predicts for Top-5:
+#   first_higher — the claim holds if `first` beats `second`;
+#   none         — the plan asks which is better, and predicts nothing.
+
+schema: 1
+
+stores:
+  laptop_1:
+    label: "this laptop (RTX 3050 Ti Laptop, 4 GiB, torch 2.13.0)"
+    mlflow_db: ./artifacts/mlflow.db
+  machine_2:
+    label: "machine 2 (RTX 4050 Laptop, 6 GB, torch 2.14.1) — never pooled with this laptop's runs"
+    mlflow_db: ./artifacts/machine2/Sujal_20261005-224401/mlflow_Sujal.db
+
+ablations:
+  - id: A1
+    name: Fusion strategy
+    claim: >-
+      "Cross-attention-based fusion" is the novelty: deep interaction between the two
+      branches beats simple combination (RQ2, contribution C2).
+    tables:
+      - key: a1_finetuned_stripped
+        title: Fine-tuned encoder, comment-stripped text — the models of record
+        store: laptop_1
+        encoder: fine_tuned
+        text: stripped
+        status: run
+        memory: "§1.28"
+        reference: cross_attention
+        arms:
+          cross_attention:
+            seed_report: ./artifacts/adr010/seed_report_fused_finetuned_stripped_cross_attention.json
+            expect: {fusion_kind: cross_attention}
+          concat:
+            seed_report: ./artifacts/adr010/seed_report_fused_finetuned_stripped_concat.json
+            expect: {fusion_kind: concat}
+          llm_only:
+            seed_report: ./artifacts/adr010/seed_report_fused_finetuned_stripped_llm_only.json
+            expect: {fusion_kind: llm_only}
+        comparisons:
+          - {first: cross_attention, second: concat, expects: first_higher}
+          - {first: cross_attention, second: llm_only, expects: first_higher}
+          - {first: concat, second: llm_only, expects: none}
+
+      - key: a1_frozen_stripped
+        title: Frozen encoder, comment-stripped text — the screen retrained without the tell
+        store: laptop_1
+        encoder: frozen
+        text: stripped
+        status: pending
+        memory: "§1.25 (queue groups a1rcheck / a1r)"
+        reference: cross_attention
+        arms:
+          cross_attention:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_cross_attention.json
+            expect: {fusion_kind: cross_attention}
+          concat:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_concat.json
+            expect: {fusion_kind: concat}
+          sum:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_sum.json
+            expect: {fusion_kind: sum}
+          gated:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_gated.json
+            expect: {fusion_kind: gated}
+          llm_only:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_llm_only.json
+            expect: {fusion_kind: llm_only}
+          gnn_only:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_gnn_only.json
+            expect: {fusion_kind: gnn_only}
+        comparisons:
+          - {first: cross_attention, second: concat, expects: first_higher}
+          - {first: cross_attention, second: sum, expects: first_higher}
+          - {first: cross_attention, second: gated, expects: first_higher}
+
+      - key: a1_finetuned_as_shipped
+        title: Fine-tuned encoder, text as shipped (ADR-009 D9.7)
+        store: laptop_1
+        encoder: fine_tuned
+        text: as_shipped
+        status: run
+        memory: "§1.22"
+        reference: cross_attention
+        arms:
+          cross_attention:
+            seed_report: ./artifacts/phase5/seed_report_fused_finetuned_cross_attention.json
+            expect: {fusion_kind: cross_attention}
+          concat:
+            seed_report: ./artifacts/phase5/seed_report_fused_finetuned_concat.json
+            expect: {fusion_kind: concat}
+          llm_only:
+            seed_report: ./artifacts/phase5/seed_report_fused_finetuned_llm_only.json
+            expect: {fusion_kind: llm_only}
+        comparisons:
+          - {first: cross_attention, second: concat, expects: first_higher}
+          - {first: cross_attention, second: llm_only, expects: first_higher}
+          - {first: concat, second: llm_only, expects: none}
+
+      - key: a1_frozen_as_shipped
+        title: Frozen encoder, text as shipped — the A1 screen (ADR-009)
+        store: laptop_1
+        encoder: frozen
+        text: as_shipped
+        status: run
+        memory: "§1.21"
+        reference: cross_attention
+        arms:
+          cross_attention:
+            seed_report: ./artifacts/phase5/seed_report_fused_cross_attention.json
+            expect: {fusion_kind: cross_attention}
+          concat:
+            seed_report: ./artifacts/phase5/seed_report_fused_concat.json
+            expect: {fusion_kind: concat}
+          sum:
+            seed_report: ./artifacts/phase5/seed_report_fused_sum.json
+            expect: {fusion_kind: sum}
+          gated:
+            seed_report: ./artifacts/phase5/seed_report_fused_gated.json
+            expect: {fusion_kind: gated}
+          llm_only:
+            seed_report: ./artifacts/phase5/seed_report_fused_llm_only.json
+            expect: {fusion_kind: llm_only}
+          gnn_only:
+            seed_report: ./artifacts/phase5/seed_report_fused_gnn_only.json
+            expect: {fusion_kind: gnn_only}
+        comparisons:
+          - {first: cross_attention, second: concat, expects: first_higher}
+          - {first: cross_attention, second: sum, expects: first_higher}
+          - {first: cross_attention, second: gated, expects: first_higher}
+
+  - id: A2
+    name: Branch removal
+    claim: Both modalities contribute — the full model beats either branch alone (RQ1).
+    note: >-
+      The single-branch arms here run through the fused scaffold (ADR-008 §D8.6), so a
+      difference is about the branch, not about the scaffold. The standalone Phase 3 and
+      Phase 4 baselines are a different scaffold and are not in these tables.
+    tables:
+      - key: a2_finetuned_stripped
+        title: Fine-tuned encoder, comment-stripped text — the models of record
+        store: laptop_1
+        encoder: fine_tuned
+        text: stripped
+        status: run
+        memory: "§1.28"
+        reference: cross_attention
+        arms:
+          cross_attention:
+            seed_report: ./artifacts/adr010/seed_report_fused_finetuned_stripped_cross_attention.json
+            expect: {fusion_kind: cross_attention}
+          llm_only:
+            seed_report: ./artifacts/adr010/seed_report_fused_finetuned_stripped_llm_only.json
+            expect: {fusion_kind: llm_only}
+        comparisons:
+          - {first: cross_attention, second: llm_only, expects: first_higher}
+
+      - key: a2_frozen_stripped
+        title: Frozen encoder, comment-stripped text — the screen retrained without the tell
+        store: laptop_1
+        encoder: frozen
+        text: stripped
+        status: pending
+        memory: "§1.25 (queue groups a1rcheck / a1r)"
+        reference: cross_attention
+        arms:
+          cross_attention:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_cross_attention.json
+            expect: {fusion_kind: cross_attention}
+          llm_only:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_llm_only.json
+            expect: {fusion_kind: llm_only}
+          gnn_only:
+            seed_report: ./artifacts/adr010/seed_report_fused_frozen_stripped_gnn_only.json
+            expect: {fusion_kind: gnn_only}
+        comparisons:
+          - {first: cross_attention, second: llm_only, expects: first_higher}
+          - {first: cross_attention, second: gnn_only, expects: first_higher}
+
+      - key: a2_frozen_as_shipped
+        title: Frozen encoder, text as shipped — the A1 screen (ADR-009)
+        store: laptop_1
+        encoder: frozen
+        text: as_shipped
+        status: run
+        memory: "§1.21, §1.25"
+        note: >-
+          Frozen `llm_only` does not read the tell and every arm with a structural branch
+          does (`Memory.md` §1.25), so the lead of a fused arm over `llm_only` in this
+          table is partly the leak.
+        reference: cross_attention
+        arms:
+          cross_attention:
+            seed_report: ./artifacts/phase5/seed_report_fused_cross_attention.json
+            expect: {fusion_kind: cross_attention}
+          llm_only:
+            seed_report: ./artifacts/phase5/seed_report_fused_llm_only.json
+            expect: {fusion_kind: llm_only}
+          gnn_only:
+            seed_report: ./artifacts/phase5/seed_report_fused_gnn_only.json
+            expect: {fusion_kind: gnn_only}
+        comparisons:
+          - {first: cross_attention, second: llm_only, expects: first_higher}
+          - {first: cross_attention, second: gnn_only, expects: first_higher}
+
+  - id: A3
+    name: Graph representation
+    claim: Which structure carries the signal — AST, CFG, DFG, AST+CFG or CPG (RQ3).
+    tables: []
+    not_run:
+      - what: Every variant except AST. All fused and structural runs here use the AST.
+        why: >-
+          A CPG has several relations, so the comparison first needs ADR-007's edge-handling
+          question settled (ADR-007 is proposed, not accepted), and CPG graphs were never
+          costed on the 4 GiB card. Not run inside the deadline (`Memory.md` §6 item 0a).
+
+  - id: A4
+    name: GNN architecture
+    claim: The deck lists GCN, GAT and GGNN, and a depth; this decides between them.
+    tables:
+      - key: a4_fusion_kind_m2
+        title: Convolution inside the fused model — frozen encoder, text as shipped
+        store: machine_2
+        encoder: frozen
+        text: as_shipped
+        status: run
+        memory: "§1.23"
+        reference: gcn
+        arms:
+          gcn:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_reference.json
+            expect: {fusion_kind: cross_attention, gnn_kind: gcn, loss: focal, model_name: microsoft/codebert-base}
+          gat:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_gat.json
+            expect: {fusion_kind: cross_attention, gnn_kind: gat}
+          ggnn:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_ggnn.json
+            expect: {fusion_kind: cross_attention, gnn_kind: ggnn}
+        comparisons:
+          - {first: gat, second: gcn, expects: none}
+          - {first: ggnn, second: gcn, expects: none}
+
+      - key: a4_structural_depth
+        title: Structure-only GCN by depth — node-type features, text as shipped
+        store: laptop_1
+        encoder: none
+        text: as_shipped
+        status: run
+        memory: "§1.16"
+        note: >-
+          Depth 2 carries a 27.91% recall ceiling from the representation itself
+          (`Memory.md` §1.12) against 7.35% at depth 4, so 2 against 4 is not a clean
+          reading of depth. Summary statistics only: these groups have no per-seed report.
+        reference: depth_4
+        arms:
+          depth_2:
+            phase4_group: {kind: gcn, depth: 2, use_subtokens: false}
+            report: ./artifacts/phase4/phase4_report.json
+          depth_4:
+            phase4_group: {kind: gcn, depth: 4, use_subtokens: false}
+            report: ./artifacts/phase4/phase4_report.json
+          depth_6:
+            phase4_group: {kind: gcn, depth: 6, use_subtokens: false}
+            report: ./artifacts/phase4/phase4_report.json
+        comparisons:
+          - {first: depth_2, second: depth_4, expects: none}
+          - {first: depth_6, second: depth_4, expects: none}
+
+      - key: a4_structural_subtokens
+        title: Structure-only GCN, depth 4, with and without identifier subtokens — text as shipped
+        store: laptop_1
+        encoder: none
+        text: as_shipped
+        status: run
+        memory: "§1.15, §1.16"
+        reference: node_type_only
+        arms:
+          node_type_only:
+            phase4_group: {kind: gcn, depth: 4, use_subtokens: false}
+            report: ./artifacts/phase4/phase4_report.json
+          with_subtokens:
+            phase4_group: {kind: gcn, depth: 4, use_subtokens: true}
+            report: ./artifacts/phase4/phase4_report.json
+        comparisons:
+          - {first: with_subtokens, second: node_type_only, expects: first_higher}
+
+      - key: a4_structural_kind
+        title: Structure-only convolution at depth 4 — node-type features, text as shipped
+        store: laptop_1
+        encoder: none
+        text: as_shipped
+        status: run
+        memory: "§1.13"
+        note: GAT and GGNN have one seed each here; they show that all three run, and rank nothing.
+        reference: gcn
+        arms:
+          gcn:
+            phase4_group: {kind: gcn, depth: 4, use_subtokens: false}
+            report: ./artifacts/phase4/phase4_report.json
+          gat:
+            phase4_group: {kind: gat, depth: 4, use_subtokens: false}
+            report: ./artifacts/phase4/phase4_report.json
+          ggnn:
+            phase4_group: {kind: ggnn, depth: 4, use_subtokens: false}
+            report: ./artifacts/phase4/phase4_report.json
+        comparisons:
+          - {first: gat, second: gcn, expects: none}
+          - {first: ggnn, second: gcn, expects: none}
+
+  - id: A5
+    name: LLM encoder
+    claim: The deck lists CodeBERT and GraphCodeBERT, frozen or fine-tuned; this decides.
+    tables:
+      - key: a5_finetuned_m2
+        title: Fine-tuned encoder, text as shipped
+        store: machine_2
+        encoder: fine_tuned
+        text: as_shipped
+        status: run
+        memory: "§1.23"
+        reference: codebert
+        arms:
+          codebert:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2ft_codebert.json
+            expect: {fusion_kind: cross_attention, model_name: microsoft/codebert-base}
+          graphcodebert:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2ft_graphcodebert.json
+            expect: {fusion_kind: cross_attention, model_name: microsoft/graphcodebert-base}
+        comparisons:
+          - {first: graphcodebert, second: codebert, expects: none}
+
+      - key: a5_frozen_m2
+        title: Frozen encoder, text as shipped
+        store: machine_2
+        encoder: frozen
+        text: as_shipped
+        status: run
+        memory: "§1.23"
+        reference: codebert
+        arms:
+          codebert:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_reference.json
+            expect: {fusion_kind: cross_attention, gnn_kind: gcn, loss: focal, model_name: microsoft/codebert-base}
+          graphcodebert:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_graphcodebert.json
+            expect: {fusion_kind: cross_attention, model_name: microsoft/graphcodebert-base}
+        comparisons:
+          - {first: graphcodebert, second: codebert, expects: none}
+    not_run:
+      - what: Either encoder comparison on comment-stripped text.
+        why: >-
+          Machine 2's slate was run before the second formatting leak was found
+          (`Memory.md` §1.25) and has no stored scores to audit.
+
+  - id: A6
+    name: Attention direction
+    claim: Bidirectional cross-attention specifically is justified over either one-way form.
+    tables:
+      - key: a6_frozen_as_shipped
+        title: Frozen encoder, text as shipped
+        store: laptop_1
+        encoder: frozen
+        text: as_shipped
+        status: run
+        memory: "§1.26"
+        reference: both
+        arms:
+          both:
+            seed_report: ./artifacts/phase6/seed_report_fused_a6_both.json
+            expect: {fusion_kind: cross_attention, fusion_direction: both}
+          sem_from_str:
+            seed_report: ./artifacts/phase6/seed_report_fused_a6_sem_from_str.json
+            expect: {fusion_kind: cross_attention, fusion_direction: sem_from_str}
+          str_from_sem:
+            seed_report: ./artifacts/phase6/seed_report_fused_a6_str_from_sem.json
+            expect: {fusion_kind: cross_attention, fusion_direction: str_from_sem}
+        comparisons:
+          - {first: both, second: sem_from_str, expects: first_higher}
+          - {first: both, second: str_from_sem, expects: first_higher}
+
+  - id: A7
+    name: Line pooling
+    claim: The `LineAligner` default (mean pooling of tokens to lines) is the right one.
+    tables: []
+    not_run:
+      - what: Max pooling and attention pooling.
+        why: >-
+          Attention pooling needs token states, and the semantic cache every frozen run
+          reads holds line features that are already pooled; it would have to run the live
+          encoder. Not run inside the deadline (`Memory.md` §6 item 0a).
+
+  - id: A8
+    name: Loss composition
+    claim: The joint line + unit objective is justified over a line-only loss.
+    tables:
+      - key: a8_frozen_m2
+        title: Frozen encoder, text as shipped
+        store: machine_2
+        encoder: frozen
+        text: as_shipped
+        status: run
+        memory: "§1.23"
+        note: >-
+          The unit-level term is degenerate in every run here — every training function is
+          vulnerable — so this asks only whether carrying it costs anything.
+        reference: joint
+        arms:
+          joint:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_reference.json
+            expect: {fusion_kind: cross_attention, gnn_kind: gcn, loss: focal, model_name: microsoft/codebert-base, train.function_weight: "0.3"}
+          line_only:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_line_only.json
+            expect: {fusion_kind: cross_attention, train.function_weight: "0"}
+        comparisons:
+          - {first: joint, second: line_only, expects: first_higher}
+    not_run:
+      - what: A unit-only loss, and a weight sweep.
+        why: >-
+          Deferred in writing on 2026-10-07 with the rest of the function-level work
+          (`Memory.md` §2): a unit-level objective needs negatives no model here trained on.
+
+  - id: A9
+    name: Imbalance handling
+    claim: Focal loss prevents the "clean everywhere" degenerate solution that plain BCE invites.
+    tables:
+      - key: a9_frozen_m2
+        title: Frozen encoder, text as shipped
+        store: machine_2
+        encoder: frozen
+        text: as_shipped
+        status: run
+        memory: "§1.23"
+        reference: focal
+        arms:
+          focal:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_reference.json
+            expect: {fusion_kind: cross_attention, gnn_kind: gcn, loss: focal, model_name: microsoft/codebert-base}
+          bce_weighted:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_bce_weighted.json
+            expect: {fusion_kind: cross_attention, loss: bce, train.auto_pos_weight: "True"}
+          bce_plain:
+            seed_report: ./artifacts/machine2/Sujal_20261005-224401/reports/seed_report_fused_m2_bce_plain.json
+            expect: {fusion_kind: cross_attention, loss: bce, train.auto_pos_weight: "False", train.pos_weight: "1.0"}
+        comparisons:
+          - {first: focal, second: bce_weighted, expects: first_higher}
+          - {first: focal, second: bce_plain, expects: first_higher}
+
+  - id: A10
+    name: Explanation strategy
+    claim: The chosen explainer is justified against attention-guided and generative ones (RO2).
+    tables: []
+    not_run:
+      - what: Attention-guided and generative explainers; the template explainer is the only one built.
+        why: >-
+          The generative explainer (Phase 7b) was deferred in writing on 2026-10-07
+          (`Memory.md` §2), and comparing strategies needs the human evaluation, which has
+          not been run.
