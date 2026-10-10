@@ -174,9 +174,12 @@ def test_a_kinds_rate_says_how_few_units_it_rests_on() -> None:
     )
     assert preprocessor["largest_unit_share"] == 1.0
     assert preprocessor["found_in_top_k"] == 0.0
+    # A random ranking puts each of them first one time in four: the unit has four lines.
+    assert preprocessor["found_by_chance"] == pytest.approx(1 / 4)
     # One flagged assignment, top-ranked under seed 42 and not under seed 1.
     assert table["assignment"]["flagged"] == 1
     assert table["assignment"]["found_in_top_k"] == 0.5
+    assert table["assignment"]["found_by_chance"] == pytest.approx(1 / 3)
 
 
 # --- end to end, on a partition of twelve-line functions --------------------------------------

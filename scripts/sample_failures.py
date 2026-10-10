@@ -229,28 +229,33 @@ def kind_table(
 
     Returns:
         ``kind -> {"lines", "flagged", "flagged_units", "largest_unit_share",
-        "flagged_rate", "found_in_top_k"}`` — ``found_in_top_k`` is the share of the kind's
-        flagged lines ranked in the top ``k`` of their unit, averaged over the seeds
-        (``None`` for a kind with no flagged line); ``flagged_units`` is how many units
-        hold those flagged lines and ``largest_unit_share`` the share of them in the one
-        unit with the most — a rate that rests on a handful of functions says so. Counted
-        over scored lines only.
+        "flagged_rate", "found_in_top_k", "found_by_chance"}`` — ``found_in_top_k`` is the
+        share of the kind's flagged lines ranked in the top ``k`` of their unit, averaged
+        over the seeds (``None`` for a kind with no flagged line); ``found_by_chance`` is
+        what a ranking drawn at random would score on the same lines, ``min(1, k / n)`` for
+        a line of an ``n``-line unit, averaged — the figure a *found* rate has to beat;
+        ``flagged_units`` is how many units hold those flagged lines and
+        ``largest_unit_share`` the share of them in the one unit with the most — a rate
+        that rests on a handful of functions says so. Counted over scored lines only.
     """
     lines: dict[str, int] = {}
     flagged: dict[str, dict[str, int]] = {}
     found: dict[str, list[int]] = {}
+    chance: dict[str, list[float]] = {}
     seeds = sorted(scores)
     for unit_id in units:
         text = partition[unit_id]
         labels = scores[seeds[0]][unit_id].labels > 0
         ranks = [line_ranks(scores[seed][unit_id].logits) for seed in seeds]
-        for index in range(int(labels.shape[0])):
+        n = int(labels.shape[0])
+        for index in range(n):
             kind = line_kind(text.lines[index])
             lines[kind] = lines.get(kind, 0) + 1
             if labels[index]:
                 by_unit = flagged.setdefault(kind, {})
                 by_unit[unit_id] = by_unit.get(unit_id, 0) + 1
                 found.setdefault(kind, []).extend(int(rank[index] <= k) for rank in ranks)
+                chance.setdefault(kind, []).append(min(1.0, k / n))
     table: dict[str, dict[str, Any]] = {}
     for kind, count in sorted(lines.items(), key=lambda item: -item[1]):
         by_unit = flagged.get(kind, {})
@@ -262,6 +267,7 @@ def kind_table(
             "largest_unit_share": (max(by_unit.values()) / n_flagged) if by_unit else None,
             "flagged_rate": n_flagged / count,
             "found_in_top_k": (sum(found[kind]) / len(found[kind])) if by_unit else None,
+            "found_by_chance": (sum(chance[kind]) / n_flagged) if by_unit else None,
         }
     return table
 
@@ -462,32 +468,36 @@ def render_markdown(payload: Mapping[str, Any]) -> str:
         f"Every scored line of the {ranked} ranked units, sorted into kinds by rule (first match "
         "wins; the rules read one line and nothing around it). *Found* is the share of "
         f"a kind's flagged lines ranked in the top {payload['k']} of their own function, averaged "
-        f"over the {len(seeds)} seeds. A function's length sets how hard that is, so read a row "
-        "against the bottom line, not against 1. **A rate that rests on few units is about those "
+        f"over the {len(seeds)} seeds. *By chance* is what a ranking drawn at random would score "
+        "on the same lines — a function's length sets how hard a line is to find, so a *Found* "
+        "is read against it, not against 1. **A rate that rests on few units is about those "
         "functions, not about the kind** — the two columns after *Flagged* say how few.",
         "",
         "| Kind of line | Lines | Flagged | In how many units | Largest unit's share | "
-        "Flagged, % of the kind | Found | Flagged, in the failures |",
-        "|---|---|---|---|---|---|---|---|",
+        "Flagged, % of the kind | Found | By chance | Flagged, in the failures |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     kinds, in_failures = payload["kinds"]["ranked"], payload["kinds"]["failures"]
+
+    def cell(value: float | None, pattern: str) -> str:
+        return "—" if value is None else pattern.format(value)
+
     for kind, row in kinds.items():
-        found = "—" if row["found_in_top_k"] is None else f"{row['found_in_top_k']:.3f}"
-        share = (
-            "—" if row["largest_unit_share"] is None else f"{100 * row['largest_unit_share']:.0f}%"
-        )
+        share = None if row["largest_unit_share"] is None else 100 * row["largest_unit_share"]
         lines.append(
-            f"| {kind} | {row['lines']} | {row['flagged']} | {row['flagged_units']} | {share} | "
-            f"{100 * row['flagged_rate']:.1f} | {found} | "
+            f"| {kind} | {row['lines']} | {row['flagged']} | {row['flagged_units']} | "
+            f"{cell(share, '{:.0f}%')} | {100 * row['flagged_rate']:.1f} | "
+            f"{cell(row['found_in_top_k'], '{:.3f}')} | {cell(row['found_by_chance'], '{:.3f}')} | "
             f"{in_failures.get(kind, {}).get('flagged', 0)} |"
         )
     total, flagged = (sum(row[key] for row in kinds.values()) for key in ("lines", "flagged"))
-    overall = (
-        sum(row["flagged"] * (row["found_in_top_k"] or 0.0) for row in kinds.values()) / flagged
+    overall, by_chance = (
+        sum(row["flagged"] * (row[key] or 0.0) for row in kinds.values()) / flagged
+        for key in ("found_in_top_k", "found_by_chance")
     )
     lines += [
         f"| **every kind** | {total} | {flagged} | {payload['ranked_units']} | | "
-        f"{100 * flagged / total:.1f} | {overall:.3f} | "
+        f"{100 * flagged / total:.1f} | {overall:.3f} | {by_chance:.3f} | "
         f"{sum(row['flagged'] for row in in_failures.values())} |",
         "",
         "These are counts, not causes. About 30% of the corpus's line labels are wrong "
