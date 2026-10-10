@@ -53,6 +53,44 @@ services:
               capabilities: [gpu]
     command: ["python", "scripts/train.py", "train=debug", "device.kind=cuda"]
 
+  # Phase 9: the serving API, on CPU (PRD FR-22..24).
+  #   docker compose up serve        ->  http://localhost:8080/docs
+  # The bundle is mounted read-only, not baked into the image: which checkpoint answers is
+  # a property of the directory, and `GET /version` reports it. Build one first with
+  # scripts/export_serving_bundle.py; point VULNLOC_BUNDLE_DIR at another to serve it.
+  serve:
+    profiles: ["serve"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.11"
+        TORCH_INDEX_URL: "https://download.pytorch.org/whl/cpu"
+    image: vulnloc:0.1.0
+    working_dir: /workspace
+    volumes:
+      - ${VULNLOC_BUNDLE_DIR:-./artifacts/serving/ba7dcc5f}:/bundle:ro
+    environment:
+      VULNLOC_BUNDLE: /bundle
+      # Everything the model needs is in the bundle; the container never calls out.
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      HYDRA_FULL_ERROR: "1"
+    ports:
+      - "8080:8080"
+    # 0.0.0.0 inside the container only; the port mapping above decides what the host exposes.
+    command: ["python", "scripts/serve.py", "+serve.host=0.0.0.0", "+serve.port=8080"]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
   mlflow:
     image: vulnloc:0.1.0
     depends_on:
