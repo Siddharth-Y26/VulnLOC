@@ -61,6 +61,17 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-11 00:00 (session 18): RESUMED — `a1r` AT 23:54 ON THE OWNER'S "continue", AND
+THE HELD-OUT PASS CHAINED BEHIND IT AT 00:00 ON THE OWNER'S ANSWER ("Yes, after a1r
+tonight", `Memory.md` §2).** `a1r-gated-seed2` is running and the six seed reports follow
+(the queue exits at about 00:20); one instance of `artifacts\queue\a1r_then_heldout.ps1`
+then runs `artifacts/queue/heldout_pass.py` — **the only launcher of the pass; it is never
+started by hand beside it.** **Until both have ended, nothing under `configs/` or
+`src/vulnloc/` changes and the main tree stays clean.** Check
+`python scripts/run_queue.py --only a1r --status`, `artifacts/queue/a1r_then_heldout.out`
+and `artifacts/queue/heldout_pass.out`; `Memory.md` §6 item 0a is the handoff. The
+paragraphs below describe the state before this.
+
 **2026-10-10 21:10 (session 18): PAUSED AGAIN AT THE OWNER'S REQUEST ("pause for a bit i
 will continue later").** `run_queue.py --stop` at 21:09: `a1r-sum-seed2`, in flight,
 finishes by itself and nothing more starts — `a1r` stands at 17 of 18 runs, with
