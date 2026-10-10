@@ -3602,6 +3602,16 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
     0.0004 / p99 0.005 / max 0.090 (CPU fp32 against stored GPU mixed precision). Two
     seeds of one arm differ by > 0.33 somewhere in every one of 488 functions, so the
     export's bound is 0.2. Under load, beside training: median 0.38 s a function.
+  - **Run by hand at 17:06 on that development bundle** (commit `6b93d58` follows from
+    it): `/health`, `/version`, a 200 from `/analyze`, a 422 and a 400 in the one error
+    shape, and the demo page's landing state. For a six-line `strcpy` example the
+    `strcpy` line came first (0.99, "Buffer overflow", a verified explanation) — **and an
+    empty line where a comment had been stripped was flagged too, at 0.096 against the
+    0.0925 threshold.** The service now leaves blank lines out of what it offers (the
+    evaluation's "blank lines withheld" reading, §1.29). `GET /version` had an empty
+    split fingerprint — training runs do not tag it; the export now reads the split
+    artefact. `docs/Serving.md` is the usage guide. **Still unseen: the demo page's
+    result state in a browser.**
   - **Not done, in order:** (1) merge after `a1r` and the pass; (2) add the held-out
     numbers to the model card; (3) export the bundle of record —
     `python scripts/export_serving_bundle.py +explainer=template +export.run_id=ba7dcc5ff8354cc4b6d7e7b76f876fd9 +export.scores_dir=./artifacts/phase6/scores_retrained +export.calibration_report=./artifacts/phase6/retrained/calibration_report.json`;
