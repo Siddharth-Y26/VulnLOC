@@ -61,6 +61,18 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-10 20:50 (session 18): RESUMED AT THE OWNER'S WORD ("continue", after the
+conversation was compacted).** `python scripts/run_queue.py --only a1r` is running `a1r`'s
+last two runs and its six seed reports, and `artifacts\queue\a1r_then_heldout.ps1` waits
+behind it again: **the held-out pass starts by itself about a minute after the `a1r` queue
+exits (≈ 21:35)** — on the owner's 16:25 answer; the owner did not name the pass a second
+time, and that reading is the session's (`Memory.md` §2). **Until both have ended: nothing
+under `configs/` or `src/vulnloc/` changes, the main tree stays clean, and
+`heldout_pass.py` is never started by hand.** `run_queue.py --stop` before `a1r` exits
+ends the chain without the pass. Check `python scripts/run_queue.py --only a1r --status`
+and `artifacts/queue/a1r_then_heldout.out`; `Memory.md` §6 item 0a is the handoff. The
+paragraphs below describe the state before this.
+
 **2026-10-10 18:55 (session 18): PAUSED AT THE OWNER'S REQUEST ("if anything is running,
 pause for a while and compact").** `run_queue.py --stop` at 18:52: the frozen run in
 flight (`a1r-gnn_only-seed2`) finishes by itself, then nothing more starts — `a1r` stands
