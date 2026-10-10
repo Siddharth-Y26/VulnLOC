@@ -289,6 +289,11 @@ before the single held-out pass was started.**
     0.31). Nothing has been computed on `test` or `clean_eval`.
 - Baseline reproductions under **our** splits
 - Complete ablation grid (`ResearchPlan.md` §5)
+  - *2026-10-10:* the grid as it stands is catalogued in `docs/ablations.yaml` and
+    rendered by `scripts/make_ablation_tables.py` — A1, A2, A4, A5, A6, A8 and A9 from
+    logged runs at three seeds; A3, A7 and A10 stated as not run, with the reason. Every
+    run is checked against the conditions its table declares. `a1r` (the frozen screen on
+    comment-stripped text) is running; the tables of record are made when it ends.
 - Statistical significance testing across seeds
   - *2026-10-08:* built as the protocol states it — mean ± sample sd, differences paired
     by seed in pooled sd, a bootstrap interval over units — **and deliberately no
