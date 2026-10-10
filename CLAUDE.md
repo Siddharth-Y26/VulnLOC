@@ -61,6 +61,15 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-10 18:55 (session 18): PAUSED AT THE OWNER'S REQUEST ("if anything is running,
+pause for a while and compact").** `run_queue.py --stop` at 18:52: the frozen run in
+flight (`a1r-gnn_only-seed2`) finishes by itself, then nothing more starts — `a1r` stands
+at 16 of 18 runs, its six seed reports not made. **The held-out pass was not started**:
+the chain script ends on the `STOP` file. Resume only on the owner's word —
+`python scripts/run_queue.py --only a1r`, with
+`artifacts\queue\a1r_then_heldout.ps1` started beside it for the pass to follow
+(`Memory.md` §6 item 0a). The paragraphs below describe the state before the pause.
+
 **2026-10-10 16:30 (session 18): THE OWNER SAID THE HELD-OUT PASS RUNS TONIGHT, AFTER
 `a1r`, AND THAT PHASE 9 STARTS NOW** (`Memory.md` §2, the options chosen quoted there).
 `artifacts/queue/a1r_then_heldout.ps1` waits for the `a1r` queue to exit and then runs

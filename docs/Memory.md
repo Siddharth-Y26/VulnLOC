@@ -3569,7 +3569,28 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-10 16:30 (session 18): `a1r` running, THE HELD-OUT PASS CHAINED BEHIND IT at the owner's word, Phase 9 started on a branch
+#### Where it stands — 2026-10-10 18:55 (session 18): PAUSED at the owner's request — `a1r` at 15 of 18 runs, the held-out pass NOT started
+
+- **The owner, 18:51:** *"if anything is running, pause for a while and compact"*.
+  `run_queue.py --stop` was issued at 18:52. A frozen run is not resumable, so it is not
+  told to stop: **`a1r-gnn_only-seed2`, in flight, finishes by itself within minutes and
+  the queue then starts nothing more.**
+- **`a1r` then stands at 16 of 18 runs.** Left: `a1r-sum-seed2`, `a1r-gated-seed2`
+  (about 18 min each) and the six seed reports. cross_attention, concat, `llm_only` and
+  `gnn_only` will have three seeds each, sum and gated two — **no `a1r` number is quoted
+  until the seed reports exist** (§7 #37).
+- **The held-out pass was not started and will not start by itself now.** The chain
+  script finds the `STOP` file when the queue exits and ends without launching it
+  (`artifacts/queue/a1r_then_heldout.out` says so). Still 1 of 18 score files.
+- **To resume, when the owner says so — two commands, in this order, on a clean tree:**
+  `python scripts/run_queue.py --only a1r` (removes the `STOP` file, runs the two runs
+  and the reports), and, for the pass to follow as the owner chose at 16:25,
+  `powershell -ExecutionPolicy Bypass -File artifacts\queue\a1r_then_heldout.ps1`
+  started beside it. **Never start `heldout_pass.py` by hand while that script runs.**
+- **Nothing else is running.** Phase 9 is committed on `phase-9/serving` (`6b93d58`) and
+  unmerged; the 16:30 block below lists what is left of it.
+
+#### Where it stood — 2026-10-10 16:30 (session 18): `a1r` running, THE HELD-OUT PASS CHAINED BEHIND IT at the owner's word, Phase 9 started on a branch
 
 - **Two owner decisions at 16:25 (§2):** the held-out pass runs **tonight, after `a1r`**;
   Phase 9 starts now. The owner is away for a few hours and said to do what is needed.
