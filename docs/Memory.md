@@ -48,7 +48,7 @@
 | 5 Fusion | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1c)** | **5 / 5** (head-to-head at ≥3 seeds, §1.21 frozen and §1.22 fine-tuned; the negative result investigated) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it. **2026-10-04 (session 15): the investigation's six runs are in (§1.22) — the null survives fine-tuning.** Still owed before the gate: the `llm_only` scaffold control (0 / 3, seed 42 paused) and the owner's signature. **2026-10-07 (session 16): the control is in — 0.6169 ± 0.0048, no fused arm beats it (§1.22). The three gate questions are answered in §1.1c; only the signature is missing** |
 | 6 Localization Head | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1d)** | **4 / 4** | "Best full-model configuration frozen and checkpointed": **met by decision** — the designed cross-attention model, D9.7's config, checkpoints `80fc5238` / `c193e3bc` / `829c3555` (§2). **Calibrated, reliability curve reported, threshold chosen on `val` only: met 2026-10-07 (§1.24)** — ECE 0.1704 → 0.0137, line F1 0.2954 → 0.3898 out of fold. **Q5 (CWE labels): explicitly deferred by the owner 2026-10-07 — no type classifier; Phase 7a names a template-derived category and says so (§2).** **Deferred in writing (§2):** unit-level aggregation and a joint loss that means something — no negatives; the sweep is frozen-only |
 | 7 Explanation | ✅ **Done — gate signed by the owner 2026-10-08 (§1.1e)** | **4 / 4** (the owner read the explainer's sentences and named none of concern, §2) | 7a built and measured the same day (§1.27): 13,908 of 13,908 flagged lines on `val` explained and verified, three seeds; grounding suite passes; protocol written; four template sentences corrected after reading real output. **Open: the owner's reading of the template sentences for attack instructions.** A pattern names a cause for about one flagged line in twelve. 7b is deferred in writing (§2); the category is template-derived (Q5) |
-| 8 Evaluation | 🟨 **Started 2026-10-08 on `val`, at the owner's instruction, before the Phase 7 gate (§2)** | 0 / 4 | The line-level metric suite is built and reconciles with every logged `d97r` number (§6 item 0a). **The held-out pass is paused at 1 of 18 score files; nothing held-out has been looked at.** 2026-10-10: the ablation tables are built from the seed reports (`docs/ablations.yaml`, `scripts/make_ablation_tables.py`); the tables of record wait for `a1r`. Not built: figures, failure taxonomy, clean-clone check |
+| 8 Evaluation | 🟨 **Started 2026-10-08 on `val`, at the owner's instruction, before the Phase 7 gate (§2)** | 0 / 4 | The line-level metric suite is built and reconciles with every logged `d97r` number (§6 item 0a). **The held-out pass is paused at 1 of 18 score files; nothing held-out has been looked at.** 2026-10-10: the ablation tables are built from the seed reports (`docs/ablations.yaml`, `scripts/make_ablation_tables.py`) — the tables of record wait for `a1r`; the failure taxonomy is drafted and unreviewed (§1.31); the figures are built (`scripts/make_phase8_figures.py`); the suite passes from a fresh clone (1,434 / 5 skipped), which is the cheap half of the clean-clone criterion |
 | 9 Serving | ⬜ Not started | 0 / 4 | |
 | 10 Artifacts | ⬜ Not started | 0 / 3 | |
 
@@ -2650,11 +2650,15 @@ Did:
     tables run, 2 pending on `a1r`, 69 scaled comparisons.
   - Built the failure-case draw (`scripts/sample_failures.py`, 39 tests), ran it on `val`,
     read the thirty cases and drafted `docs/FailureTaxonomy.md` (§1.31).
+  - Built the figures (`scripts/make_phase8_figures.py`, 10 tests) and drew the three
+    `val` figures; rendered and looked at each before committing.
+  - Ran the whole suite from a fresh clone: 1,434 passed, 5 skipped at `a63a62e`.
 Files touched:
   - `docs/ablations.yaml`, `scripts/make_ablation_tables.py`,
     `tests/unit/test_make_ablation_tables.py`, `scripts/sample_failures.py`,
-    `tests/unit/test_sample_failures.py`, `docs/FailureTaxonomy.md`, `docs/Memory.md`,
-    `docs/Phases.md`, `CLAUDE.md`.
+    `tests/unit/test_sample_failures.py`, `scripts/make_phase8_figures.py`,
+    `tests/unit/test_make_phase8_figures.py`, `docs/FailureTaxonomy.md`,
+    `docs/Memory.md`, `docs/Phases.md`, `CLAUDE.md`.
 Runs logged:
   - `19e49b8f…` : the stripped semantic cache, rebuilt (a data artefact, not a result).
   - `3c749001…` : `a1r` overfit gate — Top-1 1.0000 from epoch 58. Never a result.
@@ -3607,7 +3611,21 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   482 units missed on every seed, 30 read by the session, eight categories. **§1.31 has
   the counts. The criterion is not ticked: the owner reviews the cases
   (`docs/FailureTaxonomy.md` §6).**
-- **Still not built in Phase 8:** figures, the clean-clone check.
+- **Also built (15:45): the figures** — `scripts/make_phase8_figures.py` draws three SVGs
+  from `evaluation_<split>.json` and `failure_cases.json` into
+  `artifacts/phase8/figures/`: the arms on the three headline metrics against reading
+  from the top, the reliability curve, and found-against-chance by kind of line. No model
+  loaded, no partition read; titles say what is plotted and never a result, because the
+  same script draws the held-out figures. `val` only so far.
+- **The clean-clone check, the half that is cheap (15:39):** a fresh `git clone` of
+  `a63a62e` into an empty directory, no artefacts, the package imported from the clone —
+  **1,434 tests pass, 5 skip** (4 min 36 s; coverage 91%). Two of the five skip because a
+  clone has no checkpoint and no generated figures (`test_frontend_structural.py`,
+  `test_prior_work.py`); the other three skip in the working tree as well. **Not done,
+  and what the criterion actually asks:** a fresh environment installed from the lock
+  file, the data pipeline end to end, and one frozen run reproduced from the clone.
+- **Still to do in Phase 8 when `a1r` ends:** the ablation tables of record and their
+  write-up (§1.32). **Still the owner's:** the held-out pass; the taxonomy review.
 
 #### Where it stood — 2026-10-08 18:20 (session 17): THE HELD-OUT PASS IS PAUSED at the owner's request — 1 of 18 score files exists, nothing is evaluated
 
