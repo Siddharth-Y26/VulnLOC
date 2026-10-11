@@ -304,6 +304,9 @@ before the single held-out pass was started.**
     (`Memory.md` §1.32). On that screen cross_attention leads concat on Top-5 by 2.93
     pooled sd at three seeds: a candidate. Queue group `a1rep` runs the screen again
     on seeds 3, 4 and 5; what it is read for was written down first.
+  - *2026-10-11, morning:* `a1rep` finished and the lead repeats — +0.0560 at 2.27
+    pooled sd on the new seeds alone, +0.0474 at 2.46 over all six (tables of record
+    `bcfeb4ff…`, 108 scaled comparisons). Frozen encoder, validation only.
 - Statistical significance testing across seeds
   - *2026-10-08:* built as the protocol states it — mean ± sample sd, differences paired
     by seed in pooled sd, a bootstrap interval over units — **and deliberately no
@@ -330,8 +333,8 @@ before the single held-out pass was started.**
 - [ ] Ablations confirm or refute each novelty claim explicitly
   - *2026-10-11:* A1 with the encoder fine-tuned — not confirmed, on `val` and held
     out (`Memory.md` §1.28, §1.30). A1 with the encoder frozen, on comment-stripped
-    text — a candidate in its favour, under replication (§1.32). A3, A7 and A10 are
-    not run. Not ticked.
+    text — in its favour on validation, over two sets of three seeds (§1.32). A3, A7
+    and A10 are not run. Not ticked.
 - [ ] Failure taxonomy documented with ≥ 20 inspected cases
   - *2026-10-10:* **drafted, not met.** Thirty cases were read by session 18 and by no
     person. The owner reviews them against `docs/FailureTaxonomy.md` §6; a session does

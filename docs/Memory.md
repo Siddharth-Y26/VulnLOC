@@ -28,7 +28,7 @@
 |-------|-------|
 | **Active phase** | **Phase 7 — Explanation (7a), since 2026-10-07: Phases 5 and 6 are SIGNED (§1.1c, §1.1d).** Ablation A6 (attention direction) is running on the frozen cache as queue group `a6`. Phase 5's record, kept: **A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **D9.7 (fine-tuned confirmation): the six runs ADR-009 specifies are FINISHED (§1.22) — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, again no resolvable difference.** The added scaffold control `llm_only` × 3 finished on 2026-10-07: **0.6169 ± 0.0048 Top-5 — no fused arm beats it (§1.22)** |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15; Phases 5 and 6 SIGNED 2026-10-07; Phase 7 SIGNED 2026-10-08 — Phase 8 is the current phase.** ADR-008 and ADR-009 accepted 2026-09-15, ADR-010 on 2026-10-08 |
-| **Last updated** | 2026-10-11 01:15 (session 18: the held-out pass is done — §1.30; `a1r` is done — §1.32; `a1rep` is running — §6 item 0a) |
+| **Last updated** | 2026-10-11 07:15 (session 18: the held-out pass is done — §1.30; `a1r` and its replication `a1rep` are done — §1.32; nothing is running — §6 item 0a) |
 | **Open decision** | **None blocking a measurement. On 2026-10-08 the owner accepted ADR-010 (Q14), signed the Phase 7 gate and confirmed `docs/EvaluationProtocol.md` (§2); the single held-out evaluation is authorised and is made on comment-stripped text with the nine `d97r` checkpoints.** Q13 answered and Q5 deferred by the owner (§2, §5). Still open, not blocking: ADR-006 and ADR-007 `Proposed` (ADR-007 blocks ablation A3's CPG arm); Q4 (explanation supervision) belongs to Phase 7; the paper's framing of the A1 null; scheduled defragmentation of D: (§7 #57) |
 | **Last commit** | Session 14's resume/queue commit on `phase-2/representation` (see `git log`). **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
 | **Best model run ID** | **Models of record since 2026-10-08 (ADR-010 accepted, §2; `val` numbers in §1.28): cross_attention `ba7dcc5f…` / `8afbf7da…` / `ff980345…` (the full model), concat `9ac7a146…` / `7579bc33…` / `10b43ce5…`, `llm_only` `d82a6a70…` / `a1dce535…` / `9296a0e5…`.** Single-branch baselines, measured with comments in place: semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
@@ -2795,11 +2795,15 @@ evaluation's "blank lines withheld" reading already removes it.
 
 ---
 
-## 1.32 `a1r` — the frozen A1 screen retrained on comment-stripped text: cross-attention leads concat and sum on `val`; a replication on new seeds is pre-stated here (2026-10-11)
+## 1.32 `a1r` and its replication — the frozen A1 screen retrained on comment-stripped text: cross-attention leads concat and sum on `val`, and the lead repeats on three new seeds (2026-10-11)
 
-**Status: `val` only, validation-selected, three seeds an arm. A candidate under
-replication — not a finding, and not the models of record: with the encoder fine-tuned
-the same arms tie on the same text (§1.28).** §1.30 is reserved for the held-out results.
+**Status: `val` only, validation-selected; six seeds an arm, in two sets of three. The
+first set's result was repeated on the second by a criterion written before the second
+existed ("The replication's outcome", below). It is a statement about a frozen encoder
+on validation — not about the models of record: with the encoder fine-tuned the same
+arms tie on the same text, on `val` and held out (§1.28, §1.30).** Everything down to
+"The replication — written before its first run" was written with three seeds in hand
+and is kept as written.
 
 The screen of §1.21 again, with exactly two more overrides
 (`+representation.strip_comments=true` and the stripped cache's own directory): six arms ×
@@ -2919,6 +2923,79 @@ above are other files and stay as they are. Fixed now, before any of these runs 
   (§1.28), and the held-out results. Only the wording of the frozen screen's sentence
   about A1 depends on it.
 
+### The replication's outcome — seeds 3 / 4 / 5, queue group `a1rep` (2026-10-11, 00:49 → 04:05)
+
+Fifteen runs and ten seed reports, all `done`, no failure and no retry. Every report holds
+the seeds it should (3, or 6), every run cross-checks `agrees`, and no source drift was
+accepted. Tables of record: run `bcfeb4ff…` — `artifacts/phase8/ablations.md`, tables
+`a1_frozen_stripped_replication` and `a1_frozen_stripped_six_seeds` (the document now
+makes 108 scaled comparisons, 36 of them on Top-5).
+
+| Seeds 3 / 4 / 5 alone, `val` | Top-5 | Top-1 | IFA ↓ | Top-5 by seed (3 / 4 / 5) | Selected epoch, of epochs evaluated | Runs (3 / 4 / 5) |
+|---|---|---|---|---|---|---|
+| cross_attention | **0.5519 ± 0.0255** | 0.2614 ± 0.0252 | 13.16 ± 1.38 | 0.5228 / 0.5622 / 0.5705 | 1, 7, 1 of 5, 10, 5 | `cabf7c84` `efb60ee8` `d12630f6` |
+| concat | 0.4959 ± 0.0239 | 0.2275 ± 0.0248 | 14.91 ± 2.11 | 0.5145 / 0.5041 / 0.4689 | 6, 3, 1 of 10, 7, 5 | `2d7a5fc7` `c92fdc9a` `8a0895dc` |
+| sum | 0.4869 ± 0.0186 | 0.2158 ± 0.0177 | 14.93 ± 1.04 | 0.4751 / 0.5083 / 0.4772 | 1, 4, 1 of 5, 8, 5 | `d91b511e` `bbe0afbc` `05bab4af` |
+| gated | 0.5111 ± 0.0138 | 0.2344 ± 0.0150 | 15.68 ± 2.92 | 0.5145 / 0.5228 / 0.4959 | 6, 4, 1 of 10, 8, 5 | `a0ff6636` `3d555b2f` `f7d762bd` |
+| `llm_only` | 0.4910 ± 0.0048 | 0.2144 ± 0.0086 | 13.96 ± 0.36 | 0.4938 / 0.4938 / 0.4855 | 1, 5, 1 of 5, 9, 5 | `16410cbe` `53c81e3e` `322a4ce0` |
+
+| First − second | Seeds 3 / 4 / 5: Top-5 | Top-1 | IFA | Top-5 by seed (3 / 4 / 5) | All six seeds: Top-5 | Top-1 | IFA |
+|---|---|---|---|---|---|---|---|
+| cross_attention − concat (**the primary**) | **+0.0560 (2.27 pooled sd)** | +0.0339 (1.36) | −1.75 (0.98) | +0.0083 / +0.0581 / +0.1017 | +0.0474 (2.46) | +0.0349 (1.70) | −1.99 (1.55) |
+| cross_attention − sum | +0.0650 (2.91) | +0.0456 (2.10) | −1.77 (1.45) | +0.0477 / +0.0539 / +0.0934 | +0.0463 (2.56) | +0.0225 (0.99) | −3.15 (2.43) |
+| cross_attention − gated | +0.0408 (1.99) | +0.0270 (1.30) | −2.52 (1.10) | +0.0083 / +0.0394 / +0.0747 | +0.0301 (1.84) | +0.0169 (1.07) | −3.22 (2.02) |
+| cross_attention − `llm_only` | +0.0609 (3.32) | +0.0470 (2.50) | −0.79 (0.79) | +0.0290 / +0.0685 / +0.0851 | +0.0494 (3.25) | +0.0363 (2.46) | −1.17 (1.59) |
+
+Over all six seeds (42 / 1 / 2 / 3 / 4 / 5): cross_attention 0.5422 ± 0.0204, concat
+0.4948 ± 0.0181, sum 0.4959 ± 0.0156, gated 0.5121 ± 0.0109, `llm_only` 0.4927 ± 0.0069.
+
+**Read against the plan above, which was committed (`c6373cf`) before the first of these
+runs:**
+
+- **The primary comparison is replicated.** cross_attention − concat on Top-5 over seeds
+  3 / 4 / 5 alone is +0.0560, 2.27 pooled sd, positive on every seed — the criterion was
+  "positive and at least 2 pooled sd". Across both sets cross_attention is ahead on all
+  six seeds (+0.0083 … +0.1017), and every cross_attention seed (0.5207 – 0.5705) is above
+  every concat seed (0.4689 – 0.5145).
+- **Secondary, as they came out.** Against sum (2.91) and against frozen `llm_only`
+  (3.32) the Top-5 lead repeats. Against gated it does not reach the threshold in either
+  set (1.89, then 1.99) or pooled (1.84): the same sign on all six seeds, never resolved.
+- **The IFA lead did not repeat at the threshold.** The first set had it at 2.91 / 4.37 /
+  4.49 pooled sd against concat / sum / gated; the replication has 0.98 / 1.45 / 1.10,
+  the same sign. "Lowest IFA of the arms" is not carried by the second set.
+- **The curves agree with the selected values.** No concat run is above 0.5145 at any of
+  its 22 logged epochs; cross_attention is above 0.5145 at 10 of its 20, sum at 0 of 18,
+  gated at 2 of 23, `llm_only` at 0 of 19. Seed 3 is the close pair: 0.5228 against 0.5145.
+- **What six seeds are worth.** Two arms with no difference reach 2 pooled sd about 0.6
+  times in 100 at six seeds an arm (`statistics.threshold_p_value(6)` = 0.0061), against 7
+  in 100 at three. The six-seed table is not a third measurement — three of its seeds
+  prompted the other three — so the replication alone is the test, and the pooled table
+  is the best estimate of the size: about +0.05 Top-5.
+
+**What may be said now** — and only with every qualifier in it: *with the semantic
+encoder frozen, on comment-stripped text, bidirectional cross-attention reaches a higher
+validation Top-5 than concatenation (0.5422 ± 0.0204 against 0.4948 ± 0.0181 over six
+seeds; +0.0474, 2.46 pooled sd; ahead on every seed), than summation, and than the frozen
+semantic branch alone; the first three seeds' result was repeated on three further seeds
+by a criterion fixed in advance. With the encoder fine-tuned the three arms are not
+separated, on validation or on either held-out partition (§1.28, §1.30).*
+
+**What still may not be said:**
+
+- "Cross-attention beats concatenation", unqualified. The models of record tie.
+- Anything held out about this screen: it is validation-selected and validation-only by
+  protocol, and the held-out partitions are not touched again.
+- That cross-attention beats gated fusion: never resolved.
+- Why. *A reading, not a measurement:* frozen cross_attention over six seeds (0.5422 ±
+  0.0204) is level with fine-tuned cross_attention (0.5394 ± 0.0116, §1.28) on `val`,
+  while fine-tuning lifts concat and `llm_only` by about 0.06 — as if attention over fixed
+  features and a trained encoder reach the same place by different routes. Two comparison
+  groups; nothing here tests it.
+
+**For the owner — a wording decision, not a new experiment:** A1 now has a two-part
+answer (frozen: cross-attention ahead on validation; fine-tuned, the models of record:
+no difference, held out included). How the paper states it is the owner's (§5).
+
 ### Runs behind this section
 
 Training: the 18 runs in the first table. Seed reports (all at `344db7c`):
@@ -2927,6 +3004,14 @@ cross_attention `afbe8d62…`, concat `541d0e55…`, sum `3d5be460…`, gated `6
 logged `eval/line/top_5_accuracy` history. Artefacts:
 `artifacts/adr010/seed_report_fused_frozen_stripped_<arm>.json`,
 `artifacts/phase8/ablations.{json,md}`.
+
+Replication: the 15 runs in the outcome's first table. Seed reports of seeds 3 / 4 / 5
+alone — cross_attention `a8a39dc4…`, concat `3d00a4af…`, `llm_only` `526a7c2b…`, sum
+`bad1544d…`, gated `e1b0a8e6…`; of all six seeds — `a502ab1d…`, `0c912581…`,
+`ad29fba6…`, `a69d554b…`, `14eef261…` in the same order. Tables of record:
+`922719b5…` (the first set, 2026-10-11 00:48) and `bcfeb4ff…` (with the replication,
+07:00). Artefacts: `artifacts/adr010/seed_report_fused_frozen_stripped_replication_<arm>.json`
+and `…_six_seeds_<arm>.json`; transcript `artifacts/queue/a1rep.out`.
 
 ---
 
@@ -3912,6 +3997,7 @@ These come from `PRD.md` §9. Nothing downstream should be built on a guess.
 | Q12 | **Commit the A1 write-up?** Memory.md §1.21 + ledger, Phases.md criterion-5 note, CLAUDE.md §3, `frontend/phases.json`, `docs/review3_panel_brief.md` — uncommitted since `d1003f6` | Commit now · commit with the D9.7 runs | Commit before any D9.7 run starts: a dirty tree tags every run `-dirty` (§7 #4), so the write-up must be committed first either way | Clean `git_sha` on D9.7 runs | ✅ **Closed 2026-10-02** — committed as `18ca52b` (frontend) and `6e64486` (write-up, code map, report material, bibliography), before any D9.7 run |
 | Q13 | **Scope under the one-week deadline (≈ 2026-10-09): which Phase 6–10 exit criteria are met, and which are deferred in writing?** §6 item 0a lists them criterion by criterion. Three blockers cannot be worked around this week: people other than the owner (human evaluation run, independent reader), this machine (no Docker, one GPU), and negatives (anything function-level needs the 148,983-function split) | **Defer the ❌ rows explicitly** and ship the rest · extend the deadline · cut whole phases (9 or 7) to protect 8 | **Defer the ❌ rows explicitly.** Phases 5–6 closed, 7a, Phase 8 on the frozen grid with `test` + `clean_eval`, Phase 9 without verified Docker, a paper *draft* whose limitations name every deferral. If something must be cut, cut Phase 9's UI before any Phase 8 ablation — the claims are the project | **Marking Phases 6–10 done at all** | 🟨 **PARTLY ANSWERED 2026-10-03.** Owner: three raters are available (human evaluation can run), a second GPU laptop exists (independent reproduction, clean-machine Docker), and Docker is installed Sat 3 evening. Those three rows move to ✅ in §6 item 0a. **Still unanswered:** deferring the function-level criteria (unit aggregation, DiverseVul, full external reproduction) and 7b; whether the external baseline runs as a balanced subsample or stays `(reported)`. (The second laptop's GPU is answered: 6 GB, `docs/SecondMachine.md`.) **Docker was not installed on Sat 3; it was installed on Sun 4 at 22:08 (session 15, to `D:\Docker`), rebooted and launched once — auto-start off, nothing built; the owner sets it up later**. **ANSWERED 2026-10-07 (§2): the function-level criteria and 7b are deferred, external baselines stay `(reported)` — the owner delegated the choice ("whatever is best") and can reverse it; the full model is the designed cross-attention architecture. Still the owner's: Q5 (CWE labels), which Phase 6's fourth criterion needs decided or deferred** — **answered the same afternoon: deferred, and the Phase 6 gate signed (§2)** |
 | Q14 | **What happens to the comment-terminator leak (§1.25, §7 #58)?** A flagged line that ended a block comment lost the slash of its `*/`; the tell is right 97–100% of the time on `train`/`val`/`test`, the nine D9.7 checkpoints use it, and ≈ 0.05 of every logged `val` Top-5 sits on the 12% of units it answers. `test` carries it on 13.4% of units; `clean_eval` has a related regime (flagged lines carry no comments at all) | **(a) Strip comments label-blind at L0/L1 (ADR-010), rebuild, retrain the headline** — 9 fine-tuned runs, 17–32 GPU-h on this laptop, or on machine 2 as one whole group · (b) repair or strip at **evaluation only**, re-score the existing checkpoints (minutes each) and report that, with the stratified table beside it · (c) report as is, with §1.25 as a limitation | **(b) now, (a) if the GPU-hours exist.** (b) gives a number the tell cannot inflate tonight, from checkpoints that already exist; it under-states what a leak-free-trained model would do, which is the safe direction. (a) is the real fix and is what ADR-006 did; it voids every line-level number and has to be the owner's call two days before the deadline. (c) is not defensible for `test` | **The held-out evaluation; every line-level claim** | ✅ **CLOSED 2026-10-08 — the owner accepted ADR-010 with option (a): the nine `d97r` checkpoints are the models of record and the held-out evaluation is on stripped text (§2).** Raised 2026-10-07 (session 16); the history of how it was measured follows. **Both are built (2026-10-07 evening).** (b) is measured: Top-5 0.535–0.555 on comment-stripped `val` against 0.616–0.617, line F1 0.234–0.236 against 0.39, arms still tied (§1.25). (a) is queue group `d97r`, with ADR-010 (Proposed) as its decision record. **(a) IS NOW MEASURED TOO (2026-10-08, §1.28): all nine runs retrained without comments — Top-5 0.5394 ± 0.0116 / 0.5546 ± 0.0084 / 0.5519 ± 0.0187, line F1 0.2359 / 0.2408 / 0.2330 (cross_attention / concat / `llm_only`). The arms tie, and each matches (b) for the same arm — so (b) did not under-state a leak-free-trained model, as this row had guessed. What is left is the owner's acceptance.** Neither has touched a held-out partition |
+| Q15 | **How is A1 stated, now that it has a two-part answer?** Frozen encoder, comment-stripped text, validation: cross_attention is ahead of concat on Top-5 over six seeds, and the first three seeds' result was repeated on three more (§1.32). Fine-tuned — the models of record: no difference, on validation and on both held-out partitions (§1.28, §1.30) | Lead with the fine-tuned null and report the frozen result as a qualified secondary finding · lead with the frozen result · give both equal weight | **The first.** The models of record and the only held-out numbers are the fine-tuned ones; the frozen result is validation-only by protocol and carries every qualifier §1.32 lists | The paper's A1 section and abstract; nothing that is built | 🟨 **Open — the owner's** (raised 2026-10-11) |
 | Q7 | What happens to the 426 functions that are byte-identical across partitions? | Withhold · reassign to one partition · keep and report | **Withhold** — costs 0.23% of the corpus and is the only option preserving both project- and function-disjointness | Phase 1 exit | ✅ **Closed 2026-08-11 — ADR-004 accepted by the project owner.** Reversible via `data.splits.dedup_across_splits=false`, which changes the fingerprint |
 
 ---
