@@ -61,6 +61,17 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-11 08:10 (session 18): THE FIRST DOCKER IMAGE IS BUILT AND THE SERVICE RUNS IN IT
+(`Memory.md` §1.33).** `vulnloc:0.1.0`, 2.9 GB, from `193f3ac`: the `serve` container mounts
+only the bundle of record and answers `POST /analyze` with the same lines and scores as
+the host; `docker run --rm vulnloc:0.1.0` runs Phase 0's command to completion, so
+**Phase 0 is 4 / 4**. It needed one fix first — the image's work directory belonged to
+root and no Hydra script could start (landmine #69). **Two things the build showed that
+are not fixed: the image's versions are not pinned (torch 2.14.1 inside, 2.13.0 here), and
+it has no `.git`, so a run inside logs `git_sha=unknown` — run nothing of record in a
+container.** Not tried on a second machine. Docker Desktop is shut down again. The
+paragraphs below describe the state before this.
+
 **2026-10-11 07:45 (session 18): PHASE 9 IS MERGED (`f5f450a`) AND MEASURED (`Memory.md`
 §1.33) — three of its four exit criteria are met; Docker is not.** The bundle of record is
 `artifacts/serving/ba7dcc5f` (export run `ff9d1bd2…`): on 48 `val` functions the served
@@ -341,7 +352,7 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | | |
 |---|---|
 | Branch | `phase-2/representation` — **the name is two phases stale**, ~25 commits ahead of `main`. Branching model still undecided (§10 #1). |
-| Phase 0 | 🟨 **3 / 4** — Docker criterion unverified (Docker Desktop installed 2026-10-04 and launched once; image never built). Blocks nothing downstream. |
+| Phase 0 | ✅ **4 / 4** (2026-10-11) — the Docker criterion, open since August, is met: the image builds and `docker run --rm vulnloc:0.1.0` runs `scripts/train.py train=debug` to completion (`Memory.md` §1.33; one fix first, `193f3ac`). |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
 | Phase 3 | ✅ **DONE — gate signed by the owner 2026-09-15.** **LLM-only over three seeds on normalized text: Top-5 0.6141 ± 0.0055, Top-1 0.3513 ± 0.0138, line F1 0.3692 ± 0.0204, IFA 11.93 ± 0.60** (§1.14). Top-5 varies by under a point across seeds while P/R swing ±0.04 in opposite directions — the threshold moving, not the model. Run `1843412a…` remains VOID (ADR-006); `function/f1` = 1.000 is degenerate and must never be quoted. |
@@ -350,7 +361,7 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 6 | ✅ **DONE — 4 / 4, gate signed by the owner 2026-10-07** (`Memory.md` §1.1d). Full-model configuration frozen by the owner's decision (the designed cross-attention model, D9.7's runs). **Calibrated and thresholded on `val` (`Memory.md` §1.24, run `569c9701…`): ECE 0.1704 ± 0.0330 → 0.0137 ± 0.0104; line F1 0.2954 ± 0.0855 at the logged 0.5 → 0.3898 ± 0.0190 out of fold, 3 seeds. Concat (0.3908 ± 0.0030) and `llm_only` (0.3936 ± 0.0072) tie with it at their own thresholds — the F1 gap every run logged at 0.5 was the threshold.** Thresholds are per checkpoint (0.1686 / 0.1083 / 0.2159) — never average a calibrator across seeds. Still over-confident above p = 0.8 (observed 0.67–0.81). **Q5 is closed: the owner deferred the learned CWE-type classifier — Phase 7a names a template-derived category and says so.** Unit-level aggregation is deferred in writing. |
 | Phase 7 | ✅ **DONE — 4 / 4, gate signed by the owner 2026-10-08** (`Memory.md` §1.1e, §2): the owner read every sentence the explainer can emit, named none of concern, and approved `docs/HumanEvalProtocol.md`. 7a only. Every flagged line on `val` gets a verified explanation (13,908 of 13,908, three seeds, `Memory.md` §1.27); a weakness pattern names a cause for about one in twelve, and the rest say so. **The page the owner read is `artifacts/phase7/sentences_for_review.md` (`python scripts/list_explanation_sentences.py` regenerates it; re-read it if a template changes).** A pilot rater pack (100 `val` samples) is at `artifacts/phase7/rater_pack_stripped/`. 7b is deferred in writing. |
 | Phase 8 | 🟨 **Started 2026-10-08 on `val` at the owner's instruction, before the Phase 7 gate** (`Memory.md` §2). Built: the line-level metric suite with tie bounds, bootstrap intervals, the source-order baseline and the ceilings (`scripts/evaluate_scores.py`); **2026-10-10: the ablation tables (`docs/ablations.yaml`, `scripts/make_ablation_tables.py`) — the tables of record are run `922719b5…` (2026-10-11); and the failure taxonomy as a draft (`scripts/sample_failures.py`, `docs/FailureTaxonomy.md`) — its criterion stays open until the owner reviews the cases; and the figures (`scripts/make_phase8_figures.py`, `val` only so far).** The suite passes from a fresh clone (1,434 passed, 5 skipped at `a63a62e`) — the cheap half of the clean-clone criterion; a fresh environment, the data pipeline and a reproduced run are not done. The function-level parts are deferred in writing. **The single `test` / `clean_eval` evaluation was made on 2026-10-11 (`Memory.md` §1.30): Top-5 and IFA separate no two arms on either partition, every arm beats source order, and concat's PR-AUC lead over `llm_only` repeats on both.** Still open: the taxonomy review (the owner's) and the rest of the clean-clone criterion. **`a1r` and its replication `a1rep` (§1.32): with the encoder frozen, on comment-stripped text, cross_attention leads concat on `val` Top-5 by +0.0474 over six seeds (2.46 pooled sd) — validation-only, and not the models of record.** |
-| Phase 9 | 🟨 **3 / 4 — merged 2026-10-11 (`f5f450a`), `Memory.md` §1.33.** Bundle, single-function inference, the FastAPI service and the demo page; bundle of record `artifacts/serving/ba7dcc5f` (`ff9d1bd2…`); errors in one shape; the model card ships in the bundle. **Latency measured: p95 2.63 s on this CPU — over NFR-4's recommended 2 s, because of functions over 250 lines.** **Open: the Docker criterion — no image has ever been built.** Gate unsigned. |
+| Phase 9 | 🟨 **3 / 4 — merged 2026-10-11 (`f5f450a`), `Memory.md` §1.33.** Bundle, single-function inference, the FastAPI service and the demo page; bundle of record `artifacts/serving/ba7dcc5f` (`ff9d1bd2…`); errors in one shape; the model card ships in the bundle. **Latency measured: p95 2.63 s on this CPU — over NFR-4's recommended 2 s, because of functions over 250 lines.** **Docker: works on this laptop — image from `193f3ac`, the container answers as the host does; not tried on a second machine.** Gate unsigned. |
 | Phase 10 | ⬜ Not started. |
 | Tests | **1,434 passing, 5 skipped — from a fresh clone of `a63a62e`, no artefacts** (2026-10-10; two of the five skip only because a clone has no checkpoint and no generated figures). Ten figure tests were added after that run and pass alone; seven more on 2026-10-11 (the seed filter, the `a1rep` group) — the two files they are in pass, 93 tests. **With Phase 9 merged, on the main tree with artefacts: 1,498 passing, 3 skipped (2026-10-11, `7d7c102`).** ruff / black on every file touched since; the pre-commit hooks (black, ruff, mypy, import-linter) pass on every commit. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
@@ -451,8 +462,9 @@ Tracked but not blocking: why our measured line counts differ from the published
 - **GPU: NVIDIA RTX 3050 Ti Laptop, 4.0 GiB, cc 8.6**, `torch 2.13.0+cu130`.
   `pip install torch` gives a **CPU-only** wheel on Windows — use `make setup-cuda`.
 - **Docker Desktop 4.93.0 installed 2026-10-04 at `D:\Docker`** (data root `D:\Docker\wsl`;
-  licence accepted, auto-start off, **no image built yet** — and **keep it closed during
-  training**). **No GNU make** on this machine. Use `make.ps1`.
+  licence accepted, auto-start off; **one image built 2026-10-11, `vulnloc:0.1.0`, 2.9 GB plus
+  5.3 GB of build cache on D:** — and **keep it closed during training**; stop it with
+  `docker desktop stop`). **No GNU make** on this machine. Use `make.ps1`.
 - **D: is a spinning SATA hard disk; C: is the NVMe SSD (24 GB free).** The repo, the
   corpus, the checkpoints and Docker all sit on the HDD: it shows 100% busy at a few MB/s
   under scattered I/O (Docker and MATLAB's startup accelerator did that after a boot; the
@@ -565,6 +577,8 @@ python scripts/export_serving_bundle.py +explainer=template +export.run_id=<run>
                                                             #   val; refuses an existing directory, removes a bundle that fails
 python scripts/serve.py +serve.bundle=./artifacts/serving/ba7dcc5f    # the API and the demo page on http://127.0.0.1:8080
 python scripts/measure_latency.py +latency.bundle=./artifacts/serving/ba7dcc5f   # NFR-4, on an idle machine only
+docker compose --profile serve up serve                     # the same service in the image (Docker Desktop must be running;
+                                                            #   never beside training) -> http://localhost:8080
 
 python frontend/server.py                                   # Findings + Detailed report on http://127.0.0.1:8000
 ```
@@ -734,6 +748,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 66 | **`report_phase4.py` sorts a group's `seeds` and not its `run_ids`** — zipping them labels runs with the wrong seed (`46ab8056…` is seed 42, not 1). No mean moves. `make_ablation_tables.py` reads each run's seed from what the run logged. `Memory.md` §7 #66. |
 | 67 | **A group that gains seeds turns its old seed-report command into a different report.** After `a1rep`, an `a1r` seed report re-run by hand would aggregate six seeds and write over the three-seed file of record; nothing refuses. Pass `'+seeds.seeds=[42,1,2]'`. `a1rep`'s own reports name their seeds and write to other files. `Memory.md` §7 #67. |
 | 68 | **A script that logs a measured value under a name the config already logged loses its run after the work is done.** MLflow refuses a parameter whose value changes; `measure_latency.py` logged the bundle path twice, once as given and once normalized, and `8b74b485…` failed after timing 200 requests. Log measured facts under names of their own. `Memory.md` §7 #68. |
+| 69 | **An image whose work directory belongs to root starts no Hydra script** — Hydra writes `outputs/` beside the launch directory. The first image ever built here died on it (fixed `193f3ac`). The same build showed two things still open: **the image installs from `pyproject.toml`'s lower bounds, not the lock file, and it has no `.git` — a run inside logs `git_sha=unknown`.** `Memory.md` §7 #69. |
 
 
 ---

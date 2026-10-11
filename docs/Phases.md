@@ -45,10 +45,14 @@ Durations are `[RECOMMENDATION]`s for a three-person student team, not commitmen
 - `Memory.md` initialized
 
 **Exit criteria**
-- [ ] `make setup && make test && make lint` all pass from a clean clone
-- [ ] `python scripts/train.py train=debug` runs a no-op loop and logs to MLflow
-- [ ] Docker image builds and runs the same command
-- [ ] Import-linter enforces the L0→L6 layer rule
+- [x] `make setup && make test && make lint` all pass from a clean clone *(met in Phase 0; the box was ticked on 2026-10-11, with the fourth)*
+- [x] `python scripts/train.py train=debug` runs a no-op loop and logs to MLflow *(met in Phase 0)*
+- [x] Docker image builds and runs the same command
+  - *2026-10-11:* `vulnloc:0.1.0` (2.9 GB) builds, and `docker run --rm vulnloc:0.1.0`
+    runs `python scripts/train.py train=debug` to completion, exit 0 — after one fix
+    (`193f3ac`: the work directory belonged to root). The run inside logs
+    `git_sha=unknown`; the image has no `.git` (`Memory.md` §1.33, §7 #69).
+- [x] Import-linter enforces the L0→L6 layer rule *(met in Phase 0; it runs in the pre-commit hooks on every commit)*
 
 **Do not** write model code in this phase.
 
@@ -359,8 +363,11 @@ before the single held-out pass was started.**
 
 **Exit criteria**
 - [ ] End-to-end request works in Docker on a clean machine
-  - *2026-10-11:* **not done.** The `serve` service in `docker-compose.yml` is written
-    and has never been run; no image has been built on this project.
+  - *2026-10-11:* **works in Docker on this laptop.** Image `053c0a4ae9b4`, built from
+    `193f3ac`; the `serve` container mounts only the bundle of record, reports healthy
+    and answers `POST /analyze` with the host's lines and scores (`Memory.md` §1.33).
+    The first run found a bug in the image, since fixed. **Not tried on a second
+    machine** — left unticked for the owner to say whether this is what "clean" asks.
 - [x] Latency measured and reported (NFR-4)
   - *2026-10-11:* run `3e91feba…`, 200 `val` functions on this laptop's CPU: p50
     0.30 s, **p95 2.63 s — over the recommended 2 s**; p95 1.96 s for functions up to

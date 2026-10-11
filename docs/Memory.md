@@ -28,7 +28,7 @@
 |-------|-------|
 | **Active phase** | **Phase 7 — Explanation (7a), since 2026-10-07: Phases 5 and 6 are SIGNED (§1.1c, §1.1d).** Ablation A6 (attention direction) is running on the frozen cache as queue group `a6`. Phase 5's record, kept: **A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **D9.7 (fine-tuned confirmation): the six runs ADR-009 specifies are FINISHED (§1.22) — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, again no resolvable difference.** The added scaffold control `llm_only` × 3 finished on 2026-10-07: **0.6169 ± 0.0048 Top-5 — no fused arm beats it (§1.22)** |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15; Phases 5 and 6 SIGNED 2026-10-07; Phase 7 SIGNED 2026-10-08 — Phase 8 is the current phase.** ADR-008 and ADR-009 accepted 2026-09-15, ADR-010 on 2026-10-08 |
-| **Last updated** | 2026-10-11 07:45 (session 18: held-out results §1.30; `a1r` and its replication §1.32; Phase 9 merged, bundle and latency §1.33; nothing is running — §6 item 0a) |
+| **Last updated** | 2026-10-11 08:10 (session 18: held-out results §1.30; `a1r` and its replication §1.32; Phase 9 merged, bundle, latency and Docker §1.33; nothing is running — §6 item 0a) |
 | **Open decision** | **None blocking a measurement. On 2026-10-08 the owner accepted ADR-010 (Q14), signed the Phase 7 gate and confirmed `docs/EvaluationProtocol.md` (§2); the single held-out evaluation is authorised and is made on comment-stripped text with the nine `d97r` checkpoints.** Q13 answered and Q5 deferred by the owner (§2, §5). Still open, not blocking: ADR-006 and ADR-007 `Proposed` (ADR-007 blocks ablation A3's CPG arm); Q4 (explanation supervision) belongs to Phase 7; the paper's framing of the A1 null; scheduled defragmentation of D: (§7 #57) |
 | **Last commit** | Session 14's resume/queue commit on `phase-2/representation` (see `git log`). **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
 | **Best model run ID** | **Models of record since 2026-10-08 (ADR-010 accepted, §2; `val` numbers in §1.28): cross_attention `ba7dcc5f…` / `8afbf7da…` / `ff980345…` (the full model), concat `9ac7a146…` / `7579bc33…` / `10b43ce5…`, `llm_only` `d82a6a70…` / `a1dce535…` / `9296a0e5…`.** Single-branch baselines, measured with comments in place: semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
@@ -3015,11 +3015,13 @@ and `…_six_seeds_<arm>.json`; transcript `artifacts/queue/a1rep.out`.
 
 ---
 
-## 1.33 Phase 9 — serving: the bundle of record answers as the checkpoint did; p95 latency misses NFR-4's bound on long functions; Docker is not done (2026-10-11)
+## 1.33 Phase 9 — serving: the bundle of record answers as the checkpoint did; p95 latency misses NFR-4's bound on long functions; it runs in Docker on this laptop (2026-10-11)
 
 **Status: built on 2026-10-10 on branch `phase-9/serving`, merged on 2026-10-11 as
 `f5f450a` once `a1r`, the held-out pass and `a1rep` had all finished. Three of the four
-exit criteria are met; the Docker one is not.**
+exit criteria are met. The fourth — Docker on a clean machine — holds on this laptop, in
+a container that takes nothing from the host but the bundle; a second machine has not
+been tried.**
 
 What exists (`docs/Serving.md` is the user's page; `docs/MODEL_CARD.md` ships in the
 bundle):
@@ -3090,11 +3092,47 @@ comment line is shown and never scored. An empty box gives "Nothing to analyze" 
 request. **One function is an illustration, not a measurement** — and five lines flagged
 of eight is the model card's "treat the flag as a hint" seen once.
 
+### In Docker — the first image this project built (2026-10-11, 07:28 → 08:00)
+
+- **Built:** `docker compose --profile serve build serve`, 15 minutes, most of it
+  downloads: `vulnloc:0.1.0`, 2.9 GB, Python 3.11.17, CPU-only torch.
+- **The first run failed, which is what the criterion is for.** `/workspace` was created
+  by root; the image's non-root user owned what was copied into it and `artifacts/`, but
+  not the directory, so Hydra could not create `outputs/` and `scripts/serve.py` died
+  with `PermissionError` before loading anything — as the image's default command would
+  have. Fixed in `193f3ac` (§7 #69).
+- **From the committed tree (`193f3ac`), image `053c0a4ae9b4`:** the `serve` container
+  mounts the bundle of record read-only and nothing else, runs as uid 1000, reports
+  healthy 12–60 s after start and holds 1.17 GiB with the model loaded. `GET /version`
+  names the bundle. `POST /analyze` on the nine-line example returns exactly the §5.4
+  keys and the same five lines in the same order as the host, scores equal to three
+  decimals (0.984, 0.945, 0.335, 0.181, 0.129); the first request took 2.0 s, the second
+  0.37 s. The two error cases leave in the one shape:
+  `{"error":{"type":"ValidationError","message":"language: Input should be 'c' or 'cpp'","unit_id":null}}`
+  (422) and `{"error":{"type":"ParseError","message":"there is no code to analyze","unit_id":"request"}}`
+  (400).
+- **Seen on a second example, a four-line `strcpy` function:** the `strcpy` line first at
+  0.9915 — and the closing brace flagged at 0.0957 against a threshold of 0.0925. The
+  service withholds empty lines, not lines that are syntax alone (§1.31 measured that the
+  model ranks such lines below chance; one sits just over the threshold here).
+- **The versions inside are not the host's.** torch 2.14.1+cpu, transformers 5.19.0,
+  torch-geometric 2.8.0.post1, numpy 2.4.6 — against torch 2.13.0+cu130 on the host. The
+  Dockerfile installs from `pyproject.toml`'s lower bounds, not from the lock file, so an
+  image built another day may hold other versions. The answers agreed today; nothing
+  guarantees it.
+- **Phase 0's open criterion, checked at the same time:** `docker run --rm vulnloc:0.1.0`
+  runs the image's default command, `python scripts/train.py train=debug`, to "No-op
+  training complete", exit 0, logging to a store inside the container. **It logs
+  `git_sha=unknown`: the image carries no `.git`, so a run made in a container cannot be
+  traced to a commit.** Nothing of record may be run there as the image stands.
+- **Left on D: —** the image (2.9 GB) and 5.3 GB of build cache. Docker Desktop was shut
+  down again afterwards. Build log: `artifacts/queue/docker_build.log`.
+
 ### The exit criteria
 
 | Criterion | |
 |---|---|
-| End-to-end request works in Docker on a clean machine | **Not done.** No image has been built on this project yet (Phase 0's open criterion too). The compose service is written and has never been run. A clean machine is the second laptop |
+| End-to-end request works in Docker on a clean machine | **Works on this laptop** — image `053c0a4ae9b4` from `193f3ac`, above; the container mounts only the bundle. **Not tried on a second machine**; whether a container on the development laptop is what "clean" asks is the owner's to say at the gate |
 | Latency measured and reported (NFR-4) | Done — `3e91feba…`, above. The recommended bound is missed |
 | Error responses structured per `Rules.md` §4.7 | Done — every failure leaves as `{"error": {type, message, unit_id}}`: unreadable input 400, a request that does not validate 422, anything else 500 (`tests/unit/test_serving_app.py`) |
 | Model card published with the checkpoint | Done — the export copies `docs/MODEL_CARD.md` into the bundle and lists its digest; the card carries the held-out numbers of §1.30 |
@@ -3105,12 +3143,14 @@ of eight is the model card's "treat the flag as a hint" seen once.
   false` means no line reached the threshold (the API's documentation and the page say so).
 - **A latency for anything but this laptop's CPU and `val`'s lengths.** `clean_eval`
   functions average four times the corpus length (landmine #12); expect worse there.
-- **That it runs in a container.** Unverified.
+- **That it runs on another machine.** The image was built and run on this laptop only,
+  and its package versions are not pinned.
 
 ### Runs and commits behind this section
 
 Export `ff9d1bd2…`; latency `3e91feba…` (and `8b74b485…`, failed). Commits `3a119ba`,
-`6b93d58`, `c2e4d92` (the branch), `f5f450a` (the merge), `7d7c102` (the latency fix).
+`6b93d58`, `c2e4d92` (the branch), `f5f450a` (the merge), `7d7c102` (the latency fix),
+`193f3ac` (the Dockerfile fix).
 Pre-merge checks: `artifacts/queue/after_a1rep_checks.out`. After the merge and the fix,
 on the main tree: 1,498 tests pass, 3 skip; black, ruff, mypy and import-linter clean.
 
@@ -4123,7 +4163,7 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-11 07:45 (session 18): everything of the night is done and written up; Phase 9 is merged; nothing is running
+#### Where it stands — 2026-10-11 08:10 (session 18): everything of the night is done and written up; Phase 9 is merged and runs in Docker; nothing is running
 
 - **Done since midnight:** the held-out pass (§1.30); `a1r` and its replication `a1rep`
   (§1.32, tables of record `bcfeb4ff…`); Phase 9 merged as `f5f450a`, the bundle of
@@ -4140,10 +4180,12 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   2. *The owner's reading:* the failure taxonomy (`docs/FailureTaxonomy.md` §6, sheet
      `artifacts/phase8/failure_cases.md`); the human evaluation with three raters
      (`artifacts/phase7/rater_pack_test/`, `docs/HumanEvalProtocol.md`).
-  3. *Needs a quiet machine and the network:* Docker — build the image and make one
-     request in the container (closes Phase 9's first criterion on this laptop, and
-     Phase 0's; "a clean machine" is the second laptop); the rest of the clean-clone
-     criterion (an environment from the lock file, the data pipeline, a reproduced run).
+  3. *Docker — done on this laptop at 08:00* (§1.33): the image builds, the `serve`
+     container answers as the host does, and Phase 0's command runs in it. Left: a
+     second machine, if the owner wants "clean" to mean that; pinning the image's
+     versions to the lock file; a commit SHA inside the image. *Still needing a quiet
+     machine and the network:* the rest of the clean-clone criterion (an environment
+     from the lock file, the data pipeline, a reproduced run).
   4. *Phase 10* is not started.
 - **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
   `phase-8/tables`, `wt9` on `phase-9/serving`) are merged and no longer needed —
@@ -5246,6 +5288,7 @@ Things that cost time once and should not cost time twice.
 | 66 | **`report_phase4.py` sorts a group's `seeds` and not its `run_ids`.** Zipping the two labels runs with the wrong seed: `46ab8056…` is seed 42 and came out as seed 1 in the first ablation table. No mean or sd moves — only which run a reader would open for which seed. Found 2026-10-10 by comparing the table with `run_queue.py --status` | ✅ `make_ablation_tables.py` reads each run's seed from what the run logged, and refuses a seed report that disagrees with it. `phase4_report.json` itself is unchanged |
 | 67 | **A group that gains seeds turns its old seed-report command into a different report.** `a1r`'s reports select on `{fusion_kind, frozen, strip_comments}`. Once `a1rep` has run, the same command by hand aggregates six seeds and writes over the three-seed file of record — and nothing refuses, because six runs with identical parameters *are* replicates. Noticed 2026-10-11 while adding the group, before any `a1rep` run existed | ✅ `report_seeds.py` takes `+seeds.seeds=[…]`; `a1rep`'s reports name their seeds and write to files of their own. **An `a1r` seed report re-run by hand needs `'+seeds.seeds=[42,1,2]'`.** The queue does not re-run them: they are recorded `done` |
 | 68 | **A script that logs a measured value under a name the config already logged loses its run after the work is done.** `start_run` logs every override as a parameter, as given. `measure_latency.py` then logged the bundle path, normalized, as `latency.bundle`; MLflow refuses a parameter whose value changes, and run `8b74b485…` failed after timing all 200 requests and before writing anything. Found 2026-10-11 by running it on the bundle of record. Same family as #60: a value that looks the same and is not | ✅ `7d7c102`: measured facts are logged under names of their own, and a test fails if one collides with a config key. Fifteen other scripts call `log_params`; each has completed runs, none was audited for this |
+| 69 | **An image whose work directory belongs to root starts no Hydra script.** The Dockerfile chowned everything it copied into `/workspace` and `artifacts/`, but `WORKDIR` itself was created by root; Hydra writes `outputs/<date>/<time>` beside the launch directory and the non-root user could not create it. The first image this project built (2026-10-11) died on `PermissionError: 'outputs'` before loading a model — the Dockerfile had been in the repo, unbuilt, since Phase 0 | ✅ `193f3ac`: `/workspace` and `outputs/` are the user's; the `serve` container and the default command both run. **Still open, two things the same build showed:** the image installs from `pyproject.toml`'s lower bounds, not the lock file (torch 2.14.1 inside, 2.13.0 on the host), and it has no `.git`, so a run inside logs `git_sha=unknown` |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**
