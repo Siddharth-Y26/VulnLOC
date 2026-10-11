@@ -57,6 +57,33 @@ LENGTH_BANDS = ((1, 25), (26, 50), (51, 100), (101, 250), (251, 10**9))
 IDLE_CPU_PERCENT = 25.0
 """Above this average CPU load the machine is not idle enough for the number to mean much."""
 
+CONFIG_KEYS = frozenset({"bundle", "n", "seed", "warmup", "threads", "require_idle"})
+"""What a caller may pass as ``+latency.<key>``. ``start_run`` logs each one as a parameter,
+exactly as given — so nothing measured may be logged under the same name."""
+
+
+def measured_params(report: dict[str, Any]) -> dict[str, Any]:
+    """The facts logged as parameters beside the config, under keys the config does not use.
+
+    MLflow refuses a parameter whose value changes. The first run of record logged the
+    bundle path a second time, normalized, as ``latency.bundle``: the run failed after
+    every request had been timed and before anything was written (2026-10-11,
+    ``8b74b485…``). The path as given is already a parameter; the resolved one is in the
+    report.
+
+    Args:
+        report: The report ``measure`` assembled.
+
+    Returns:
+        Parameter name to value. No name is ``latency.<key>`` for a key in ``CONFIG_KEYS``.
+    """
+    return {
+        "latency.requests": report["requests"]["n"],
+        "latency.device": report["device"],
+        "latency.torch_threads": report["torch_threads"],
+        "latency.processor": report["processor"][:240],
+    }
+
 
 def cpu_load_percent(samples: int = 5, interval: float = 0.4) -> float | None:
     """Average CPU load over a short window, or ``None`` where it cannot be read.
@@ -226,15 +253,7 @@ def measure(cfg: DictConfig) -> dict[str, Any]:
         mlflow.set_tags(
             {"artefact": "latency", "split": SPLIT, "source_run": analyzer.bundle.run_id}
         )
-        mlflow.log_params(
-            {
-                "latency.bundle": report["bundle"],
-                "latency.requests": overall["n"],
-                "latency.device": report["device"],
-                "latency.torch_threads": report["torch_threads"],
-                "latency.processor": report["processor"][:240],
-            }
-        )
+        mlflow.log_params(measured_params(report))
         mlflow.log_metrics(
             {
                 "p50_seconds": overall["p50"],
