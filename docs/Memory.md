@@ -4244,6 +4244,12 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
     Not verifiable here, to check against the papers: Fu et al. F1 0.82, DCVD 0.87 /
     0.92 / 0.94, ActiveClean +7 points, "87 studies", "18 models" in Li et al., and what
     DCVD does not state. None of those numbers is in `docs/prior_work.yaml`.
+  - *The online draft* (the Claude Doc holding the literature review and methodology):
+    a section "Corrections to this methodology (11 October 2026)" was added at the top
+    of Part II — seven points where the 1 October prose is out of date (comment
+    stripping, the models of record, the tie, the frozen result, the held-out pass, the
+    template explainer, and the draft's "smooth maximum" function-level score, which is
+    still to be checked against the code). The prose under it is not rewritten yet.
   - *Still waiting on the owner, who said "wait on those":* Q15, latency, the Phase 8
     and 9 gates, a time for the clean-clone check.
 - **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
