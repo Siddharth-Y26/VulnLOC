@@ -5,6 +5,12 @@ session; none has been reviewed by a person.** Phase 8's criterion — *failure 
 documented with ≥ 20 inspected cases* — stays open until the owner has gone through the
 sheet and either accepted the categories below or changed them (§6).
 
+**Revised 2026-10-11 (§7):** the owner passed the session a written review of this draft.
+Its points were checked against the sheet, and the two categories it questioned were
+re-sorted by a count. Three changes followed — B is narrowed and loses case 02, C is
+split, E is renamed. **Still a draft and still open: the review is addressed to the owner
+and leaves the acceptance with the owner.**
+
 Everything here is validation. Nothing about `test` or `clean_eval` was read to write it,
 and none of it is a held-out number.
 
@@ -100,45 +106,63 @@ What it does not support:
 ## 4. Read: thirty cases, eight categories
 
 For every case the flagged lines and the model's top-ranked lines under seed 42 were
-read; for seven (07, 08, 10, 15, 17, 27, 30) the surrounding code as well. A category
+read; for eight (01, 07, 08, 10, 15, 17, 27, 30) the surrounding code as well. A category
 describes **what the flagged line is, set against what the model ranked first** — what a
-reader can see, not why the model did it. Each case has one.
+reader can see, not why the model did it. Each case has one. For B and C the relation is
+now counted on the sheet rather than read off it (§7): the block a flagged header opens,
+found by matching braces, and the lines that use a flagged declaration's name.
 
 | | Category | Cases | Of 30 |
 |---|---|---|---|
 | A | **Nothing to find.** Every flagged line is blank after stripping, or syntax alone | 03, 29 | 2 |
-| B | **The guard is flagged; the model ranks what it guards.** The flagged line is an `if` or loop header (by rule, in all seven), and the top ranks go to statements in or after the block it opens | 01, 02, 15, 16, 17, 19, 30 | 7 |
-| C | **A declaration or definition is flagged.** The flagged line declares a variable or sets a value used later | 11, 12, 20, 28 | 4 |
+| B | **A block header is flagged; the model ranks what the block holds, or what the check is about.** The flagged line is an `if` or loop header (by rule, in all six). Either the top ranks are statements inside the block it opens (15, 16, 17, 19), or the header is a check and the top ranks include statements outside its block that carry the expression it checks (01, 30) | 01, 15, 16, 17, 19, 30 | 6 |
+| C | **A declaration or definition is flagged.** Lines that use the declared name are among the top ranks in three (11, 12, 28) and not in one (20) | 11, 12, 20, 28 | 4 |
 | D | **A twin outranks it.** A statement with the same or nearly the same text as the flagged one, elsewhere in the function, is ranked first | 25, 27 | 2 |
-| E | **A rewritten block.** Six to twelve flagged lines, none of them ranked high | 13, 23, 24 | 3 |
+| E | **A flagged region of six or more lines, none of them ranked high.** Six to twelve flagged lines. Called "a rewritten block" in the first draft — a name that claimed a cause nobody looked for | 13, 23, 24 | 3 |
 | F | **A format-string call** (CWE-134). The flagged call passes a variable where a format belongs; nothing else on the line is unusual | 06, 07, 08 | 3 |
 | G | **One line of a longer statement is flagged; the model ranks its other lines** | 10 | 1 |
-| H | **No relation seen.** One or two flagged statements, and top ranks somewhere else in the function for no reason the listings show. In three of the eight (05, 18, 22) a top-10 line is within three lines of the flagged one, so "none seen" is the reader's limit, not a measurement | 04, 05, 09, 14, 18, 21, 22, 26 | 8 |
+| H | **No relation seen.** One or two flagged statements, and top ranks somewhere else in the function for no reason the listings show. In three of the nine (05, 18, 22) a top-10 line is within three lines of the flagged one, so "none seen" is the reader's limit, not a measurement | 02, 04, 05, 09, 14, 18, 21, 22, 26 | 9 |
 
 What each looks like, with the case to open:
 
 - **A — case 03** (`bigvul-178201`): the one flagged line is empty after comment
   stripping; it ranks 72nd to 111th of 123. **Case 29**: the flagged line is `return;`.
   Both are among the ten of §2.
-- **B — case 17** (`bigvul-179177`): the flagged line is
+- **B, inside the block — case 17** (`bigvul-179177`): the flagged line is
   `for (i = 0; i < 4 && out->data[i]; i++) {`, ranked 20th; the four lines of the loop
-  body right under it are ranked 6th, 4th, 1st and 2nd. **Case 30**: `if (mode > 0) {` is
-  flagged and ranked 12th; the `open(…, mode > 0 ? mode : 0644)` four lines above it is
-  ranked 1st and the `fchmod` it guards 5th. Cases 15 and 19 are loop headers whose
-  bodies take the top ranks in the same way. In 01, 02 and 16 the top ranks are further
-  down the function, on pointer arithmetic and buffer accesses — after the guard, and
-  not shown to be inside what it guards.
-- **C — case 11** (`bigvul-178637`): `off = !!(…)` is flagged and ranked 23rd–26th; the
-  two lines that index a buffer with `off` are ranked 1st and 2nd. In 12 and 28 a
-  declaration is flagged and lines using the variable are in the top seven; in 20 two
-  declarations at the head of a 225-line function are flagged and the top ranks are
-  nowhere near them.
+  body right under it are ranked 6th, 4th, 1st and 2nd. **Case 15**: nine of the top ten
+  lines are inside the flagged loop, which is 15 of the function's 42 lines. **Case 19**:
+  ranks 1 to 6 and 9 are inside the flagged loop, 23 of 53 lines. **Case 16 meets the
+  rule and shows little by it**: the flagged loop is 132 of the function's 183 lines;
+  four of the top ten are inside it (ranks 1, 2, 4 and 7 — the 7th reads
+  `inpic->data[plane]`, the expression the header tests) and the other six are pointer
+  declarations above it.
+- **B, the checked expression outside the block — case 30**: `if (mode > 0) {` is
+  flagged and ranked 12th; the `open(…, mode > 0 ? mode : 0644)` four lines above it,
+  which repeats its test, is ranked 1st, and the `fchmod` inside the block 5th.
+  **Case 01** (`bigvul-177830`): the flagged line is a bounds check that leaves the loop
+  when it fails — `if (remaining < e - p + 1 + sizeof(uint64_t) + l + 1 || …) { …; break; }`
+  — ranked 38th under seed 42. Nothing in its four-line block is ranked high; what it
+  protects comes after the block, and of that the `memcpy` of `l` bytes is ranked 9th
+  and `p = e + 1 + sizeof(uint64_t) + l + 1;` 3rd. Its first two ranks, a call and an
+  `assert` near the head of the function, have nothing to do with it.
+- **C — case 11** (`bigvul-178637`): `off = !!(…)` is flagged and ranked 23rd–26th; `off`
+  is used on three other lines and the two that index a buffer with it are ranked 1st
+  and 2nd. **Case 12**: `p` is used on three other lines, two of them ranked 5th and 9th.
+  **Case 28**: all three lines that use `next_op` are ranked 5th, 7th and 8th — in a
+  function of 28 lines, where a top ten drawn at random would hold one of them.
+  **Case 20 is the one without**: two declarations at the head of a 225-line function
+  are flagged, and no line that uses any of the four variables they declare is in the
+  top ten.
 - **D — case 27** (`bigvul-182400`): a two-line `strncpy` in one branch is flagged and
   ranked 28th–29th; the same `strncpy` in the sibling branch ten lines up is ranked 2nd
   and 3rd. **Case 25**: the top-ranked line has the same text as a flagged line 57 lines
   earlier.
-- **E — case 23** (`bigvul-181106`): nine consecutive flagged lines, the best of them
-  ranked 39th to 50th of 86 depending on the seed.
+- **E — case 23** (`bigvul-181106`): nine consecutive flagged lines, four of them syntax
+  alone, the best ranked 39th to 50th of 86 depending on the seed. **Case 13**: three
+  preprocessor lines, two calls and a blank line within eleven lines. **Case 24**: twelve
+  lines, four of them blank. The three share an outcome; nothing shows they share a
+  cause.
 - **F — case 07** (`bigvul-178553`): four flagged calls — two `dprintf`, two `fprintf` —
   that pass `szTmp.Value()` as the format, ranked 18th–25th of 49; the top seven ranks
   are all lines of one long string literal. All three cases are from one project.
@@ -146,6 +170,10 @@ What each looks like, with the case to open:
   ranked 21st; four of its argument lines are ranked 2nd, 3rd, 6th and 7th.
 - **H — case 14** (`bigvul-179094`): two flagged allocation calls ranked 118th–184th of
   287, the top ranks on coordinate arithmetic seventy and more lines further down.
+  **Case 02** (`bigvul-178102`, in B in the first draft): a one-line entry check,
+  `if (…) return 0;`, at line 6 of a 453-line function, ranked 36th to 198th; all ten
+  top ranks are sample-conversion lines 359 and more lines below it. That an entry check
+  comes before everything else is not a relation.
 
 **One mechanism turned up while reading, and was checked.** In case 08 the model's top
 ranks are empty lines — alternate lines of a stripped comment block are ranked 1st, 2nd,
@@ -160,18 +188,20 @@ in 4 of 482 units (§2), all four of them failures.
 
 **Supports, as a draft:**
 
-- In 13 of the 30 cases (B, D, G, and C without case 20) the model's top ranks have a
-  visible relation to the flagged line — the guarded statement, the use of the defined
-  value, the twin, the rest of the statement. §2's count over all failures (31 of 107
-  with a top-10 line within three lines of a flagged one) is the part of this that needs
-  no reader.
+- In 12 of the 30 cases (B, D, G, and C without case 20) the model's top ranks have a
+  visible relation to the flagged line — the statements of the flagged block, the
+  expression a flagged check tests, the use of the defined value, the twin, the rest of
+  the statement. Two of the twelve are weak and say so above (16, 28). §2's count over
+  all failures (31 of 107 with a top-10 line within three lines of a flagged one) is the
+  part of this that needs no reader.
 - In 2 of 30 (A), and in 10 of the 107 by count, there was no line to find.
-- In 8 of 30 (H) nothing was learned.
+- In 9 of 30 (H) nothing was learned.
 
 **Does not support:**
 
-- **Proportions.** Thirty cases; 7 of 30 is an interval from roughly one in ten to four
-  in ten. The categories are a vocabulary for the 107, not a breakdown of them.
+- **Proportions.** Thirty cases; 6 of 30 is an interval from roughly one in ten to
+  nearly four in ten. The categories are a vocabulary for the 107, not a breakdown of
+  them.
 - **"The model points at the real bug and the label is wrong"** for B, C or D. That is
   one possible reading of them and it needs the fix commit to settle, which nobody opened.
   With ~30% label noise (`Memory.md` §1.6) it is not a far-fetched one, and it is not a
@@ -190,3 +220,55 @@ in 4 of 482 units (§2), all four of them failures.
    remainder, not a category.
 4. The box in `Phases.md` is ticked when you say the taxonomy stands, with whatever you
    changed. A session cannot tick it: it would be marking its own reading as inspected.
+
+## 7. Revision of 2026-10-11 — a written review, checked against the sheet
+
+**What came in.** The owner passed the session a written review of §4–§6. It is addressed
+to the owner, recommends revising the taxonomy and ends by leaving the acceptance with
+the owner. Who wrote it was not said, so it is recorded as a second reading of the
+draft and **not** as a person's inspection of the cases.
+
+**How it was checked.** Each statement it makes about a case was compared with the sheet.
+For the two categories whose boundaries it questioned, the relation was counted instead
+of read: for each flagged `if` or loop header, the block it opens (matching braces in the
+listing) and where seed 42's ten top-ranked lines fall — inside it, after it, before it;
+for each flagged declaration, the lines that use the declared name and how many of them
+are in the top ten. This is a count on a printed sheet by a throwaway script, the same
+standing as the tokenizer check in §4 — not a logged run. Every rank and line number it
+gives can be read in the case's own listing.
+
+**Taken from the review:**
+
+- *B was too wide.* "In or after the block" admits anything further down the function.
+  B now needs either top ranks inside the block, or — for a check — top ranks on
+  statements that carry the checked expression. **Case 02 moves to H**: its ten top ranks
+  are 359 and more lines below a one-line entry check.
+- *C mixed two things.* Case 20 has no use of any declared name in the top ten and is
+  now set apart inside C.
+- *E's name claimed a cause.* "A rewritten block" is now "a flagged region of six or more
+  lines, none of them ranked high", and §4 says what differs between its three cases.
+- H stays what §6 already called it, a remainder.
+
+**Not taken, and why:**
+
+- *Case 01 to H.* The review moves it because its top ranks are "not shown to be inside
+  the flagged guard". They cannot be: the guard exits the loop when it fails, so what it
+  protects comes after its block — and two of those statements, carrying the expression
+  it checks, are ranked 3rd and 9th. It stays in B, on B's second condition.
+- *"The top ranks must be inside the guard's body" as B's only rule.* Applied to the
+  sheet it keeps 15, 17 and 19, keeps 16 for no good reason (its loop is 72% of the
+  function) and drops both 01 and 30 — while the review itself keeps 30, whose first two
+  ranks are above the header. An early-exit check can never meet that rule.
+- *Case 28 beside case 20, as a declaration with no visible use ranked high.* All three
+  lines that use `next_op` are in the top ten, at ranks 5, 7 and 8. The relation is
+  weak for another reason, which §4 now states: the function has 28 lines.
+- *Case 16 "should be established from the code".* It was, and the answer is in §4: the
+  rule is met and the block is most of the function.
+- *Splitting H into three, and A into two.* The review's own case table assigns no case
+  to any of the new parts, and no case among the thirty turns on them. A unit the model
+  had no features for is counted in §2 (5 of the 107).
+
+**Unchanged by any of this:** §2 and §3, every count over the 107 failures and the 482
+units, and what §5 says the taxonomy does not support. The eight cases the first draft
+left in H (04, 05, 09, 14, 18, 21, 22, 26) are where they were: the review retains them
+"provisionally" and says nothing about them that the first draft did not.

@@ -343,6 +343,10 @@ before the single held-out pass was started.**
   - *2026-10-10:* **drafted, not met.** Thirty cases were read by session 18 and by no
     person. The owner reviews them against `docs/FailureTaxonomy.md` §6; a session does
     not tick this box for its own reading.
+  - *2026-10-11:* **revised, still not met.** The owner passed the session a written
+    review; its points were checked against the sheet and the draft was changed where
+    the sheet agreed (`docs/FailureTaxonomy.md` §7). The review itself leaves the
+    acceptance with the owner, who has not yet said the taxonomy stands.
 - [ ] Results reproducible from a clean clone
   - *2026-10-10:* **partly.** From a fresh clone of `a63a62e` with no artefacts, in the
     existing environment: 1,434 tests pass, 5 skip. Not done: an environment installed

@@ -2706,7 +2706,17 @@ its absence is how §6 item 0a tells a session that the pass is unfinished.**
 
 **Status: a DRAFT. Thirty cases were read by session 18 and by nobody else; Phase 8's
 "≥ 20 inspected cases" criterion stays open until the owner has reviewed them
-(`docs/FailureTaxonomy.md` §6).** Validation only — `scripts/sample_failures.py` refuses
+(`docs/FailureTaxonomy.md` §6).** **Revised 2026-10-11:** the owner passed the session a
+written review of the draft — addressed to the owner, its author not named, and leaving
+the acceptance with the owner. Its points were checked against the sheet; B and C were
+re-sorted by a count on the sheet (the block a flagged header opens, the lines that use a
+flagged declaration's name) rather than by reading. Taken: B narrowed and case 02 moved
+to H, case 20 set apart inside C, E renamed. Not taken, because the sheet says
+otherwise: case 01 to H (an early-exit check protects what comes *after* its block, and
+two of those statements are ranked 3rd and 9th) and case 28 as "no use ranked high" (all
+three lines using the declared name are ranked 5th, 7th and 8th). `docs/FailureTaxonomy.md`
+§7 has each point. **A second reading, not a person's inspection: the box stays open.**
+Validation only — `scripts/sample_failures.py` refuses
 any other partition. Run `42f8f27c…` (clean `1363561`); `335adb30…` is the same draw and
 the same counts at `6c9114d`, before the sheet printed the chance column. Sheet:
 `artifacts/phase8/failure_cases.md`.
@@ -2767,10 +2777,12 @@ seeds. *By chance*: the same for a ranking drawn at random, `min(1, 10 / n)` per
 ### What it does not support
 
 - **Any share of the 107 by category.** The eight categories of `docs/FailureTaxonomy.md`
-  (guard flagged and the guarded statements ranked, 7 of 30; declaration or definition
-  flagged, 4; a twin statement ranked instead, 2; a rewritten block, 3; format-string
-  calls, 3; nothing to find, 2; one line of a longer statement, 1; no relation seen, 8)
-  are a session's reading of thirty cases, unreviewed.
+  as revised on 2026-10-11 (a block header flagged and the block's statements or the
+  checked expression ranked, 6 of 30; declaration or definition flagged, 4 — uses ranked
+  high in 3; a twin statement ranked instead, 2; a flagged region of six or more lines
+  with none ranked high, 3; format-string calls, 3; nothing to find, 2; one line of a
+  longer statement, 1; no relation seen, 9) are a session's reading of thirty cases,
+  not accepted by the owner.
 - **"The model found the real bug and the label is wrong"** for the cases where its top
   ranks sit beside the flagged line. Nobody opened a fix commit.
 - **Anything general about preprocessor lines**: 145 flagged lines in 13 units, a fifth
@@ -4180,6 +4192,10 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   2. *The owner's reading:* the failure taxonomy (`docs/FailureTaxonomy.md` §6, sheet
      `artifacts/phase8/failure_cases.md`); the human evaluation with three raters
      (`artifacts/phase7/rater_pack_test/`, `docs/HumanEvalProtocol.md`).
+     *2026-10-11, late morning:* the owner pasted a written review of the taxonomy with
+     no words of their own. The session checked it against the sheet and revised the
+     draft (§1.31; `docs/FailureTaxonomy.md` §7). **Still open:** the review leaves the
+     acceptance with the owner, and the owner has not yet said the taxonomy stands.
   3. *Docker — done on this laptop at 08:00* (§1.33): the image builds, the `serve`
      container answers as the host does, and Phase 0's command runs in it. Left: a
      second machine, if the owner wants "clean" to mean that; pinning the image's
