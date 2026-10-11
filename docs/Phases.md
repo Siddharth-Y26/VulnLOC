@@ -339,7 +339,7 @@ before the single held-out pass was started.**
     out (`Memory.md` §1.28, §1.30). A1 with the encoder frozen, on comment-stripped
     text — in its favour on validation, over two sets of three seeds (§1.32). A3, A7
     and A10 are not run. Not ticked.
-- [ ] Failure taxonomy documented with ≥ 20 inspected cases
+- [x] Failure taxonomy documented with ≥ 20 inspected cases
   - *2026-10-10:* **drafted, not met.** Thirty cases were read by session 18 and by no
     person. The owner reviews them against `docs/FailureTaxonomy.md` §6; a session does
     not tick this box for its own reading.
@@ -347,6 +347,11 @@ before the single held-out pass was started.**
     review; its points were checked against the sheet and the draft was changed where
     the sheet agreed (`docs/FailureTaxonomy.md` §7). The review itself leaves the
     acceptance with the owner, who has not yet said the taxonomy stands.
+  - *2026-10-11, 11:15:* **met, on the owner's words.** Asked whether the taxonomy
+    stands as revised and who had read it, the owner answered *"proceed ahead with this
+    and Siddharth read this"* (`Memory.md` §2). Thirty cases are documented with what
+    was read in each; the words do not say how many of them the owner's reader opened
+    (`docs/FailureTaxonomy.md` §8).
 - [ ] Results reproducible from a clean clone
   - *2026-10-10:* **partly.** From a fresh clone of `a63a62e` with no artefacts, in the
     existing environment: 1,434 tests pass, 5 skip. Not done: an environment installed

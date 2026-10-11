@@ -1,15 +1,16 @@
 # Failure Taxonomy — where the model of record does not find the flagged line (`val`)
 
-**Status: DRAFT, written by session 18 on 2026-10-10. Thirty cases were read by the
-session; none has been reviewed by a person.** Phase 8's criterion — *failure taxonomy
-documented with ≥ 20 inspected cases* — stays open until the owner has gone through the
-sheet and either accepted the categories below or changed them (§6).
+**Status: ACCEPTED by the owner on 2026-10-11, as revised that day (§7, §8).** Written
+by session 18 on 2026-10-10, when thirty cases were read by the session and by no
+person. Asked on 2026-10-11 whether the taxonomy stands as revised and who had read it,
+the owner answered: *"proceed ahead with this and Siddharth read this"*. Phase 8's
+criterion — *failure taxonomy documented with ≥ 20 inspected cases* — is ticked on those
+words; §8 says what they do and do not establish.
 
-**Revised 2026-10-11 (§7):** the owner passed the session a written review of this draft.
-Its points were checked against the sheet, and the two categories it questioned were
-re-sorted by a count. Three changes followed — B is narrowed and loses case 02, C is
-split, E is renamed. **Still a draft and still open: the review is addressed to the owner
-and leaves the acceptance with the owner.**
+**Revised 2026-10-11 (§7):** the owner passed the session a written review of the first
+draft. Its points were checked against the sheet, and the two categories it questioned
+were re-sorted by a count. Three changes followed — B is narrowed and loses case 02, C is
+split, E is renamed. The acceptance above is of the taxonomy as it stands after them.
 
 Everything here is validation. Nothing about `test` or `clean_eval` was read to write it,
 and none of it is a held-out number.
@@ -186,7 +187,7 @@ in 4 of 482 units (§2), all four of them failures.
 
 ## 5. What the taxonomy supports, and what it does not
 
-**Supports, as a draft:**
+**Supports:**
 
 - In 12 of the 30 cases (B, D, G, and C without case 20) the model's top ranks have a
   visible relation to the flagged line — the statements of the flagged block, the
@@ -220,13 +221,15 @@ in 4 of 482 units (§2), all four of them failures.
    remainder, not a category.
 4. The box in `Phases.md` is ticked when you say the taxonomy stands, with whatever you
    changed. A session cannot tick it: it would be marking its own reading as inspected.
+   *(Said on 2026-10-11 — §8.)*
 
 ## 7. Revision of 2026-10-11 — a written review, checked against the sheet
 
 **What came in.** The owner passed the session a written review of §4–§6. It is addressed
 to the owner, recommends revising the taxonomy and ends by leaving the acceptance with
-the owner. Who wrote it was not said, so it is recorded as a second reading of the
-draft and **not** as a person's inspection of the cases.
+the owner. Who wrote it was not said, so it was recorded as a second reading of the
+draft and **not** as a person's inspection of the cases. (What the owner said about it
+afterwards is in §8.)
 
 **How it was checked.** Each statement it makes about a case was compared with the sheet.
 For the two categories whose boundaries it questioned, the relation was counted instead
@@ -272,3 +275,25 @@ gives can be read in the case's own listing.
 units, and what §5 says the taxonomy does not support. The eight cases the first draft
 left in H (04, 05, 09, 14, 18, 21, 22, 26) are where they were: the review retains them
 "provisionally" and says nothing about them that the first draft did not.
+
+## 8. Acceptance — 2026-10-11
+
+After §7 was written the session put two questions to the owner: *does the taxonomy
+stand as revised, or what would you change?* and *who wrote the review — if a person
+read the cases, say so and it will be recorded.* The owner's answer, whole:
+
+> proceed ahead with this and Siddharth read this
+
+**Read as:** the taxonomy stands as §4 has it now — the eight categories and the case
+assigned to each, after §7's changes, with nothing further changed by the owner — and a
+person, Siddharth, read it. On that the box in `Phases.md` is ticked (`Memory.md` §2).
+
+**What the words do not say, and this file does not claim:** whether "this" is the
+review, the case sheet or both; how many of the thirty cases were opened; or who wrote
+the review. What is documented case by case is the session's reading — all thirty, eight
+of them with the surrounding code (§4) — and the count of §7.
+
+**What the acceptance does not change:** everything under "does not support" in §5. The
+categories are a vocabulary for the 107 failures, not a breakdown of them; no category
+is a claim about the model's reasoning or about a label being wrong; all of it is
+validation.
