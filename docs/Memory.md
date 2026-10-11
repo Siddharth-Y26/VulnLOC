@@ -28,7 +28,7 @@
 |-------|-------|
 | **Active phase** | **Phase 7 — Explanation (7a), since 2026-10-07: Phases 5 and 6 are SIGNED (§1.1c, §1.1d).** Ablation A6 (attention direction) is running on the frozen cache as queue group `a6`. Phase 5's record, kept: **A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **D9.7 (fine-tuned confirmation): the six runs ADR-009 specifies are FINISHED (§1.22) — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, again no resolvable difference.** The added scaffold control `llm_only` × 3 finished on 2026-10-07: **0.6169 ± 0.0048 Top-5 — no fused arm beats it (§1.22)** |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15; Phases 5 and 6 SIGNED 2026-10-07; Phase 7 SIGNED 2026-10-08 — Phase 8 is the current phase.** ADR-008 and ADR-009 accepted 2026-09-15, ADR-010 on 2026-10-08 |
-| **Last updated** | 2026-10-11 07:15 (session 18: the held-out pass is done — §1.30; `a1r` and its replication `a1rep` are done — §1.32; nothing is running — §6 item 0a) |
+| **Last updated** | 2026-10-11 07:45 (session 18: held-out results §1.30; `a1r` and its replication §1.32; Phase 9 merged, bundle and latency §1.33; nothing is running — §6 item 0a) |
 | **Open decision** | **None blocking a measurement. On 2026-10-08 the owner accepted ADR-010 (Q14), signed the Phase 7 gate and confirmed `docs/EvaluationProtocol.md` (§2); the single held-out evaluation is authorised and is made on comment-stripped text with the nine `d97r` checkpoints.** Q13 answered and Q5 deferred by the owner (§2, §5). Still open, not blocking: ADR-006 and ADR-007 `Proposed` (ADR-007 blocks ablation A3's CPG arm); Q4 (explanation supervision) belongs to Phase 7; the paper's framing of the A1 null; scheduled defragmentation of D: (§7 #57) |
 | **Last commit** | Session 14's resume/queue commit on `phase-2/representation` (see `git log`). **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
 | **Best model run ID** | **Models of record since 2026-10-08 (ADR-010 accepted, §2; `val` numbers in §1.28): cross_attention `ba7dcc5f…` / `8afbf7da…` / `ff980345…` (the full model), concat `9ac7a146…` / `7579bc33…` / `10b43ce5…`, `llm_only` `d82a6a70…` / `a1dce535…` / `9296a0e5…`.** Single-branch baselines, measured with comments in place: semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
@@ -3015,12 +3015,115 @@ and `…_six_seeds_<arm>.json`; transcript `artifacts/queue/a1rep.out`.
 
 ---
 
+## 1.33 Phase 9 — serving: the bundle of record answers as the checkpoint did; p95 latency misses NFR-4's bound on long functions; Docker is not done (2026-10-11)
+
+**Status: built on 2026-10-10 on branch `phase-9/serving`, merged on 2026-10-11 as
+`f5f450a` once `a1r`, the held-out pass and `a1rep` had all finished. Three of the four
+exit criteria are met; the Docker one is not.**
+
+What exists (`docs/Serving.md` is the user's page; `docs/MODEL_CARD.md` ships in the
+bundle):
+
+- `src/vulnloc/serving/` — `bundle.py` (a manifest with the provenance and a SHA-256 of
+  every file; a bundle that does not verify does not load), `inference.py` (one function
+  in, the `PRD.md` §5.4 contract out — it featurizes with L1 code of its own, because L6
+  may not import L3), `schemas.py`, `app.py` (`GET /`, `/health`, `/version`,
+  `POST /analyze`, `/analyze/batch`), `static/index.html` (the demo page).
+- `scripts/export_serving_bundle.py`, `scripts/serve.py`, `scripts/measure_latency.py`; a
+  `serve` service in `docker-compose.yml`.
+
+### The bundle of record — `artifacts/serving/ba7dcc5f`, export run `ff9d1bd2…` (at `f5f450a`)
+
+The released checkpoint is `ba7dcc5f…` (cross_attention, seed 42 — fixed as the seed to
+release before any held-out number existed), with its own `val` calibrator and its
+threshold, 0.0925. The export loads the finished bundle through the serving path and
+compares it with the checkpoint on 48 `val` functions drawn by content hash (3,272 lines):
+
+| | |
+|---|---|
+| Tensors of the served batch that differ from `collate_fused`'s for the same function | **0** |
+| Lines the two disagree on being scoreable | 0 |
+| Functions with the same top-ranked line | 48 of 48 |
+| Logit deviation from the stored scores — median / 99th percentile / largest | 0.00036 / 0.0055 / 0.0900 |
+| For scale: the sd of those logits | 0.771 |
+| Tolerance | 0.2 |
+
+The input is identical; the output differs because the stored scores were made on the GPU
+under mixed precision and the service runs in full precision on a CPU. The tolerance was
+set on a development bundle on 2026-10-10, from the same measurement and from one more:
+two seeds of one arm differ by more than 0.336 somewhere in every one of 488 `val` units,
+so 0.2 is well inside the noise between two models and well outside 0.09.
+
+### Latency — run `3e91feba…` (at `7d7c102`), against NFR-4
+
+200 `val` functions drawn by content hash, one request each after three warm-up requests,
+the whole request timed — parse, both branches, calibration, explanation, verification.
+CPU only (AMD64 Family 25 Model 80, 16 logical CPUs, 8 torch threads); CPU load 6.3%
+before and 6.5% after; the bundle loads in 4.3 s; no request failed.
+
+| Function length, in lines | Requests | p50 (s) | p95 (s) | Longest (s) |
+|---|---|---|---|---|
+| **All** | 200 | 0.30 | **2.63** | 18.19 |
+| 1–25 | 59 | 0.27 | 0.30 | 0.32 |
+| 26–50 | 41 | 0.28 | 0.56 | 0.58 |
+| 51–100 | 52 | 0.55 | 0.81 | 0.82 |
+| 101–250 | 33 | 1.06 | 1.96 | 2.36 |
+| 251 and over | 15 | 3.41 | 18.15 | 18.19 |
+
+- **NFR-4 recommends a p95 under 2 s; the measured p95 is 2.63 s. Not met.** It is met in
+  every band up to 250 lines — 185 of the 200 functions — and missed by the fifteen
+  longest, which take a median of 3.4 s and up to 18 s. The mean is 0.88 s.
+- Nothing was tuned towards the bound: no thread setting, quantization, batching of
+  windows or cap on length was tried. Those are the levers, and whether to pull one is
+  the owner's.
+- The first run of record (`8b74b485…`, `FAILED`) timed all 200 requests and then lost
+  them in its own bookkeeping (§7 #68). Fixed in `7d7c102`, with a test.
+
+### Exercised by hand on the bundle of record
+
+The service was started with `scripts/serve.py`, `/health` answered, and the demo page was
+driven in a headless browser through its three states. For a nine-line C function the
+session wrote (a loop that overruns a 16-byte buffer, then `strcpy`): five of eight scored
+lines flagged, `strcpy(dst, buf);` ranked first at 0.984 with a verified 'Buffer overflow'
+(CWE-120) explanation and a name-based data-flow path through lines 5 → 6 → 8; the
+comment line is shown and never scored. An empty box gives "Nothing to analyze" without a
+request. **One function is an illustration, not a measurement** — and five lines flagged
+of eight is the model card's "treat the flag as a hint" seen once.
+
+### The exit criteria
+
+| Criterion | |
+|---|---|
+| End-to-end request works in Docker on a clean machine | **Not done.** No image has been built on this project yet (Phase 0's open criterion too). The compose service is written and has never been run. A clean machine is the second laptop |
+| Latency measured and reported (NFR-4) | Done — `3e91feba…`, above. The recommended bound is missed |
+| Error responses structured per `Rules.md` §4.7 | Done — every failure leaves as `{"error": {type, message, unit_id}}`: unreadable input 400, a request that does not validate 422, anything else 500 (`tests/unit/test_serving_app.py`) |
+| Model card published with the checkpoint | Done — the export copies `docs/MODEL_CARD.md` into the bundle and lists its digest; the card carries the held-out numbers of §1.30 |
+
+### What this does not support
+
+- **A function-level verdict.** The model never saw a safe function; `is_vulnerable:
+  false` means no line reached the threshold (the API's documentation and the page say so).
+- **A latency for anything but this laptop's CPU and `val`'s lengths.** `clean_eval`
+  functions average four times the corpus length (landmine #12); expect worse there.
+- **That it runs in a container.** Unverified.
+
+### Runs and commits behind this section
+
+Export `ff9d1bd2…`; latency `3e91feba…` (and `8b74b485…`, failed). Commits `3a119ba`,
+`6b93d58`, `c2e4d92` (the branch), `f5f450a` (the merge), `7d7c102` (the latency fix).
+Pre-merge checks: `artifacts/queue/after_a1rep_checks.out`. After the merge and the fix,
+on the main tree: 1,498 tests pass, 3 skip; black, ruff, mypy and import-linter clean.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-10-11 | **Phase 9 merged into the main branch (`f5f450a`)** (session 18, on the owner's *"whats next to be done, start"* at about 07:00, and under the condition the owner set on 2026-10-10: after `a1r`'s seed reports and the held-out pass). `a1rep` had finished as well; nothing was running | Leave it on its branch until the owner reads it | The condition was met, a trial merge passed the whole suite and the linters at 04:09, and the owner asked for the next thing to be started | — |
+| 2026-10-11 | **Four choices made while building Phase 9, recorded now that it is merged** (session 18, under the owner's standing delegation to build; each is reversible). (1) **The released checkpoint is seed 42 of the model of record, `ba7dcc5f…`** — fixed on 2026-10-10, before any held-out number existed. (2) **The service never flags or ranks a line with no code on it** — the evaluation's "blank lines withheld" reading; the model's own logits are untouched. (3) **The demo page shows rank and calibrated score, not `Design.md` §2.3's five risk bands**: almost every calibrated line probability is below 0.2, so the bands would label nearly every flagged line "Clean". (4) **`httpx` is a development dependency** (FastAPI's test client needs it), and **the export's logit tolerance is 0.2**, set from a measurement (§1.33) | Pick the seed with the best held-out number · let the page flag empty lines as the model scores them · rescale the bands | (1) choosing a seed on a held-out number would be selection on the held-out set. (2) an empty line flagged at 0.096 against a threshold of 0.0925 was the first thing the running service showed. (3) a band is a claim about what a score means, and the scores do not mean that. (4) measured, not guessed | — |
 | 2026-10-11 | **The `a1r` screen is run again on three new seeds — queue group `a1rep`, started after the held-out pass has ended** (session 18, on the owner's words shortly after midnight: *"train or build whatever you need to overnight, internet will be on till 4 am i guess"*, and *"keep the docs updated and context as well updated so theres no dip in your performance"*). cross_attention, concat, `llm_only`, sum, gated × seeds 3 / 4 / 5, `a1r`'s constants and cache; what is computed from them is written in §1.32 before the first run. **The choice of what to train is the session's, under that delegation; the owner can stop it with `python scripts/run_queue.py --stop`** | Leave `a1r`'s three-seed result as it is · re-run all six arms · add seeds only to the core pair | `a1r` put cross_attention 2.93 pooled sd ahead of concat on Top-5 — A1's own comparison — where the same screen on text with the tell showed nothing and the fine-tuned models tie. At three seeds that is a candidate (§7 #37, #64), and a frozen run costs about 15 minutes: fifteen runs fit in one night and need nobody. `gnn_only` is left out because nothing about it is in question. Run after the pass, so one GPU job at a time; before Phase 9's merge, so that `src/vulnloc/` is the same for all six seeds of an arm | — |
 | 2026-10-11 | **The held-out pass runs tonight, after `a1r`** (owner, asked at 23:55 on 2026-10-10 with two options — "a1r only", "Yes, after a1r tonight" — after resuming with *"continue"*; answer at about 00:00: **"Yes, after a1r tonight"**). On the bare "continue" session 18 restarted `a1r` alone at 23:54 and asked; the chain script was started at 00:00, only after the answer | `a1r` only, the pass on another day — the session's recommendation, because the pass then runs unattended until about 02:00–03:30 | The owner's to decide, and the owner named it. The row below read a bare "continue" as covering the pass, and the owner paused again twenty minutes later (*"pause for a bit i will continue later"*, 21:09) without saying why; so this time the question was put before anything was armed | — |
 | 2026-10-10 | **The pause of 18:52 ends: the `a1r` queue and the chain behind it run again from 20:50** (owner, after the conversation was compacted: *"continue"*). Session 18 reads the word as undoing the pause and nothing more: the 18:51 instruction was *"if anything is running, pause for a while and compact"*, and what was running then was `a1r` with the held-out pass chained behind it by the owner's 16:25 answer ("After a1r, tonight"). **The owner did not name the pass again — that it follows `a1r` rests on the 16:25 answer, and the reading is the session's** | Resume `a1r` alone and ask once more about the pass | The owner named and timed the pass four hours earlier; the pause was asked for "a while", for compaction, not as a change of plan; it is still tonight. The chain also leaves a window: `run_queue.py --stop` before `a1r` exits (about 45 min from the restart) ends it without the pass, exactly as at 19:01 | — |
@@ -4020,7 +4123,35 @@ from two measured costs:
 **So: fine-tune only what the headline needs. Every sweep and ablation runs off the frozen
 cache.** A design that needs a tenth fine-tuned run needs an argument first.
 
-#### Where it stands — 2026-10-11 01:15 (session 18): the held-out pass is DONE; `a1r` is done; `a1rep` is running
+#### Where it stands — 2026-10-11 07:45 (session 18): everything of the night is done and written up; Phase 9 is merged; nothing is running
+
+- **Done since midnight:** the held-out pass (§1.30); `a1r` and its replication `a1rep`
+  (§1.32, tables of record `bcfeb4ff…`); Phase 9 merged as `f5f450a`, the bundle of
+  record exported, latency measured, the demo page checked (§1.33). The main tree is
+  clean; 1,498 tests pass, 3 skip.
+- **The owner, at about 07:00:** *"hello whats the update"*, then *"whats next to be
+  done, start"*. The session reported, and started Phase 9's merge and its measurements.
+- **Nothing is running or paused**, so `configs/` and `src/vulnloc/` may be edited. Both
+  held-out partitions have been read; they are not scored or evaluated again.
+- **What is left, by who can do it:**
+  1. *The owner's decisions:* Q15 — how the paper states A1's two-part answer (§5);
+     whether the latency of long functions (p95 2.63 s against a recommended 2 s) is
+     accepted or worked on; the Phase 8 and Phase 9 gates.
+  2. *The owner's reading:* the failure taxonomy (`docs/FailureTaxonomy.md` §6, sheet
+     `artifacts/phase8/failure_cases.md`); the human evaluation with three raters
+     (`artifacts/phase7/rater_pack_test/`, `docs/HumanEvalProtocol.md`).
+  3. *Needs a quiet machine and the network:* Docker — build the image and make one
+     request in the container (closes Phase 9's first criterion on this laptop, and
+     Phase 0's; "a clean machine" is the second laptop); the rest of the clean-clone
+     criterion (an environment from the lock file, the data pipeline, a reproduced run).
+  4. *Phase 10* is not started.
+- **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
+  `phase-8/tables`, `wt9` on `phase-9/serving`) are merged and no longer needed —
+  `git worktree prune` once that directory is gone. `artifacts/serving/ba7dcc5f` (536 MB)
+  is the bundle of record; a development bundle of the same checkpoint sits in the
+  scratchpad and is not of record.
+
+#### Where it stood — 2026-10-11 01:15 (session 18): the held-out pass is DONE; `a1r` is done; `a1rep` is running
 
 - **The held-out pass ran from 00:15 to 00:47 and every step exited 0**
   (`artifacts/queue/heldout_pass.out`): eighteen score files, the two evaluations, the two
@@ -5114,6 +5245,7 @@ Things that cost time once and should not cost time twice.
 | 65 | **A rate per kind of line reads as a property of the kind until you count the units behind it.** MEASURED 2026-10-10 (run `42f8f27c…`, §1.31): on `val`, 25.3% of preprocessor lines are flagged against 6.9% of all lines — and the 145 flagged ones sit in **13** of 482 units, a fifth of them in one function. The first table printed 37.7% (under a narrower rule) with no unit count; it looked like a third formatting tell for the minute it took to count. Same family as #13 and #40: a figure that rests on a handful of functions is about those functions | ✅ `sample_failures.py` prints the unit count and the largest unit's share beside every rate |
 | 66 | **`report_phase4.py` sorts a group's `seeds` and not its `run_ids`.** Zipping the two labels runs with the wrong seed: `46ab8056…` is seed 42 and came out as seed 1 in the first ablation table. No mean or sd moves — only which run a reader would open for which seed. Found 2026-10-10 by comparing the table with `run_queue.py --status` | ✅ `make_ablation_tables.py` reads each run's seed from what the run logged, and refuses a seed report that disagrees with it. `phase4_report.json` itself is unchanged |
 | 67 | **A group that gains seeds turns its old seed-report command into a different report.** `a1r`'s reports select on `{fusion_kind, frozen, strip_comments}`. Once `a1rep` has run, the same command by hand aggregates six seeds and writes over the three-seed file of record — and nothing refuses, because six runs with identical parameters *are* replicates. Noticed 2026-10-11 while adding the group, before any `a1rep` run existed | ✅ `report_seeds.py` takes `+seeds.seeds=[…]`; `a1rep`'s reports name their seeds and write to files of their own. **An `a1r` seed report re-run by hand needs `'+seeds.seeds=[42,1,2]'`.** The queue does not re-run them: they are recorded `done` |
+| 68 | **A script that logs a measured value under a name the config already logged loses its run after the work is done.** `start_run` logs every override as a parameter, as given. `measure_latency.py` then logged the bundle path, normalized, as `latency.bundle`; MLflow refuses a parameter whose value changes, and run `8b74b485…` failed after timing all 200 requests and before writing anything. Found 2026-10-11 by running it on the bundle of record. Same family as #60: a value that looks the same and is not | ✅ `7d7c102`: measured facts are logged under names of their own, and a test fails if one collides with a config key. Fifteen other scripts call `log_params`; each has completed runs, none was audited for this |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**

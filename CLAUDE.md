@@ -61,6 +61,20 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-11 07:45 (session 18): PHASE 9 IS MERGED (`f5f450a`) AND MEASURED (`Memory.md`
+§1.33) — three of its four exit criteria are met; Docker is not.** The bundle of record is
+`artifacts/serving/ba7dcc5f` (export run `ff9d1bd2…`): on 48 `val` functions the served
+batch equals training's tensor for tensor, the top-ranked line is the same on all 48, and
+the logits differ by at most 0.09. **Latency, run `3e91feba…`, 200 `val` functions on this
+laptop's CPU: p50 0.30 s, p95 2.63 s — NFR-4's recommended 2 s is missed**, by the
+functions over 250 lines (p95 1.96 s up to 250 lines; 3–18 s beyond). The demo page was
+driven through its states on that bundle. Start it with
+`python scripts/serve.py +serve.bundle=./artifacts/serving/ba7dcc5f`. **Nothing is running
+or paused.** What is left is mostly the owner's — Q15 (how A1 is stated), the latency
+question, the taxonomy review, the human evaluation, the gates — plus Docker and the rest
+of the clean-clone criterion (`Memory.md` §6 item 0a). The paragraphs below describe the
+state before this.
+
 **2026-10-11 07:15 (session 18): `a1rep` FINISHED AND THE REPLICATION HOLDS (`Memory.md`
 §1.32) — nothing is running or paused, so `configs/` and `src/vulnloc/` may be edited
 again.** On the frozen screen, comment-stripped text, `val`: cross_attention − concat on
@@ -336,9 +350,9 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 | Phase 6 | ✅ **DONE — 4 / 4, gate signed by the owner 2026-10-07** (`Memory.md` §1.1d). Full-model configuration frozen by the owner's decision (the designed cross-attention model, D9.7's runs). **Calibrated and thresholded on `val` (`Memory.md` §1.24, run `569c9701…`): ECE 0.1704 ± 0.0330 → 0.0137 ± 0.0104; line F1 0.2954 ± 0.0855 at the logged 0.5 → 0.3898 ± 0.0190 out of fold, 3 seeds. Concat (0.3908 ± 0.0030) and `llm_only` (0.3936 ± 0.0072) tie with it at their own thresholds — the F1 gap every run logged at 0.5 was the threshold.** Thresholds are per checkpoint (0.1686 / 0.1083 / 0.2159) — never average a calibrator across seeds. Still over-confident above p = 0.8 (observed 0.67–0.81). **Q5 is closed: the owner deferred the learned CWE-type classifier — Phase 7a names a template-derived category and says so.** Unit-level aggregation is deferred in writing. |
 | Phase 7 | ✅ **DONE — 4 / 4, gate signed by the owner 2026-10-08** (`Memory.md` §1.1e, §2): the owner read every sentence the explainer can emit, named none of concern, and approved `docs/HumanEvalProtocol.md`. 7a only. Every flagged line on `val` gets a verified explanation (13,908 of 13,908, three seeds, `Memory.md` §1.27); a weakness pattern names a cause for about one in twelve, and the rest say so. **The page the owner read is `artifacts/phase7/sentences_for_review.md` (`python scripts/list_explanation_sentences.py` regenerates it; re-read it if a template changes).** A pilot rater pack (100 `val` samples) is at `artifacts/phase7/rater_pack_stripped/`. 7b is deferred in writing. |
 | Phase 8 | 🟨 **Started 2026-10-08 on `val` at the owner's instruction, before the Phase 7 gate** (`Memory.md` §2). Built: the line-level metric suite with tie bounds, bootstrap intervals, the source-order baseline and the ceilings (`scripts/evaluate_scores.py`); **2026-10-10: the ablation tables (`docs/ablations.yaml`, `scripts/make_ablation_tables.py`) — the tables of record are run `922719b5…` (2026-10-11); and the failure taxonomy as a draft (`scripts/sample_failures.py`, `docs/FailureTaxonomy.md`) — its criterion stays open until the owner reviews the cases; and the figures (`scripts/make_phase8_figures.py`, `val` only so far).** The suite passes from a fresh clone (1,434 passed, 5 skipped at `a63a62e`) — the cheap half of the clean-clone criterion; a fresh environment, the data pipeline and a reproduced run are not done. The function-level parts are deferred in writing. **The single `test` / `clean_eval` evaluation was made on 2026-10-11 (`Memory.md` §1.30): Top-5 and IFA separate no two arms on either partition, every arm beats source order, and concat's PR-AUC lead over `llm_only` repeats on both.** Still open: the taxonomy review (the owner's) and the rest of the clean-clone criterion. **`a1r` and its replication `a1rep` (§1.32): with the encoder frozen, on comment-stripped text, cross_attention leads concat on `val` Top-5 by +0.0474 over six seeds (2.46 pooled sd) — validation-only, and not the models of record.** |
-| Phase 9 | 🟨 **Built on branch `phase-9/serving` (`c2e4d92`), not merged** — it merges when no comparison group is running (`a1rep` is, 2026-10-11). `Memory.md` §6 item 0a lists what is left. |
+| Phase 9 | 🟨 **3 / 4 — merged 2026-10-11 (`f5f450a`), `Memory.md` §1.33.** Bundle, single-function inference, the FastAPI service and the demo page; bundle of record `artifacts/serving/ba7dcc5f` (`ff9d1bd2…`); errors in one shape; the model card ships in the bundle. **Latency measured: p95 2.63 s on this CPU — over NFR-4's recommended 2 s, because of functions over 250 lines.** **Open: the Docker criterion — no image has ever been built.** Gate unsigned. |
 | Phase 10 | ⬜ Not started. |
-| Tests | **1,434 passing, 5 skipped — from a fresh clone of `a63a62e`, no artefacts** (2026-10-10; two of the five skip only because a clone has no checkpoint and no generated figures). Ten figure tests were added after that run and pass alone; seven more on 2026-10-11 (the seed filter, the `a1rep` group) — the two files they are in pass, 93 tests. ruff / black on every file touched since; the pre-commit hooks (black, ruff, mypy, import-linter) pass on every commit. |
+| Tests | **1,434 passing, 5 skipped — from a fresh clone of `a63a62e`, no artefacts** (2026-10-10; two of the five skip only because a clone has no checkpoint and no generated figures). Ten figure tests were added after that run and pass alone; seven more on 2026-10-11 (the seed filter, the `a1rep` group) — the two files they are in pass, 93 tests. **With Phase 9 merged, on the main tree with artefacts: 1,498 passing, 3 skipped (2026-10-11, `7d7c102`).** ruff / black on every file touched since; the pre-commit hooks (black, ruff, mypy, import-linter) pass on every commit. |
 | Split fingerprint | `0ade7483a1b04d4841b5837c7bd2ed398f878acf7d242b59d7a4b043a48aef52` |
 
 ### What exists in `src/vulnloc/`
@@ -383,7 +397,7 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
   **`evaluation/evaluator.py`** (one checkpoint, an arm over its seeds, the pre-stated
   comparisons, the ceilings a score file cannot see). Everything is a function of stored
   line scores; no model is loaded.
-- `serving/` — **an empty package.** Nothing built ahead.
+- Phase 9 (2026-10-11): **`serving/{bundle,inference,schemas,app}.py`** and `serving/static/index.html` — a bundle is the weights plus everything the service would otherwise have to go and find, with a SHA-256 of every file; `inference.py` featurizes one function with L1 code of its own (**serving may not import training**) and is pinned, tensor for tensor, against `collate_fused`; the app returns exactly the `PRD.md` §5.4 contract and every failure in one shape. **The service never flags a line with no code on it, and `is_vulnerable: false` is not a claim that a function is safe.**
 
 Outside the package: `frontend/` has two tabs. **Findings** (owner decision 2026-09-15)
 ranks a pasted function's lines with the Phase 3 semantic model, seed 42 (`fc902107…`, on
@@ -545,6 +559,12 @@ python scripts/export_results.py --groups m2check m2 m2ftcheck m2ft --out <USB>\
 
 # One A1 arm by hand — these constants are A1's, change one and the seeds stop comparing:
 python scripts/train_fused.py +fusion=cross_attention train=fused seed=42 +gnn=gcn gnn.use_subtokens=true llm.frozen=true
+
+python scripts/export_serving_bundle.py +explainer=template +export.run_id=<run> +export.scores_dir=./artifacts/phase6/scores_retrained +export.calibration_report=./artifacts/phase6/retrained/calibration_report.json
+                                                            # Phase 9: package one checkpoint and check the package against it on
+                                                            #   val; refuses an existing directory, removes a bundle that fails
+python scripts/serve.py +serve.bundle=./artifacts/serving/ba7dcc5f    # the API and the demo page on http://127.0.0.1:8080
+python scripts/measure_latency.py +latency.bundle=./artifacts/serving/ba7dcc5f   # NFR-4, on an idle machine only
 
 python frontend/server.py                                   # Findings + Detailed report on http://127.0.0.1:8000
 ```
@@ -713,6 +733,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 65 | **A rate per kind of line reads as a property of the kind until you count the units behind it.** On `val`, 25.3% of preprocessor lines are flagged against 6.9% of all lines — and the 145 flagged ones sit in 13 of 482 units, a fifth of them in one function. It looked like a third formatting tell for the minute it took to count. Same family as #13 and #40. `sample_failures.py` prints the unit count and the largest unit's share beside every rate; do the same for any per-kind figure. `Memory.md` §1.31, §7 #65. |
 | 66 | **`report_phase4.py` sorts a group's `seeds` and not its `run_ids`** — zipping them labels runs with the wrong seed (`46ab8056…` is seed 42, not 1). No mean moves. `make_ablation_tables.py` reads each run's seed from what the run logged. `Memory.md` §7 #66. |
 | 67 | **A group that gains seeds turns its old seed-report command into a different report.** After `a1rep`, an `a1r` seed report re-run by hand would aggregate six seeds and write over the three-seed file of record; nothing refuses. Pass `'+seeds.seeds=[42,1,2]'`. `a1rep`'s own reports name their seeds and write to other files. `Memory.md` §7 #67. |
+| 68 | **A script that logs a measured value under a name the config already logged loses its run after the work is done.** MLflow refuses a parameter whose value changes; `measure_latency.py` logged the bundle path twice, once as given and once normalized, and `8b74b485…` failed after timing 200 requests. Log measured facts under names of their own. `Memory.md` §7 #68. |
 
 
 ---

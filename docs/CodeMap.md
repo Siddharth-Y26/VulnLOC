@@ -79,7 +79,13 @@ Import order is strict and enforced: `utils` → `data` → `representation` →
 | [tracking.py](../src/vulnloc/training/tracking.py) | Starts the MLflow run and stamps it with git SHA + config hash. Every reported number comes from here. |
 
 ### `evaluation/`, `explanation/`, `serving/`
-Empty on purpose — registries only. Phases 6-10 fill them. Don't build ahead.
+Built in Phases 8, 7 and 9. `evaluation/` — line-level metrics with tie bounds, seed
+statistics, the evaluator; everything is a function of stored line scores.
+`explanation/` — evidence for a flagged line, the template explainer, the verifier, the
+`PRD.md` §5.4 contract. `serving/` — `bundle.py` (what a service loads, with a digest of
+every file), `inference.py` (one function in, the contract out; may not import
+`training`), `schemas.py`, `app.py` (the FastAPI service), `static/index.html` (the
+demo page). `CLAUDE.md` §3 says what each holds.
 
 ---
 
@@ -115,6 +121,9 @@ Data steps, in this order: `prepare_data.py` → `audit_data.py` → `build_spli
 | `make_ablation_tables.py` | Phase 8: every ablation table, from the seed reports named in `docs/ablations.yaml`; refuses a run that did not log the conditions its table declares. |
 | `sample_failures.py` | Phase 8: the cases for the failure taxonomy — drawn by rule, with what can be counted about them. `val` only. |
 | `make_phase8_figures.py` | Phase 8: the figures, drawn from the evaluation's JSON. |
+| `export_serving_bundle.py` | Phase 9: packages one checkpoint for serving and checks the package against the checkpoint's stored `val` scores. |
+| `serve.py` | Phase 9: serves one bundle over HTTP — the API and the demo page. |
+| `measure_latency.py` | Phase 9: times a sample of `val` functions through a bundle (NFR-4); refuses a busy machine. |
 
 ## Config — `configs/`
 Hydra, one group per knob: `data/ experiment/ fusion/ gnn/ graph/ head/ llm/ train/ ui/`.

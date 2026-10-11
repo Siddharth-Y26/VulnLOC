@@ -83,8 +83,8 @@
       "id": "serve",
       "phase": 9,
       "name": "Serving",
-      "state": "planned",
-      "does": "The packaged API and app."
+      "state": "trained",
+      "does": "The packaged API and demo page: paste a function, get ranked lines and an explanation. Runs separately from this page; not yet verified in Docker."
     }
   ]
 }

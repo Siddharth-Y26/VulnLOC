@@ -359,9 +359,23 @@ before the single held-out pass was started.**
 
 **Exit criteria**
 - [ ] End-to-end request works in Docker on a clean machine
-- [ ] Latency measured and reported (NFR-4)
-- [ ] Error responses structured per `Rules.md` §4.7
-- [ ] Model card published with the checkpoint
+  - *2026-10-11:* **not done.** The `serve` service in `docker-compose.yml` is written
+    and has never been run; no image has been built on this project.
+- [x] Latency measured and reported (NFR-4)
+  - *2026-10-11:* run `3e91feba…`, 200 `val` functions on this laptop's CPU: p50
+    0.30 s, **p95 2.63 s — over the recommended 2 s**; p95 1.96 s for functions up to
+    250 lines, 3–18 s beyond (`Memory.md` §1.33). Measured and reported; the bound is
+    missed and nothing was tuned towards it.
+- [x] Error responses structured per `Rules.md` §4.7
+  - *2026-10-11:* one shape for every failure, `{"error": {type, message, unit_id}}`
+    (`tests/unit/test_serving_app.py`).
+- [x] Model card published with the checkpoint
+  - *2026-10-11:* `docs/MODEL_CARD.md`, with the held-out numbers, is copied into
+    every bundle and listed in its manifest; bundle of record
+    `artifacts/serving/ba7dcc5f` (`ff9d1bd2…`).
+
+**Built 2026-10-10 on branch `phase-9/serving`, merged 2026-10-11 (`f5f450a`).** The
+gate is unsigned.
 
 ---
 
