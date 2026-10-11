@@ -5,6 +5,10 @@ Three endpoints the PRD names and one it asks for as a "should":
 * ``POST /analyze`` — one function in, the §5.4 object out, and nothing else in the body.
   What the contract has no field for travels in headers: the run that answered, how many
   lines were scored, how many were not (past the line cap, or without features);
+* ``POST /analyze/report`` — the same analysis with the reader's report beside the §5.4
+  object: a plain summary, the highest-ranked lines whether or not any was flagged, every
+  flagged line's verified explanation, the weakness patterns that were tested, and what
+  was not examined. ``/analyze`` itself stays exactly the contract;
 * ``POST /analyze/batch`` — up to :data:`~vulnloc.serving.schemas.MAX_BATCH_ITEMS`
   functions, analyzed one after another, each with its own result or its own error;
 * ``GET /health`` and ``GET /version`` — the second says exactly which checkpoint is
@@ -34,7 +38,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 
 import vulnloc
-from vulnloc.serving.inference import Analyzer
+from vulnloc.serving.inference import Analysis, Analyzer
 from vulnloc.serving.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -44,6 +48,7 @@ from vulnloc.serving.schemas import (
     ErrorBody,
     ErrorResponse,
     HealthResponse,
+    ReportResponse,
     VersionResponse,
 )
 from vulnloc.utils.exceptions import (
@@ -185,13 +190,19 @@ def create_app(analyzer: Analyzer | None = None, *, bundle_dir: str | None = Non
         _LOGGER.exception("Unhandled error while serving a request", exc_info=error)
         return _error(500, "InternalError", "The service failed to answer this request.")
 
-    def run(
-        request: AnalyzeRequest, app_analyzer: Analyzer
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
-        analysis = app_analyzer.analyze(
+    def run(request: AnalyzeRequest, app_analyzer: Analyzer) -> Analysis:
+        return app_analyzer.analyze(
             request.code, language=CORPUS_LANGUAGE[request.language], unit_id=request.unit_id
         )
-        return analysis.contract, analysis.diagnostics
+
+    def stamp(response: Response, app_analyzer: Analyzer, diagnostics: dict[str, Any]) -> None:
+        response.headers["X-VulnLoc-Run"] = app_analyzer.bundle.run_id[:8]
+        response.headers["X-VulnLoc-Lines-Scored"] = str(diagnostics["lines_scored"])
+        response.headers["X-VulnLoc-Lines-Beyond-Cap"] = str(diagnostics["lines_beyond_cap"])
+        response.headers["X-VulnLoc-Lines-Without-Features"] = str(
+            diagnostics["lines_without_features"]
+        )
+        response.headers["X-VulnLoc-Seconds"] = f"{diagnostics['seconds']:.3f}"
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def demo() -> str:
@@ -212,15 +223,25 @@ def create_app(analyzer: Analyzer | None = None, *, bundle_dir: str | None = Non
     def analyze(body: AnalyzeRequest, request: Request, response: Response) -> dict[str, Any]:
         """Rank and explain the lines of one function."""
         app_analyzer: Analyzer = request.app.state.analyzer
-        contract, diagnostics = run(body, app_analyzer)
-        response.headers["X-VulnLoc-Run"] = app_analyzer.bundle.run_id[:8]
-        response.headers["X-VulnLoc-Lines-Scored"] = str(diagnostics["lines_scored"])
-        response.headers["X-VulnLoc-Lines-Beyond-Cap"] = str(diagnostics["lines_beyond_cap"])
-        response.headers["X-VulnLoc-Lines-Without-Features"] = str(
-            diagnostics["lines_without_features"]
-        )
-        response.headers["X-VulnLoc-Seconds"] = f"{diagnostics['seconds']:.3f}"
-        return contract
+        analysis = run(body, app_analyzer)
+        stamp(response, app_analyzer, analysis.diagnostics)
+        return analysis.contract
+
+    @app.post(
+        "/analyze/report", response_model=ReportResponse, responses=_ERRORS, tags=["analysis"]
+    )
+    def analyze_report(
+        body: AnalyzeRequest, request: Request, response: Response
+    ) -> dict[str, Any]:
+        """The same analysis, with what a reader needs beside the result.
+
+        Nothing is flagged here that ``/analyze`` does not flag, and no line is explained
+        that the verifier did not pass.
+        """
+        app_analyzer: Analyzer = request.app.state.analyzer
+        analysis = run(body, app_analyzer)
+        stamp(response, app_analyzer, analysis.diagnostics)
+        return {"result": analysis.contract, "report": analysis.report}
 
     @app.post("/analyze/batch", response_model=BatchResponse, responses=_ERRORS, tags=["analysis"])
     def analyze_batch(body: BatchRequest, request: Request) -> BatchResponse:
@@ -229,7 +250,7 @@ def create_app(analyzer: Analyzer | None = None, *, bundle_dir: str | None = Non
         results = []
         for item in body.items:
             try:
-                contract, _ = run(item, app_analyzer)
+                contract = run(item, app_analyzer).contract
             except VulnLocError as error:
                 # One function's failure is that function's answer, not the batch's.
                 _LOGGER.warning(

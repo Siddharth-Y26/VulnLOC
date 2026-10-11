@@ -12,22 +12,30 @@ Errors have one shape everywhere (``Rules.md`` §4.7)::
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
     "MAX_BATCH_ITEMS",
     "MAX_SOURCE_CHARS",
+    "AnalysisReport",
     "AnalyzeRequest",
     "AnalyzeResponse",
+    "AttendedLineOut",
     "BatchItem",
     "BatchRequest",
     "BatchResponse",
+    "Coverage",
     "ErrorBody",
     "ErrorResponse",
     "EvidenceBlock",
+    "Finding",
     "HealthResponse",
+    "PatternRef",
+    "Patterns",
+    "RankedLine",
+    "ReportResponse",
     "VersionResponse",
     "VulnerableLine",
 ]
@@ -105,6 +113,115 @@ class AnalyzeResponse(BaseModel):
     )
     explanation: str
     evidence: EvidenceBlock
+
+
+class RankedLine(BaseModel):
+    """One of the highest-ranked lines, flagged or not."""
+
+    line: int = Field(ge=1)
+    rank: int = Field(ge=1)
+    score: float = Field(ge=0.0, le=1.0)
+    code: str
+    flagged: bool = Field(description="Whether the line reached the threshold.")
+
+
+class AttendedLineOut(BaseModel):
+    """A line the model's cross-attention put weight on while scoring a flagged line."""
+
+    line: int = Field(ge=1)
+    weight: float
+    direction: str = Field(description="Which attention map the weight was read from.")
+    code: str
+
+
+class Finding(BaseModel):
+    """One flagged line with the verified explanation and the evidence under it."""
+
+    line: int = Field(ge=1)
+    rank: int = Field(ge=1)
+    score: float = Field(ge=0.0, le=1.0)
+    code: str
+    label: str = Field(description="Template-derived category; not predicted by the model.")
+    cwe: str
+    pattern: str | None = Field(
+        description="Id of the weakness pattern that matched the line, or null when none did."
+    )
+    explanation: str | None = Field(
+        description="The verified explanation, or null when the verifier rejected it."
+    )
+    attended_lines: list[AttendedLineOut]
+    dataflow_path: list[int] = Field(
+        description="Lines on a name-based definition-to-use chain ending at this line. "
+        "Static analysis, not something the model reported."
+    )
+    dataflow_symbols: list[str]
+    graph_nodes: list[str]
+    attention_top_tokens: list[str]
+
+
+class PatternRef(BaseModel):
+    """One weakness pattern the explainer tests a flagged line against."""
+
+    id: str
+    label: str
+    cwe: str
+
+
+class Patterns(BaseModel):
+    """The scope of "no known pattern matched"."""
+
+    checked: list[PatternRef]
+    matched: list[str] = Field(description="Ids of the patterns that matched a flagged line.")
+
+
+class Coverage(BaseModel):
+    """What was examined and what was not."""
+
+    lines: int
+    lines_scored: int
+    lines_beyond_cap: int = Field(description="Lines past the line cap: not analyzed at all.")
+    lines_without_features: int = Field(
+        description="Lines with code on them that gave the model nothing to score."
+    )
+    blank_lines: int = Field(description="Lines with no code on them; never offered.")
+    explanations_rejected: int
+    line_cap: int
+    parse_clean: bool = Field(
+        description="False when the grammar had to repair the parse; the structural "
+        "branch then read a damaged graph."
+    )
+    first_parse_error_line: int | None
+    dataflow_available: bool = Field(
+        description="False when no data-flow graph could be built; explanations then "
+        "carry no data-flow path."
+    )
+
+
+class AnalysisReport(BaseModel):
+    """The reader's view of one analysis (``vulnloc.serving.report``)."""
+
+    summary: str = Field(
+        description="Fixed wording around counts. For an unflagged function it says that "
+        "nothing was flagged and that this is not a statement that the function is safe."
+    )
+    threshold: float
+    ranked_lines: list[RankedLine] = Field(
+        description="The highest-ranked lines whether or not any was flagged."
+    )
+    findings: list[Finding] = Field(description="Every flagged line, highest score first.")
+    patterns: Patterns
+    coverage: Coverage
+    measured: dict[str, Any] | None = Field(
+        description="What the bundle records as measured for its checkpoint, or null when "
+        "the bundle carries no such record."
+    )
+
+
+class ReportResponse(BaseModel):
+    """The §5.4 object and the report beside it."""
+
+    result: AnalyzeResponse
+    report: AnalysisReport
 
 
 class ErrorBody(BaseModel):

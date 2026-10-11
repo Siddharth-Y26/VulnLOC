@@ -4208,6 +4208,44 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
      machine and the network:* the rest of the clean-clone criterion (an environment
      from the lock file, the data pipeline, a reproduced run).
   4. *Phase 10* is not started.
+- **2026-10-11, about 12:30 — where session 18 stopped (the owner's weekly usage was at
+  95%).** The owner asked why the tool cannot say a function has no vulnerability, was
+  told why (no model here saw a safe function; a function-level claim needs the deferred
+  work, 3–4 days frozen), and chose two things, both without new training: **the five
+  "honest result" items** (a plain "nothing flagged, and that is not a statement of
+  safety" message; the top-ranked lines shown even when none is flagged; the weakness
+  patterns that were tested; what was not examined; the measured miss rate beside the
+  result) **and "Option A", a more readable demo page. No generative explainer.**
+  - *Built and committed:* `src/vulnloc/serving/report.py` and `POST /analyze/report` —
+    the §5.4 object with a report beside it (summary, five highest-ranked lines, every
+    flagged line's verified explanation and evidence, the 19 patterns checked and which
+    matched, coverage). `/analyze` is unchanged and still exactly the contract. Ten
+    tests (`tests/unit/test_serving_report.py`); the three serving test files pass, 51.
+  - *Not done yet:* (1) `serving/static/index.html` still calls `/analyze` — the page
+    has to be moved to `/analyze/report` and laid out (summary on top, a "why this line"
+    panel per finding, attended lines highlighted, the patterns and coverage cards).
+    (2) `report.measured` is null for the bundle of record: `bundle.json` has no
+    `measured` block. It needs an export option that copies the released checkpoint's
+    held-out Top-5 out of `artifacts/phase8/evaluation_test.json` — quoted from the
+    file, nothing scored again — and a re-export to a new directory. (3) No fix advice:
+    the explanation templates carry a reason and no remedy, and
+    `frontend/fix_templates.py` is unreviewed (`CLAUDE.md` §10 5b). (4) `CodeMap.md`,
+    the commands in `CLAUDE.md`, the API section of the model card; the full suite was
+    not re-run, and the Docker image predates the endpoint.
+  - *Disk:* the project is 173 GB, 153.5 of it `artifacts/checkpoints` (129 runs, a
+    `best.pt` and a `last.pt` each). About 89 GB could go without touching a result —
+    `last.pt` of finished runs 72.6 GB, `best.pt` of the overfit gates 16.4 GB. **The
+    owner said to delete nothing for now; nothing was deleted.**
+  - *The owner's literature review was checked by the session* (pasted text, 37
+    references). Wrong as written: ERASER removes evidence from the *input*; Jain and
+    Wallace say "frequently uncorrelated", and show alternative attention distributions,
+    not random ones; UniXcoder uses comments; Vul-LMGNNs uses online *distillation*; the
+    whitespace shortcut is this project's finding, not literature; the WL sentence.
+    Not verifiable here, to check against the papers: Fu et al. F1 0.82, DCVD 0.87 /
+    0.92 / 0.94, ActiveClean +7 points, "87 studies", "18 models" in Li et al., and what
+    DCVD does not state. None of those numbers is in `docs/prior_work.yaml`.
+  - *Still waiting on the owner, who said "wait on those":* Q15, latency, the Phase 8
+    and 9 gates, a time for the clean-clone check.
 - **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
   `phase-8/tables`, `wt9` on `phase-9/serving`) are merged and no longer needed —
   `git worktree prune` once that directory is gone. `artifacts/serving/ba7dcc5f` (536 MB)

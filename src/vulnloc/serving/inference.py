@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -58,6 +58,7 @@ from vulnloc.representation import (
 from vulnloc.representation.to_pyg import to_pyg
 from vulnloc.representation.tokenization import LineTokenizer
 from vulnloc.serving.bundle import Bundle, load_bundle
+from vulnloc.serving.report import build_report
 from vulnloc.utils.exceptions import ExplanationError, GraphBuildError, ParseError
 from vulnloc.utils.logging import get_logger
 
@@ -219,12 +220,17 @@ class Analysis:
             can check this path against a checkpoint's stored scores; never returned by
             the API.
         scoreable: ``[n]`` bool, ``True`` where the model had features for the line.
+        report: The reader's view of the same analysis (``vulnloc.serving.report``):
+            a plain summary, the highest-ranked lines, every flagged line's verified
+            explanation, the patterns tested and what was not examined. Computed from
+            the same scores and explanations as ``contract``; nothing is run twice.
     """
 
     contract: dict[str, Any]
     diagnostics: dict[str, Any]
     logits: np.ndarray
     scoreable: np.ndarray
+    report: dict[str, Any] = field(default_factory=dict)
 
 
 class Analyzer:
@@ -369,7 +375,7 @@ class Analyzer:
                 extra={"unit_id": unit_id, "error": str(error)},
             )
             dfg = None
-        contract, rejected = self._explain(
+        contract, rejected, explanations, evidence = self._explain(
             unit,
             pred,
             ast=ast,
@@ -388,11 +394,39 @@ class Analyzer:
             "explanations_rejected": rejected,
             "seconds": time.perf_counter() - started,
         }
+        coverage = {
+            key: diagnostics[key]
+            for key in (
+                "lines",
+                "lines_scored",
+                "lines_beyond_cap",
+                "lines_without_features",
+                "blank_lines",
+                "explanations_rejected",
+            )
+        }
+        coverage.update(
+            line_cap=self.n_lines,
+            # ERROR and MISSING nodes: the grammar repaired the parse, so the graph the
+            # structural branch read is damaged from this line on (Memory.md §1.7).
+            parse_clean=bool(parsed.is_clean),
+            first_parse_error_line=parsed.first_error_line,
+            dataflow_available=dfg is not None,
+        )
+        report = build_report(
+            unit,
+            pred,
+            explanations,
+            evidence,
+            coverage=coverage,
+            measured=self.bundle.manifest.get("measured"),
+        )
         return Analysis(
             contract=contract,
             diagnostics=diagnostics,
             logits=logits.numpy(),
             scoreable=scoreable.numpy(),
+            report=report,
         )
 
     def _explain(
@@ -404,11 +438,12 @@ class Analyzer:
         dfg: Any,
         attn_sem_from_str: np.ndarray | None,
         attn_str_from_sem: np.ndarray | None,
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[dict[str, Any], int, dict[int, Explanation], dict[int, Evidence]]:
         """Explain every flagged line, verify each explanation, assemble the contract.
 
         Returns:
-            The §5.4 object, and how many explanations the verifier rejected.
+            The §5.4 object, how many explanations the verifier rejected, and the
+            verified explanations and their evidence by line.
 
         Raises:
             ExplanationError: If the top flagged line's explanation was rejected.
@@ -439,7 +474,7 @@ class Analyzer:
                 rejected += 1
                 continue
             explanations[line], evidence[line] = explanation, gathered
-        return output_contract(unit, pred, explanations, evidence), rejected
+        return output_contract(unit, pred, explanations, evidence), rejected, explanations, evidence
 
 
 def _attention(output: Mapping[str, Any], key: str) -> np.ndarray | None:
