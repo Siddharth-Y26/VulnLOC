@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VulnLoc</title>
+<style>
+  /* Tokens: docs/Design.md §2-§4. Light only for v1 (§2.6). No external font or script. */
+  :root {
+    --brand-primary: #0B76B8; --brand-primary-dark: #075C90;
+    --brand-surface-soft: #E8F4FC; --brand-border: #9CCDE8;
+    --bg-page: #FAFBFC; --bg-elevated: #FFFFFF;
+    --text-primary: #111418; --text-body: #2E353D; --text-muted: #697682;
+    --border-subtle: #DEE4EA;
+    --flag: #D1495B; --flag-tint: rgba(209, 73, 91, .12);
+    --ok: #3F8F5C; --warning: #E08A2E; --error: #A4243B;
+    --sans: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --serif: "Source Serif 4", Lora, Georgia, "Times New Roman", serif;
+    --mono: "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg-page); color: var(--text-body); font: 16px/24px var(--sans); }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font: 700 31px/38px var(--serif); color: var(--text-primary); margin: 0 0 4px; }
+  h2 { font: 600 20px/28px var(--sans); color: var(--text-primary); margin: 0 0 8px; }
+  p { max-width: 70ch; }
+  .muted { color: var(--text-muted); font-size: 14px; line-height: 20px; }
+  .summary { position: sticky; top: 0; z-index: 1; background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-subtle); padding: 8px 16px; font-size: 14px;
+    display: flex; flex-wrap: wrap; gap: 4px 24px; }
+  .summary b { color: var(--text-primary); }
+  textarea { width: 100%; min-height: 220px; padding: 12px; border: 1px solid var(--border-subtle);
+    border-radius: 8px; background: var(--bg-elevated); font: 14px/22px var(--mono); color: var(--text-primary); }
+  textarea:focus, button:focus, .line:focus { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0 24px; }
+  button { background: var(--brand-primary); color: #fff; border: 0; border-radius: 4px;
+    padding: 8px 16px; font: 600 16px/24px var(--sans); cursor: pointer; }
+  button:hover { background: var(--brand-primary-dark); }
+  button:disabled { opacity: .6; cursor: progress; }
+  select { padding: 8px; border: 1px solid var(--border-subtle); border-radius: 4px; font: inherit; }
+  .card { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 8px;
+    padding: 16px; margin: 0 0 16px; box-shadow: 0 1px 2px rgba(17, 20, 24, .06); }
+  .card.accent { border-left: 4px solid var(--brand-primary); }
+  .card.warn { border-left: 4px solid var(--warning); }
+  .card.error { border-left: 4px solid var(--error); }
+  .card.clean { border-left: 4px solid var(--ok); }
+  .badge { display: inline-block; font: 600 12px/16px var(--sans); padding: 2px 8px; border-radius: 999px;
+    color: var(--flag); background: var(--flag-tint); border: 1px solid rgba(209, 73, 91, .4); }
+  .evidence { border-top: 1px solid var(--border-subtle); margin-top: 12px; padding-top: 8px; font-size: 14px; }
+  .evidence dt { float: left; clear: left; width: 96px; color: var(--text-muted); }
+  .evidence dd { margin: 0 0 4px 96px; font-family: var(--mono); }
+  .code { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 8px;
+    overflow-x: auto; font: 14px/22px var(--mono); }
+  .line { display: grid; grid-template-columns: 56px 1fr auto; border-left: 3px solid transparent; }
+  .line .no { color: var(--text-muted); font-size: 12px; text-align: right; padding-right: 12px; user-select: none; }
+  .line pre { margin: 0; font: inherit; white-space: pre; color: var(--text-primary); }
+  .line .chip { font: 600 12px/22px var(--sans); color: var(--flag); padding: 0 12px; white-space: nowrap; }
+  .line.flagged { background: var(--flag-tint); border-left-color: var(--flag); }
+  .line.unscored pre { color: var(--text-muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="summary" aria-live="polite">
+  <span>Model <b id="s-model">loading…</b></span>
+  <span>Verdict <b id="s-verdict">—</b></span>
+  <span>Highest line score <b id="s-risk">—</b></span>
+  <span>Flagged lines <b id="s-flagged">—</b></span>
+</div>
+<main>
+  <h1>VulnLoc</h1>
+  <p class="muted">Paste one C or C++ function. The model ranks its lines by how likely each is
+  to be part of a vulnerability and explains the top one. It was trained on vulnerable
+  functions only: <b>a result with no flagged line is not evidence that the function is safe.</b></p>
+
+  <label for="code" class="muted">Function source</label>
+  <textarea id="code" spellcheck="false" aria-describedby="hint"></textarea>
+  <div class="row">
+    <button id="run" type="button">Analyze</button>
+    <label class="muted" for="language">Language</label>
+    <select id="language"><option value="c">C</option><option value="cpp">C++</option></select>
+    <span id="hint" class="muted">Only the first <span id="cap">512</span> lines are scored.</span>
+  </div>
+
+  <div id="error" class="card error" role="alert" hidden>
+    <h2 id="error-type"></h2><p id="error-message"></p>
+  </div>
+  <div id="truncated" class="card warn" hidden></div>
+  <div id="clean" class="card clean" hidden>
+    <h2>✓ No line reached the threshold</h2><p id="clean-text"></p>
+  </div>
+  <div id="explanation" class="card accent" hidden>
+    <h2><span id="x-label"></span> · line <span id="x-line"></span>
+      <span class="badge" id="x-score"></span></h2>
+    <p id="x-text"></p>
+    <dl class="evidence" aria-label="Evidence">
+      <dt>Data flow</dt><dd id="x-flow"></dd>
+      <dt>Attention</dt><dd id="x-tokens"></dd>
+      <dt>Graph</dt><dd id="x-nodes"></dd>
+    </dl>
+    <p class="muted">The wording comes from a template matched against the line; it is not the
+    model's reasoning. Scores are calibrated probabilities and are low by construction —
+    read the ranking, not the number.</p>
+  </div>
+  <div id="viewer" class="code" role="region" aria-label="Analyzed source" hidden></div>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const show = (id, on) => { $(id).hidden = !on; };
+const text = (id, value) => { $(id).textContent = value; };
+let threshold = null;
+
+async function loadVersion() {
+  try {
+    const version = await (await fetch("/version")).json();
+    threshold = version.threshold;
+    text("s-model", `${version.fusion} · run ${version.run_id.slice(0, 8)} · threshold ${threshold.toFixed(4)}`);
+    text("cap", String(version.line_cap));
+  } catch (failure) {
+    text("s-model", "unavailable");
+  }
+}
+
+function fail(kind, message) {
+  text("error-type", kind);
+  text("error-message", message);
+  show("error", true);
+}
+
+function renderLines(source, flagged, cap) {
+  const viewer = $("viewer");
+  viewer.replaceChildren();
+  const ranks = new Map(flagged.map((entry, index) => [entry.line, { rank: index + 1, score: entry.score }]));
+  source.split("\n").forEach((content, index) => {
+    const number = index + 1;
+    const row = document.createElement("div");
+    row.className = "line";
+    const gutter = document.createElement("span");
+    gutter.className = "no";
+    gutter.textContent = String(number);
+    const code = document.createElement("pre");
+    code.textContent = content || " ";
+    row.append(gutter, code);
+    const hit = ranks.get(number);
+    if (hit) {
+      row.classList.add("flagged");
+      row.tabIndex = 0;
+      row.setAttribute("aria-label", `line ${number}, flagged, rank ${hit.rank}, score ${hit.score.toFixed(3)}`);
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = `▲ #${hit.rank} · ${hit.score.toFixed(3)}`;
+      row.append(chip);
+    } else if (number > cap) {
+      row.classList.add("unscored");
+    }
+    viewer.append(row);
+  });
+  show("viewer", true);
+}
+
+async function analyze() {
+  const source = $("code").value;
+  ["error", "truncated", "clean", "explanation", "viewer"].forEach((id) => show(id, false));
+  if (!source.trim()) { fail("Nothing to analyze", "Paste a function first."); return; }
+  $("run").disabled = true;
+  try {
+    const response = await fetch("/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: source, language: $("language").value }),
+    });
+    const body = await response.json();
+    if (!response.ok) { fail(body.error.type, body.error.message); return; }
+
+    const flagged = body.vulnerable_lines;
+    const cap = Number($("cap").textContent);
+    const beyond = Number(response.headers.get("X-VulnLoc-Lines-Beyond-Cap") || 0);
+    const bare = Number(response.headers.get("X-VulnLoc-Lines-Without-Features") || 0);
+    text("s-verdict", body.is_vulnerable ? "lines flagged" : "no line flagged");
+    text("s-risk", body.risk_score.toFixed(3));
+    text("s-flagged", String(flagged.length));
+    if (beyond > 0 || bare > 0) {
+      const parts = [];
+      if (beyond > 0) parts.push(`Lines ${cap + 1}–${cap + beyond} were not analyzed: the model scores a function's first ${cap} lines.`);
+      if (bare > 0) parts.push(`${bare} line(s) inside that range gave the model nothing to score (blank, or a comment only).`);
+      text("truncated", parts.join(" "));
+      show("truncated", true);
+    }
+    if (body.is_vulnerable) {
+      const top = flagged[0];
+      text("x-label", body.vulnerability_label || "Unclassified");
+      text("x-line", String(top.line));
+      text("x-score", `▲ rank 1 · ${top.score.toFixed(3)}`);
+      text("x-text", body.explanation);
+      text("x-flow", body.evidence.dataflow_path.length ? body.evidence.dataflow_path.join(" → ") : "none found");
+      text("x-tokens", body.evidence.attention_top_tokens.length ? body.evidence.attention_top_tokens.join(" · ") : "none");
+      text("x-nodes", `${body.evidence.graph_nodes.length} AST node(s) on the line`);
+      show("explanation", true);
+    } else {
+      text("clean-text", body.explanation);
+      show("clean", true);
+    }
+    renderLines(source, flagged, cap);
+  } catch (failure) {
+    fail("Request failed", String(failure));
+  } finally {
+    $("run").disabled = false;
+  }
+}
+
+$("run").addEventListener("click", analyze);
+loadVersion();
+</script>
+</body>
+</html>
