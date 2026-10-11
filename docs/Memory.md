@@ -4261,6 +4261,20 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
     results section. 3.10's A1 framing is the session's recommendation, pending Q15.
   - *Still waiting on the owner, who said "wait on those":* Q15, latency, the Phase 8
     and 9 gates, a time for the clean-clone check.
+- **2026-10-11, 12:35 — the clean-clone check was started at the owner's word** ("i meant
+  clean clone check, so start it"). One unattended script, `artifacts/queue/cleanclone_check.py`,
+  working in `D:ulnloc-cleanclone` (log `cleanclone.log`, outcome `result.json` there).
+  **Written before it ran:** the clone is of this machine's HEAD (the branch is ahead of
+  its remote); the environment comes from `requirements.lock.txt` alone; the raw corpora
+  are hard-linked from the main tree and verified, not downloaded again; everything
+  downstream is rebuilt. *Reproduced* means the split fingerprint equals `0ade7483…`, the
+  rebuilt shards and both vocabularies equal the main tree's byte for byte, and the two
+  frozen runs of record at seed 42 (comment-stripped, `val`) land within their arm's
+  three-seed sd of the logged Top-5 — cross_attention `8cde0dd5…` 0.5207 (sd 0.0102),
+  concat `6ce89a15…` 0.4917 (sd 0.0157). A same-seed rerun is not expected to be
+  bit-identical (§7 #50); the difference is reported as it is. No held-out partition is
+  touched. The clone's runs live in the clone's own MLflow store and are never pooled
+  with this tree's. **The result is not written up yet — read `result.json`.**
 - **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
   `phase-8/tables`, `wt9` on `phase-9/serving`) are merged and no longer needed —
   `git worktree prune` once that directory is gone. `artifacts/serving/ba7dcc5f` (536 MB)
