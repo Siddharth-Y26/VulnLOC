@@ -97,7 +97,7 @@ ablations:
         store: laptop_1
         encoder: frozen
         text: stripped
-        status: pending
+        status: run
         memory: "§1.32 (queue group a1rep; the plan was written before the runs)"
         note: >-
           A replication: three seeds the table above never saw, the same constants and the
@@ -131,7 +131,7 @@ ablations:
         store: laptop_1
         encoder: frozen
         text: stripped
-        status: pending
+        status: run
         memory: "§1.32 (queue groups a1r and a1rep)"
         note: >-
           The two tables above pooled. Not a third measurement: three of its six seeds are
