@@ -33,10 +33,21 @@ if TYPE_CHECKING:
     from vulnloc.explanation.types import Evidence, Explanation, Prediction
     from vulnloc.representation.units import CodeUnit
 
-__all__ = ["NOT_SAFE_SENTENCE", "TOP_RANKED", "build_report", "patterns_checked", "summarize"]
+__all__ = [
+    "NOTHING_FOUND_SENTENCE",
+    "NOT_SAFE_SENTENCE",
+    "TOP_RANKED",
+    "build_report",
+    "patterns_checked",
+    "summarize",
+]
 
 TOP_RANKED = 5
 """How many of the highest-ranked lines a report lists, flagged or not."""
+
+NOTHING_FOUND_SENTENCE = "No known vulnerability found."
+"""The owner's wording (2026-10-11) for a function with no flagged line. It says what the
+tool found; :data:`NOT_SAFE_SENTENCE` always follows it."""
 
 NOT_SAFE_SENTENCE = "This is not a statement that the function is safe."
 
@@ -75,7 +86,7 @@ def summarize(pred: Prediction, *, matched: int, lines_scored: int) -> str:
     if not flagged:
         top = ranking[0]
         return (
-            f"No line was flagged above the threshold. {NOT_SAFE_SENTENCE} "
+            f"{NOTHING_FOUND_SENTENCE} {NOT_SAFE_SENTENCE} "
             f"The highest-ranked line is line {top}, with a score of {pred.score(top):.3f} "
             f"against a threshold of {pred.threshold:.3f}."
         )

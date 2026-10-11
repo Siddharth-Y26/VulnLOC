@@ -83,7 +83,7 @@ def test_an_unflagged_function_is_never_reported_as_safe() -> None:
     report = build_report(unit(), pred, {}, {}, coverage=COVERAGE)
 
     assert report["findings"] == []
-    assert "No line was flagged above the threshold." in report["summary"]
+    assert "No known vulnerability found." in report["summary"]
     assert NOT_SAFE_SENTENCE in report["summary"]
     assert "safe" not in report["summary"].replace(NOT_SAFE_SENTENCE, "")
 
