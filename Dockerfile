@@ -53,7 +53,13 @@ COPY --chown=vulnloc:vulnloc src ./src
 COPY --chown=vulnloc:vulnloc tests ./tests
 COPY --chown=vulnloc:vulnloc docs ./docs
 
-RUN mkdir -p /workspace/artifacts && chown -R vulnloc:vulnloc /workspace/artifacts
+# /workspace itself must belong to the user, not only what is copied into it: Hydra writes
+# its run directory (`outputs/<date>/<time>`) beside the launch directory, and with a
+# root-owned WORKDIR every script died on that first mkdir. Found on the image's first
+# run, 2026-10-11 (docs/Memory.md §1.33).
+RUN mkdir -p /workspace/artifacts /workspace/outputs \
+    && chown vulnloc:vulnloc /workspace \
+    && chown -R vulnloc:vulnloc /workspace/artifacts /workspace/outputs
 USER vulnloc
 
 # Phase 0 exit criterion: the image runs the same command as the host.
