@@ -4249,7 +4249,16 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
     of Part II — seven points where the 1 October prose is out of date (comment
     stripping, the models of record, the tie, the frozen result, the held-out pass, the
     template explainer, and the draft's "smooth maximum" function-level score, which is
-    still to be checked against the code). The prose under it is not rewritten yet.
+    still to be checked against the code). **Later the same day the Methodology prose
+    was rewritten in place to agree with all seven and the corrections section removed**
+    (a delegated agent, at the owner's word). Revised passages carry a temporary
+    highlight, with a note under "Part II" — to be removed before submission. A
+    "Reporting a result" paragraph (3.1) describes the report and the "No known
+    vulnerability found" wording. Checked in the code: the head does compute a
+    log-sum-exp function logit (`heads/line_head.py`), used only in the auxiliary loss
+    term and a degenerate logged F1; the service does not expose it. Not edited: the
+    Abstract, the Introduction, the front-matter checklists, Figure 1; there is no
+    results section. 3.10's A1 framing is the session's recommendation, pending Q15.
   - *Still waiting on the owner, who said "wait on those":* Q15, latency, the Phase 8
     and 9 gates, a time for the clean-clone check.
 - **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
