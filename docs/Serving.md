@@ -14,9 +14,15 @@ digests.
 python scripts/export_serving_bundle.py +explainer=template \
     +export.run_id=ba7dcc5ff8354cc4b6d7e7b76f876fd9 \
     +export.scores_dir=./artifacts/phase6/scores_retrained \
-    +export.calibration_report=./artifacts/phase6/retrained/calibration_report.json
-# -> artifacts/serving/ba7dcc5f/
+    +export.calibration_report=./artifacts/phase6/retrained/calibration_report.json     +export.measured_from=./artifacts/phase8/evaluation_test.json     +export.output_dir=./artifacts/serving/ba7dcc5f-r2
+# -> artifacts/serving/ba7dcc5f-r2/
 ```
+
+`export.measured_from` is optional. It *quotes* the checkpoint's own figures from an
+evaluation file into the manifest's `measured` block — the file's digest and the
+evaluation's run id beside them — and the service shows them with every result. Nothing is
+scored to make that block. A file made for another run, another threshold or another text
+variant is refused.
 
 The export **refuses and removes** the bundle unless, on a sample of `val` functions,
 
@@ -28,7 +34,7 @@ A bundle is never edited in place: the service recomputes every file's SHA-256 o
 ## 2. Run it
 
 ```bash
-python scripts/serve.py +serve.bundle=./artifacts/serving/ba7dcc5f     # http://127.0.0.1:8080
+python scripts/serve.py +serve.bundle=./artifacts/serving/ba7dcc5f-r2  # http://127.0.0.1:8080
 docker compose --profile serve up serve                                # the same, in a container
 ```
 
@@ -40,6 +46,7 @@ exposes it and is a decision. Interactive documentation is at `/docs`, a one-pag
 | | |
 |---|---|
 | `POST /analyze` | One function in, the `PRD.md` §5.4 object out |
+| `POST /analyze/report` | The same analysis: `{"result": <the §5.4 object>, "report": …}` — what a reader needs beside the result |
 | `POST /analyze/batch` | Up to 16 functions; each gets its own result or its own error |
 | `GET /version` | Which checkpoint is answering: run id, git sha, config hash, threshold |
 | `GET /health` | Liveness |
@@ -83,6 +90,22 @@ Response headers carry what the contract has no field for: `X-VulnLoc-Run`,
 `X-VulnLoc-Lines-Scored`, `X-VulnLoc-Lines-Beyond-Cap` (only a function's first 512 lines
 are scored), `X-VulnLoc-Lines-Without-Features`, `X-VulnLoc-Seconds`.
 
+### The report
+
+`POST /analyze/report` takes the same request and flags exactly what `/analyze` flags. Its
+`report` adds, for a person reading the result:
+
+| Field | What it holds |
+|---|---|
+| `summary` | Two or three fixed sentences around counts. For a function with no flagged line: "No known vulnerability found. This is not a statement that the function is safe." |
+| `ranked_lines` | The five highest-ranked lines **whether or not any was flagged** |
+| `findings` | Every flagged line: its verified explanation (or `null` if the verifier rejected it — never a softened one), the lines the model's cross-attention weighted, a name-based data-flow path and the syntax nodes on the line. The last two are static analysis, not the model's output |
+| `patterns` | The weakness patterns every flagged line is tested against, and which matched — the scope of "no known pattern matched" |
+| `coverage` | What was not examined: lines past the cap, lines with nothing to score, blank lines, a repaired parse, a missing data-flow graph |
+| `measured` | The bundle's `measured` block, or `null` when the bundle carries none |
+
+The demo page at `/` is this endpoint, drawn.
+
 ## 4. Errors
 
 Every failure has one shape (`Rules.md` §4.7):
@@ -103,10 +126,11 @@ request fails; it is not answered by the semantic branch alone.
 ## 5. Latency
 
 ```bash
-python scripts/measure_latency.py +latency.bundle=./artifacts/serving/ba7dcc5f
+python scripts/measure_latency.py +latency.bundle=./artifacts/serving/ba7dcc5f-r2
 ```
 
 Times a sample of `val` functions on the CPU and logs the percentiles, by function length,
 with the machine and its load. It refuses to run on a busy machine unless told to.
-`PRD.md` NFR-4 recommends a p95 under two seconds; the measured figure is in
-`docs/Memory.md` once it has been taken.
+`PRD.md` NFR-4 recommends a p95 under two seconds. Measured on a laptop CPU over 200 `val`
+functions (run `3e91feba…`, `docs/Memory.md` §1.33): p50 0.30 s, p95 2.63 s — the bound is
+missed by functions over 250 lines, and that miss is accepted and stated in the model card.

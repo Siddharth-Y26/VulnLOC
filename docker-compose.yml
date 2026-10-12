@@ -69,7 +69,7 @@ services:
     image: vulnloc:0.1.0
     working_dir: /workspace
     volumes:
-      - ${VULNLOC_BUNDLE_DIR:-./artifacts/serving/ba7dcc5f}:/bundle:ro
+      - ${VULNLOC_BUNDLE_DIR:-./artifacts/serving/ba7dcc5f-r2}:/bundle:ro
     environment:
       VULNLOC_BUNDLE: /bundle
       # Everything the model needs is in the bundle; the container never calls out.

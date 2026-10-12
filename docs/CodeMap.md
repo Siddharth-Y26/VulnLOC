@@ -84,8 +84,10 @@ statistics, the evaluator; everything is a function of stored line scores.
 `explanation/` — evidence for a flagged line, the template explainer, the verifier, the
 `PRD.md` §5.4 contract. `serving/` — `bundle.py` (what a service loads, with a digest of
 every file), `inference.py` (one function in, the contract out; may not import
-`training`), `schemas.py`, `app.py` (the FastAPI service), `static/index.html` (the
-demo page). `CLAUDE.md` §3 says what each holds.
+`training`), `report.py` (the reader's report beside the contract: a summary, the
+highest-ranked lines, every finding's evidence, the patterns tested, coverage, the bundle's
+measured record), `schemas.py`, `app.py` (the FastAPI service), `static/index.html` (the
+demo page — `POST /analyze/report`, drawn). `CLAUDE.md` §3 says what each holds.
 
 ---
 
@@ -121,7 +123,8 @@ Data steps, in this order: `prepare_data.py` → `audit_data.py` → `build_spli
 | `make_ablation_tables.py` | Phase 8: every ablation table, from the seed reports named in `docs/ablations.yaml`; refuses a run that did not log the conditions its table declares. |
 | `sample_failures.py` | Phase 8: the cases for the failure taxonomy — drawn by rule, with what can be counted about them. `val` only. |
 | `make_phase8_figures.py` | Phase 8: the figures, drawn from the evaluation's JSON. |
-| `export_serving_bundle.py` | Phase 9: packages one checkpoint for serving and checks the package against the checkpoint's stored `val` scores. |
+| `export_serving_bundle.py` | Phase 9: packages one checkpoint for serving and checks the package against the checkpoint's stored `val` scores. `export.measured_from` quotes the checkpoint's figures from an evaluation file into the manifest; nothing is scored for it. |
+| `trace_phase8_tables.py` | Phase 8: follows every run the evaluation and ablation tables name into the MLflow stores — finished, scored, named, and its logged value equal to the table's. Read-only; exits 1 if anything does not trace. |
 | `serve.py` | Phase 9: serves one bundle over HTTP — the API and the demo page. |
 | `measure_latency.py` | Phase 9: times a sample of `val` functions through a bundle (NFR-4); refuses a busy machine. |
 

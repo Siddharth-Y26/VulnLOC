@@ -21,7 +21,7 @@ Three things a latency number hides unless they are printed beside it:
 
 Usage::
 
-    python scripts/measure_latency.py +latency.bundle=./artifacts/serving/ba7dcc5f
+    python scripts/measure_latency.py +latency.bundle=./artifacts/serving/ba7dcc5f-r2
 """
 
 from __future__ import annotations

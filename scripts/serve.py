@@ -8,7 +8,7 @@ does inside its container).
 
 Usage::
 
-    python scripts/serve.py +serve.bundle=./artifacts/serving/ba7dcc5f
+    python scripts/serve.py +serve.bundle=./artifacts/serving/ba7dcc5f-r2
     # then: http://127.0.0.1:8080/docs
 
     curl -s http://127.0.0.1:8080/analyze -H "Content-Type: application/json" \

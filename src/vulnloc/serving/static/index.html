@@ -117,8 +117,8 @@
 
     <div id="findings" class="card flag" hidden>
       <h2>Why these lines</h2>
-      <p class="muted">One entry per flagged line, most suspicious first. Open an entry to see
-      its line and the lines the model weighted in the source below.</p>
+      <p class="muted">One entry per flagged line, most suspicious first. Open an entry to mark
+      its line, and the unflagged lines the model weighted, in the source below.</p>
       <div id="finding-list"></div>
       <p class="muted">The wording comes from a template matched against the line's text; it is
       not the model's reasoning. Data-flow paths and syntax nodes are static analysis of the
@@ -262,18 +262,19 @@ function renderFinding(finding, open) {
     : finding.explanation));
 
   const facts = el("dl", "facts");
-  if (finding.attended_lines.length) {
-    const lines = finding.attended_lines
-      .map((attended) => `line ${attended.line} (${attended.weight.toFixed(2)})`).join(", ");
-    fact(facts, "Lines the model weighted", lines);
-  } else {
-    fact(facts, "Lines the model weighted", "none recorded");
-  }
+  // The fusion has two attention maps, so a line can be weighted in each. A weight that
+  // rounds to 0.00 says nothing and is not listed.
+  const weighted = (direction) => finding.attended_lines
+    .filter((attended) => attended.direction === direction && attended.weight >= 0.005)
+    .map((attended) => `line ${attended.line} (${attended.weight.toFixed(2)})`).join(", ");
+  fact(facts, "Weighted by the text branch", weighted("sem_from_str") || "none recorded");
+  fact(facts, "Weighted by the graph branch", weighted("str_from_sem") || "none recorded");
   fact(facts, "Tokens it weighted", finding.attention_top_tokens.length ? finding.attention_top_tokens.join(" · ") : "none");
+  const symbols = [...new Set(finding.dataflow_symbols)];
   fact(facts, "Data-flow path (static)", finding.dataflow_path.length
-    ? `lines ${finding.dataflow_path.join(" → ")}${finding.dataflow_symbols.length ? ` · through ${finding.dataflow_symbols.join(", ")}` : ""}`
+    ? `lines ${finding.dataflow_path.join(" → ")}${symbols.length ? ` · through ${symbols.join(", ")}` : ""}`
     : "none found");
-  fact(facts, "Syntax nodes (static)", finding.graph_nodes.length ? finding.graph_nodes.join(", ") : "none");
+  fact(facts, "Syntax nodes (static)", `${finding.graph_nodes.length} on the line`);
   entry.append(facts);
   entry.addEventListener("toggle", () => { if (entry.open) select(finding); });
   return entry;
@@ -290,7 +291,8 @@ function select(finding) {
   if (own) own.classList.add("selected");
   finding.attended_lines.forEach((attended) => {
     const row = document.querySelector(`.line[data-line="${attended.line}"]`);
-    if (!row || row.classList.contains("flagged")) return;
+    if (!row || attended.weight < 0.005) return;
+    if (row.classList.contains("flagged") || row.classList.contains("attended")) return;
     row.classList.add("attended");
     row.append(el("span", "chip att", `weighted ${attended.weight.toFixed(2)}`));
   });
@@ -360,8 +362,9 @@ function renderCoverage(report) {
   patterns.replaceChildren();
   report.patterns.checked.forEach((pattern) => {
     const item = el("li");
+    // Several patterns share a label (three kinds of buffer overflow), so the id is shown too.
     item.append(el("span", matched.has(pattern.id) ? "badge match" : "badge quiet",
-      `${pattern.label}${pattern.cwe ? ` · ${pattern.cwe}` : ""}${matched.has(pattern.id) ? " · matched" : ""}`));
+      `${pattern.label}: ${pattern.id}${pattern.cwe ? ` · ${pattern.cwe}` : ""}${matched.has(pattern.id) ? " · matched" : ""}`));
     patterns.append(item);
   });
 }
