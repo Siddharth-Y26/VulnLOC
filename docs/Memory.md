@@ -4380,7 +4380,11 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   **Decided the same hour: offered "defer in writing" or "three people rate the pack",
   the owner said *"then do 1"* — the human evaluation is deferred (§2, first row).** It
   is no longer on the list of what is left; the pack and the protocol stand unchanged
-  if three people are ever found.
+  if three people are ever found. The online draft says so in two sentences (the
+  "Explanations" paragraph of the methodology and "Attention and explanations" under
+  the limitations): no human rated the explanations, the protocol was defined and the
+  evaluation deferred. `ResearchPlan.md` §4.3, `HumanEvalProtocol.md` and `Phases.md`
+  carry the same note.
 - **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
   `phase-8/tables`, `wt9` on `phase-9/serving`) are merged and no longer needed —
   `git worktree prune` once that directory is gone. `artifacts/serving/ba7dcc5f` (536 MB)
