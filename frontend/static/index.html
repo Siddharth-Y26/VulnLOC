@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20261012" />
   </head>
   <body>
     <header class="masthead">
@@ -18,7 +18,7 @@
         <h1 class="wordmark">VulnLoc <span>line-level review</span></h1>
         <p class="masthead-note">
           Paste a C or C++ function. Findings: the lines to review first. Detailed report:
-          each step's output, and the structural model's ranking.
+          each step's output, each model's own ranking, and what was measured.
         </p>
       </div>
 
@@ -116,6 +116,7 @@
       </section>
     </main>
 
-    <script src="app.js"></script>
+    <!-- The query string retires copies cached before the server sent Cache-Control. -->
+    <script src="app.js?v=20261012"></script>
   </body>
 </html>

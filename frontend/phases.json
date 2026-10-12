@@ -1,6 +1,6 @@
 {
   "_comment": "Mirrors CLAUDE.md section 3 and docs/Phases.md. This file is a SUMMARY and is not authoritative — when it disagrees with docs/Memory.md, Memory.md wins and this file is the thing to fix. Update it in the same commit as any phase change. 'does' is one short sentence shown under each stage; keep it that way (owner, 2026-09-15). Measured numbers are NOT written here — the page reads them from the seed reports via /api/results.",
-  "_updated": "2026-10-11",
+  "_updated": "2026-10-12",
   "stages": [
     {
       "id": "normalize",
@@ -42,49 +42,49 @@
       "phase": 3,
       "name": "Semantic model",
       "state": "trained",
-      "does": "CodeBERT reads the code as text and scores each line. This is the model behind the Findings tab."
+      "does": "CodeBERT reads the code as text and scores each line. Shown here on its own; Findings uses both models together."
     },
     {
       "id": "structural",
       "phase": 4,
       "name": "Structural model",
       "state": "trained",
-      "does": "A graph neural network (GCN) reads the code graph and scores each line."
+      "does": "A graph neural network (GCN) reads the code graph and scores each line. Shown here on its own."
     },
     {
       "id": "fusion",
       "phase": 5,
       "name": "Fusion",
-      "state": "trained",
-      "does": "Combines both models. Measured on the dataset only; not run on your code."
+      "state": "live",
+      "does": "Cross-attention combines both models' view of each line. This is the model behind the Findings tab."
     },
     {
       "id": "localize",
       "phase": 6,
       "name": "Localization head",
-      "state": "trained",
-      "does": "Calibrated line scores with a cut-off chosen on validation data. Measured on the dataset only; not run on your code."
+      "state": "live",
+      "does": "Turns the fused scores into calibrated probabilities, with a cut-off chosen on validation data."
     },
     {
       "id": "explain",
       "phase": 7,
       "name": "Explanation",
-      "state": "trained",
-      "does": "Says why a line was flagged: a known weakness pattern, plus what the model looked at. Measured on the dataset only; not run on your code."
+      "state": "live",
+      "does": "Gives a reason where a known weakness pattern matches a line, and shows what the model weighted."
     },
     {
       "id": "evaluate",
       "phase": 8,
       "name": "Evaluation",
       "state": "trained",
-      "does": "Held-out numbers on the test and clean-evaluation data, measured once. Measured on the dataset only; not run on your code."
+      "does": "Held-out numbers for this checkpoint, measured once on test data. Not run on your code."
     },
     {
       "id": "serve",
       "phase": 9,
       "name": "Serving",
-      "state": "trained",
-      "does": "The packaged API and demo page: paste a function, get ranked lines and an explanation. Runs separately from this page."
+      "state": "live",
+      "does": "The packaged bundle this page loads: which checkpoint answered, and what it did not examine."
     }
   ]
 }

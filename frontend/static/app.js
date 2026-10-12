@@ -1,9 +1,9 @@
 /* VulnLoc — client.
 
    Two views over one paste. FINDINGS is for the developer: the lines to review first,
-   ranked by the Phase 3 semantic model, with any known weakness pattern on each line and
-   its usual fix. DETAILED REPORT shows each pipeline stage's output on the paste, and the
-   structural model's own ranking beside the semantic one.
+   ranked by the released model, with a reason and the usual fix on each line a known
+   weakness pattern matches. DETAILED REPORT shows each pipeline stage's output on the
+   paste, each branch's own ranking, and what was measured for the checkpoint.
 
    Renders what the server measured. If a number is on screen it came from `/api/*`, which
    in turn came from `src/vulnloc` or a seed report on disk. The only arithmetic here is
@@ -11,6 +11,9 @@
 
    The model and the templates are two different sources and are never blended on screen.
    The model ranks a line and gives no reason; a template matches the line's text.
+
+   Owner, 2026-10-12: no count of flagged lines as a headline, and a reason only for a
+   line a pattern matches. The model's ordering stays visible in the whole-function view.
 
    Keep it short (owner, 2026-09-15): each stage shows one sentence, its numbers, and its
    picture. Explanations belong in the docs, not on the page.
@@ -48,8 +51,7 @@ async function boot() {
   if (TABS.includes(params.get("tab"))) selectTab(params.get("tab"));
   const index = Number(params.get("sample"));
   if (params.has("sample") && SAMPLES[index]) {
-    $("code").value = SAMPLES[index].code;
-    run();
+    pickSample(SAMPLES[index]);
   }
 }
 
@@ -119,23 +121,43 @@ const builtStages = () => PHASES.filter((s) => s.state !== "planned");
 const plannedStages = () => PHASES.filter((s) => s.state === "planned");
 
 let SAMPLES = [];
+/* The sample in the box. Its named lines are compared with the ranking only while the
+   text is exactly the sample's: an edited sample is somebody's own code. */
+let CURRENT_SAMPLE = null;
+
+const SAMPLE_GROUPS = [
+  ["weakness", "A weakness was written in"],
+  ["none", "No weakness intended"],
+  ["pipeline", "Pipeline samples"],
+];
+
+function pickSample(sample) {
+  CURRENT_SAMPLE = sample;
+  $("code").value = sample.code;
+  run();
+}
 
 async function loadSamples() {
   const samples = await fetch("/api/samples").then((r) => r.json());
   SAMPLES = samples;
   const host = $("samples");
-  for (const sample of samples) {
-    const button = el("button", "sample");
-    button.type = "button";
-    button.append(el("b", null, sample.name));
-    button.append(el("span", null, sample.note));
-    button.addEventListener("click", () => {
-      $("code").value = sample.code;
-      run();
-    });
-    button.title = sample.note;
-    host.append(button);
-  }
+  SAMPLE_GROUPS.forEach(([group, title], index) => {
+    const members = samples.filter((sample) => sample.group === group);
+    if (!members.length) return;
+    const box = el("details", "sample-group");
+    box.open = index === 0;
+    box.append(el("summary", null, `${title} (${members.length})`));
+    for (const sample of members) {
+      const button = el("button", "sample");
+      button.type = "button";
+      button.append(el("b", null, sample.name));
+      button.append(el("span", null, sample.note));
+      button.addEventListener("click", () => pickSample(sample));
+      button.title = sample.note;
+      box.append(button);
+    }
+    host.append(box);
+  });
 }
 
 /* ── Run ───────────────────────────────────────────────────────────────────── */
@@ -168,17 +190,26 @@ async function run() {
   button.textContent = "Analysing…";
   $("error-slot").replaceChildren();
 
-  // Three independent requests: the report is fast, the models are not on their first
-  // call, and none should wait for another.
+  // Independent requests: the report is fast, the models are not on their first call, and
+  // none should wait for another.
   const code = $("code").value;
-  const findings = postJson("/api/findings", { code });
-  const structural = postJson("/api/structural", { code });
-  await Promise.all([runReport(code, findings, structural), runFindings(findings)]);
-  button.disabled = false;
-  button.textContent = "Analyse";
+  const sample = CURRENT_SAMPLE && CURRENT_SAMPLE.code === code ? CURRENT_SAMPLE : null;
+  const pending = {
+    findings: postJson("/api/findings", { code }),
+    semantic: postJson("/api/semantic", { code }),
+    structural: postJson("/api/structural", { code }),
+  };
+  try {
+    await Promise.all([runReport(code, pending), runFindings(pending.findings, sample)]);
+  } catch (err) {
+    showError({ error: String(err), kind: "page" });
+  } finally {
+    button.disabled = false;
+    button.textContent = "Analyse";
+  }
 }
 
-async function runFindings(pending) {
+async function runFindings(pending, sample) {
   const host = $("findings");
   host.replaceChildren(el("p", "empty loading", "Ranking lines… the first run loads the model."));
   const { data, error } = await pending;
@@ -187,10 +218,15 @@ async function runFindings(pending) {
     host.append(errorBox(error));
     return;
   }
-  renderFindings(host, data);
+  try {
+    renderFindings(host, data, sample);
+  } catch (err) {
+    // An answer in a shape this script cannot draw: a server and a page of different ages.
+    host.replaceChildren(errorBox({ error: String(err), kind: "page" }));
+  }
 }
 
-async function runReport(code, findings, structural) {
+async function runReport(code, pending) {
   const body = {
     code,
     policy: $("policy").value,
@@ -206,7 +242,7 @@ async function runReport(code, findings, structural) {
     $("stages").replaceChildren();
     return;
   }
-  renderStages(data, { findings, structural });
+  renderStages(data, pending);
 }
 
 function errorBox(data) {
@@ -218,7 +254,9 @@ function errorBox(data) {
         ? "The model raised"
         : data.kind === "network"
           ? "Could not reach the server"
-          : "The pipeline raised";
+          : data.kind === "page"
+            ? "The page could not draw the answer"
+            : "The pipeline raised";
   box.append(el("h2", null, title));
   // FastAPI's own errors (404, 405, 422) carry `detail`, not `error`. A box with a title
   // and no message is what a stale server looked like on 2026-09-15.
@@ -230,6 +268,9 @@ function errorBox(data) {
   if (data.status === 404 || data.status === 405) {
     box.append(el("p", "empty", "The server may be older than this page. Restart it."));
   }
+  if (data.kind === "page") {
+    box.append(el("p", "empty", "The page and the server may be of different ages. Reload with Ctrl+F5, or restart the server."));
+  }
   if (data.traceback) box.append(el("pre", null, data.traceback));
   return box;
 }
@@ -240,145 +281,222 @@ function showError(data) {
 
 /* ── Findings ──────────────────────────────────────────────────────────────── */
 
-function renderFindings(host, data) {
-  const m = data.measured;
-  const run = m.run || {};
+const lineList = (lines) => `line${lines.length === 1 ? "" : "s"} ${lines.join(" and ")}`;
 
-  const trust = el("div", "trust");
-  const trustHead = el("p", "trust-lead");
-  trustHead.append(el("b", null, "Lines to review first. "));
-  trustHead.append(
-    document.createTextNode(
-      run.top_5 != null
-        ? `On held-out data the real flawed line was in its top ${data.top_k} ${pct(run.top_5)} of the time.`
-        : ""
-    )
-  );
-  trust.append(trustHead);
-  const caveats = el("ul", "trust-caveats");
-  caveats.append(
-    el("li", null, "It assumes there is a flaw and ranks where. It cannot tell you code is safe."),
-    el("li", null, "Fix advice comes from pattern templates, not from the model."),
-    el(
-      "li",
-      null,
-      "That figure is inflated by a formatting artefact in the training data (found 2026-10-07), and a line ending in a comment may be ranked too low."
-    )
-  );
-  trust.append(caveats);
-  host.append(trust);
-
-  const list = el("ol", "findings");
-  for (const finding of data.top) {
-    list.append(findingCard(finding));
-  }
-  host.append(list);
-
-  if (data.patterns_elsewhere.length) {
-    const other = el("section", "elsewhere");
-    other.append(el("h3", null, "Known patterns on lower-ranked lines"));
-    const rows = el("ul", "elsewhere-list");
-    for (const item of data.patterns_elsewhere) {
-      for (const p of item.patterns) {
-        const li = el("li");
-        li.append(el("span", "ln-chip", `L${item.line}`));
-        li.append(el("span", "cwe", p.cwe));
-        li.append(el("span", null, `${p.title} — `));
-        li.append(el("code", null, item.text));
-        rows.append(li);
-      }
-    }
-    other.append(rows);
-    host.append(other);
+function renderFindings(host, data, sample) {
+  host.append(trustBox(data));
+  if (sample) {
+    const check = sampleCheck(data, sample);
+    if (check) host.append(check);
   }
 
+  // A card only where a known weakness pattern matches a line above the model's cut-off.
+  if (data.cards.length) {
+    const list = el("ol", "findings");
+    for (const card of data.cards) list.append(findingCard(card));
+    host.append(list);
+  } else {
+    host.append(
+      el(
+        "p",
+        "no-pattern no-cards",
+        "No known weakness pattern matches a line the model ranked above its cut-off. That is not a statement that the function is safe."
+      )
+    );
+  }
+
+  host.append(topLines(data));
   host.append(sourceMap(data));
 
   const foot = el("p", "note");
-  foot.textContent = "Scores are for ordering only, not probabilities.";
-  if (data.beyond_line_cap) {
-    foot.textContent += ` ${plural(data.beyond_line_cap, "line", "lines")} past line 512 cannot be scored.`;
+  foot.textContent = "Scores are calibrated probabilities and are low by construction. Read the order.";
+  if (data.coverage.lines_beyond_cap) {
+    foot.textContent += ` ${plural(data.coverage.lines_beyond_cap, "line", "lines")} past line ${data.coverage.line_cap} cannot be scored.`;
   }
   host.append(foot);
 }
 
-function findingCard(finding) {
+/* Read before the cards. Every figure in it is the bundle's own record or a logged run's. */
+function trustBox(data) {
+  const m = data.measured;
+  const trust = el("div", "trust");
+  const lead = el("p", "trust-lead");
+  lead.append(el("b", null, "Lines to review first. "));
+  if (m && typeof m.top_5 === "number") {
+    lead.append(
+      document.createTextNode(
+        `On ${m.units} held-out functions the real flawed line was in its top 5 ${pct(m.top_5)} of the time.`
+      )
+    );
+  }
+  trust.append(lead);
+
+  const caveats = el("ul", "trust-caveats");
+  caveats.append(
+    el("li", null, "It assumes there is a flaw and ranks where. It cannot tell you code is safe."),
+    el("li", null, "A reason is shown only where a known weakness pattern matches. Reasons and fixes come from templates, not from the model.")
+  );
+  const record = data.pattern_record;
+  if (record) {
+    const item = el(
+      "li",
+      null,
+      `A pattern is a text match, not proof: on validation one matched in ${record.vulnerable.raised} of ${record.vulnerable.n} vulnerable functions and ${record.not_vulnerable.raised.toLocaleString()} of ${record.not_vulnerable.n.toLocaleString()} harmless ones.`
+    );
+    item.title = `run ${record.run_id} — an experiment, validation only`;
+    caveats.append(item);
+  }
+  trust.append(caveats);
+  return trust;
+}
+
+/* Where a sample's author wrote the weakness in, against what came back. The model was
+   sent only the code; one function is an illustration, never a measurement. */
+function sampleCheck(data, sample) {
+  if (sample.group === "pipeline") return null;
+  const rankOf = new Map(data.scores.map((entry) => [entry.line, entry.rank]));
+  const cardLines = new Set(data.cards.map((card) => card.line));
+  const box = el("p", "note sample-check");
+  box.append(el("b", null, "Sample check. "));
+  let text;
+  if (sample.lines.length) {
+    const where = sample.lines.map((line) => {
+      const rank = rankOf.get(line);
+      const ranked = rank ? `ranked #${rank} of ${data.coverage.lines_scored}` : "not scored";
+      return `line ${line} is ${ranked}, ${cardLines.has(line) ? "and a pattern matches it" : "and no pattern matches it"}`;
+    });
+    text = `The weakness was written into ${lineList(sample.lines)}: ${where.join("; ")}.`;
+  } else if (data.cards.length) {
+    text = `No weakness was written into this function, and ${plural(data.cards.length, "line still matches", "lines still match")} a pattern. A pattern is a text match, not a finding.`;
+  } else {
+    text = "No weakness was written into this function, and no pattern matches. That agrees with the sample; it is still not evidence that a function is safe.";
+  }
+  box.append(document.createTextNode(`${text} Written by hand for this page; the model was sent only the code.`));
+  return box;
+}
+
+function findingCard(card) {
   const li = el("li", "finding");
-  li.id = `finding-L${finding.line}`;
+  li.id = `finding-L${card.line}`;
 
   const head = el("div", "finding-head");
-  head.append(el("span", "finding-rank", `#${finding.rank}`));
-  head.append(el("span", "finding-line", `Line ${finding.line}`));
+  head.append(el("span", "finding-rank", `#${card.rank}`));
+  head.append(el("span", "finding-line", `Line ${card.line}`));
   const meter = el("span", "meter");
-  meter.title = `score ${finding.score.toFixed(3)}`;
+  meter.title = `score ${card.score.toFixed(3)}`;
   const fill = el("span", "meter-fill");
-  fill.style.width = `${Math.max(4, finding.score * 100)}%`;
+  fill.style.width = `${Math.max(4, card.score * 100)}%`;
   meter.append(fill);
   head.append(meter);
-  head.append(
-    el(
-      "span",
-      finding.patterns.length ? "finding-tag has-pattern" : "finding-tag",
-      finding.patterns.length ? plural(finding.patterns.length, "known pattern", "known patterns") : "no known pattern"
-    )
-  );
+  head.append(el("span", "finding-tag has-pattern", "known pattern"));
   li.append(head);
 
   const snippet = el("div", "snippet");
-  for (const row of finding.context) {
+  for (const row of card.context) {
     const line = el("div", "snippet-row");
-    if (row.line === finding.line) line.dataset.focus = "true";
+    if (row.line === card.line) line.dataset.focus = "true";
     line.append(el("span", "ln", String(row.line)));
     line.append(el("code", "src", row.text || " "));
     snippet.append(line);
   }
   li.append(snippet);
 
-  for (const p of finding.patterns) {
-    const block = el("div", "pattern");
-    const title = el("p", "pattern-title");
-    title.append(el("span", "cwe", p.cwe), document.createTextNode(p.title));
-    block.append(title);
+  const block = el("div", "pattern");
+  const title = el("p", "pattern-title");
+  if (card.cwe) title.append(el("span", "cwe", card.cwe));
+  title.append(document.createTextNode(card.label));
+  block.append(title);
 
-    const check = el("p", "pattern-text");
-    check.append(el("b", null, "Check  "), document.createTextNode(p.problem));
-    block.append(check);
+  // The service's sentence, shown whole: it was verified against the prediction as written.
+  const why = el("p", "pattern-text");
+  why.append(el("b", null, "Why  "), document.createTextNode(card.explanation));
+  block.append(why);
+
+  if (card.advice) {
     const fix = el("p", "pattern-text");
-    fix.append(el("b", null, "Fix  "), document.createTextNode(p.fix));
+    fix.append(el("b", null, "Fix  "), document.createTextNode(card.advice.fix));
     block.append(fix);
 
     const pair = el("div", "before-after");
     const before = el("div");
-    before.append(el("span", "pair-label", "typical"), el("pre", null, p.example.before));
+    before.append(el("span", "pair-label", "typical"), el("pre", null, card.advice.example.before));
     const after = el("div");
-    after.append(el("span", "pair-label", "safer"), el("pre", null, p.example.after));
+    after.append(el("span", "pair-label", "safer"), el("pre", null, card.advice.example.after));
     pair.append(before, after);
     block.append(pair);
-    li.append(block);
   }
+
+  block.append(more("What the model weighted", evidence(card)));
+  li.append(block);
   return li;
 }
 
-/* The whole function with the model's ordering alongside. Top-ranked lines carry their rank
-   and link to their card; every other scored line is shaded by score, faintly. */
+/* The fusion has two attention maps, so a line can be weighted in each. The data-flow path
+   is static analysis of the function, not something the model reported. */
+function evidence(card) {
+  const weighted = (direction) =>
+    card.attended
+      .filter((attended) => attended.direction === direction)
+      .map((attended) => `line ${attended.line} (${attended.weight.toFixed(2)})`)
+      .join(", ") || "none recorded";
+  return readout([
+    ["Text branch weighted", weighted("sem_from_str")],
+    ["Graph branch weighted", weighted("str_from_sem")],
+    ["Tokens", card.tokens.length ? card.tokens.join(" · ") : "none"],
+    [
+      "Data-flow path (static)",
+      card.dataflow_path.length
+        ? `lines ${card.dataflow_path.join(" → ")}${card.dataflow_symbols.length ? ` · through ${card.dataflow_symbols.join(", ")}` : ""}`
+        : "none found",
+    ],
+  ]);
+}
+
+/* The top of the model's ordering, pattern or not. The ordering is what was measured. */
+function topLines(data) {
+  const wrap = el("section", "elsewhere");
+  wrap.append(el("h3", null, "The model's highest-ranked lines"));
+  const rows = el("ul", "elsewhere-list");
+  for (const entry of data.top) {
+    const li = el("li");
+    li.append(el("span", "ln-chip", `#${entry.rank}`));
+    li.append(el("span", "ln-chip", `L${entry.line}`));
+    li.append(el("code", null, entry.code));
+    if (entry.has_card) {
+      const link = el("a", "heat-rank", "pattern ↑");
+      link.href = `#finding-L${entry.line}`;
+      li.append(link);
+    }
+    rows.append(li);
+  }
+  if (!data.top.length) rows.append(el("li", "dim", "No line could be scored."));
+  wrap.append(rows);
+  return wrap;
+}
+
+/* The whole function with the model's ordering alongside. The highest-ranked lines carry
+   their rank; every other scored line is shaded by score, faintly. */
 function sourceMap(data) {
   const wrap = el("section", "source-map");
   wrap.append(el("h3", null, "Whole function"));
-  const rankByLine = new Map(data.top.map((f) => [f.line, f.rank]));
+  const topRank = new Map(data.top.map((entry) => [entry.line, entry.rank]));
+  const cardLines = new Set(data.cards.map((card) => card.line));
   const box = el("div", "axis");
   for (const entry of data.scores) {
     const row = el("div", "map-row");
-    const rank = rankByLine.get(entry.line);
+    const rank = topRank.get(entry.line);
     if (rank) row.dataset.top = "true";
     row.append(el("span", "ln", String(entry.line)));
     const heat = el("span", "heat");
     if (entry.score == null) {
       heat.textContent = "—";
       heat.title = "not scored";
-    } else if (rank) {
+    } else if (rank && cardLines.has(entry.line)) {
       const a = el("a", "heat-rank", `#${rank}`);
       a.href = `#finding-L${entry.line}`;
       heat.append(a);
+    } else if (rank) {
+      heat.append(el("span", "heat-rank", `#${rank}`));
     } else {
       heat.style.setProperty("--heat", String(entry.score));
       heat.classList.add("heat-shade");
@@ -480,6 +598,10 @@ const RENDERERS = {
   semantic: renderSemantic,
   structural: renderStructural,
   fusion: renderFusion,
+  localize: renderLocalize,
+  explain: renderExplain,
+  evaluate: renderEvaluate,
+  serve: renderServe,
 };
 
 function renderStages(data, pending) {
@@ -491,7 +613,8 @@ function renderStages(data, pending) {
     if (renderer) renderer(body, data, pending);
     host.append(section);
   }
-  host.append(renderPlanned());
+  // Every stage is built now; an empty "Not built yet" box would say otherwise.
+  if (plannedStages().length) host.append(renderPlanned());
 }
 
 function renderPlanned() {
@@ -766,70 +889,221 @@ function accuracy(name, label) {
   ];
 }
 
-function renderSemantic(body) {
+/* A slot that fills when one model has answered. A model that failed shows its real
+   error here, never an empty table. */
+async function whenAnswered(body, request, draw) {
+  const slot = el("div");
+  slot.append(el("p", "empty loading", "Ranking lines… the first run loads the model."));
+  body.append(slot);
+  const { data, error } = await request;
+  slot.replaceChildren();
+  if (error) {
+    slot.append(errorBox(error));
+    return;
+  }
+  draw(slot, data);
+}
+
+const rankMap = (answer) => new Map((answer.data?.scores || []).map((e) => [e.line, e.rank]));
+const rankCell = (ranks, line) => ranks.get(line) ?? "—";
+
+async function renderSemantic(body, _data, pending) {
   body.append(readout(accuracy("semantic", "Held-out")));
-  const go = el("button", "link-button", "See its ranking in Findings →");
-  go.type = "button";
-  go.addEventListener("click", () => selectTab("findings", true));
-  body.append(go);
+  body.append(
+    el("p", "note", "Trained before comments were stripped: that figure is inflated by a formatting artefact (found 2026-10-07).")
+  );
+  const slot = el("div");
+  body.append(slot);
+  const released = rankMap(await pending.findings);
+  await whenAnswered(slot, pending.semantic, (inner, s) => {
+    inner.append(el("h3", "sub", "Top lines on your code"));
+    inner.append(
+      table(
+        ["#", "line", "code", "released model's rank"],
+        s.top.map((e) => [e.rank, e.line, el("code", null, e.text), rankCell(released, e.line)]),
+        { numeric: [0, 1, 3] }
+      )
+    );
+  });
 }
 
 async function renderStructural(body, _data, pending) {
   body.append(readout(accuracy("structural", "Held-out")));
-
   const slot = el("div");
-  slot.append(el("p", "empty loading", "Ranking lines… the first run loads the model."));
   body.append(slot);
-
-  const [structural, findings] = await Promise.all([pending.structural, pending.findings]);
-  slot.replaceChildren();
-  if (structural.error) {
-    slot.append(errorBox(structural.error));
-    return;
-  }
-  const s = structural.data;
-  const semanticRank = new Map((findings.data?.scores || []).map((e) => [e.line, e.rank]));
-
-  slot.append(el("h3", "sub", "Top lines on your code"));
-  slot.append(
-    table(
-      ["#", "line", "code", "semantic model's rank"],
-      s.top.map((e) => {
-        const code = el("code", null, e.text);
-        const other = semanticRank.get(e.line);
-        return [e.rank, e.line, code, other ?? "—"];
-      }),
-      { numeric: [0, 1, 3] }
-    )
-  );
-  if (s.lines_without_node.length) {
-    slot.append(
-      el("p", "note", `Not scored (no graph node): ${plural(s.lines_without_node.length, "line", "lines")} — ${s.lines_without_node.join(", ")}.`)
+  const [semantic, findings] = await Promise.all([pending.semantic, pending.findings]);
+  const semanticRank = rankMap(semantic);
+  const released = rankMap(findings);
+  await whenAnswered(slot, pending.structural, (inner, s) => {
+    inner.append(el("h3", "sub", "Top lines on your code"));
+    inner.append(
+      table(
+        ["#", "line", "code", "semantic model's rank", "released model's rank"],
+        s.top.map((e) => [e.rank, e.line, el("code", null, e.text), rankCell(semanticRank, e.line), rankCell(released, e.line)]),
+        { numeric: [0, 1, 3, 4] }
+      )
     );
-  }
+    if (s.lines_without_node.length) {
+      inner.append(
+        el("p", "note", `Not scored (no graph node): ${plural(s.lines_without_node.length, "line", "lines")} — ${s.lines_without_node.join(", ")}.`)
+      );
+    }
+  });
 }
 
-function renderFusion(body) {
+async function renderFusion(body, _data, pending) {
+  const slot = el("div");
+  body.append(slot);
   const rows = [
     ["cross_attention", "Cross-attention"],
     ["concat", "Concatenation"],
     ["sum", "Sum"],
     ["gated", "Gated"],
   ];
-  const semantic = RESULTS.semantic;
   const tableRows = rows
     .filter(([name]) => RESULTS[name] && !RESULTS[name].missing)
     .map(([name, label]) => ({
       chosen: name === "cross_attention",
       cells: [label, pct(RESULTS[name].top_5), pct(RESULTS[name].top_1)],
     }));
-  if (semantic && !semantic.missing) {
-    tableRows.push({ cells: ["Semantic model alone (Findings)", pct(semantic.top_5), pct(semantic.top_1)] });
-  }
-  body.append(table(["method", "top-5 hit rate", "top-1 hit rate"], tableRows, { numeric: [1, 2] }));
-  body.append(
-    el("p", "note", "The fusion runs used a frozen semantic model to save GPU time, which is why they score below it. A full run is pending.")
+  const screen = el("div");
+  screen.append(table(["method", "top-5 hit rate", "top-1 hit rate"], tableRows, { numeric: [1, 2] }));
+  screen.append(
+    el("p", "note", "A screen with the semantic model frozen, on text that still had comments. Fine-tuned and held out, the methods tie; see Evaluation.")
   );
+  body.append(more("Compare fusion methods (validation screen)", screen));
+
+  const [semantic, structural] = await Promise.all([pending.semantic, pending.structural]);
+  const semanticRank = rankMap(semantic);
+  const structuralRank = rankMap(structural);
+  await whenAnswered(slot, pending.findings, (inner, f) => {
+    inner.append(el("h3", "sub", "Top lines on your code"));
+    inner.append(
+      table(
+        ["#", "line", "code", "semantic alone", "structural alone"],
+        f.top.map((e) => [e.rank, e.line, el("code", null, e.code), rankCell(semanticRank, e.line), rankCell(structuralRank, e.line)]),
+        { numeric: [0, 1, 3, 4] }
+      )
+    );
+  });
+}
+
+function renderLocalize(body, _data, pending) {
+  return whenAnswered(body, pending.findings, (slot, f) => {
+    slot.append(
+      readout([
+        ["Cut-off", f.threshold.toFixed(3)],
+        ["Calibration", f.model.calibrator],
+      ])
+    );
+    slot.append(
+      table(
+        ["#", "line", "score", "over cut-off", "code"],
+        f.top.map((e) => [e.rank, e.line, e.score.toFixed(3), e.flagged ? "yes" : "no", el("code", null, e.code)]),
+        { numeric: [0, 1, 2] }
+      )
+    );
+    slot.append(
+      el("p", "note", "A short function almost always has a line over the cut-off, vulnerable or not. Read the order, not the flag.")
+    );
+  });
+}
+
+function renderExplain(body, _data, pending) {
+  return whenAnswered(body, pending.findings, (slot, f) => {
+    if (f.cards.length) {
+      slot.append(
+        table(
+          ["line", "pattern", "model weighted", "data flow (static)"],
+          f.cards.map((card) => [
+            card.line,
+            `${card.label}${card.cwe ? ` · ${card.cwe}` : ""}`,
+            [...new Set(card.attended.map((a) => a.line))].join(", ") || "—",
+            card.dataflow_path.length ? card.dataflow_path.join(" → ") : "—",
+          ]),
+          { numeric: [0] }
+        )
+      );
+    } else {
+      slot.append(el("p", "empty", "No pattern matches a line over the cut-off, so no reason is given."));
+    }
+    const matched = new Set(f.patterns.matched);
+    const chips = el("ul", "pattern-chips");
+    for (const pattern of f.patterns.checked) {
+      // Several patterns share a label (three kinds of buffer overflow), so the id is shown.
+      chips.append(
+        el("li", matched.has(pattern.id) ? "matched" : null, `${pattern.label}: ${pattern.id}${pattern.cwe ? ` · ${pattern.cwe}` : ""}`)
+      );
+    }
+    slot.append(more(`The ${f.patterns.checked.length} patterns tested`, chips));
+    if (f.coverage.explanations_rejected) {
+      slot.append(
+        el("p", "note note-warn", `${plural(f.coverage.explanations_rejected, "explanation", "explanations")} failed verification against the prediction and ${f.coverage.explanations_rejected === 1 ? "is" : "are"} not shown.`)
+      );
+    }
+  });
+}
+
+function renderEvaluate(body, _data, pending) {
+  return whenAnswered(body, pending.findings, (slot, f) => {
+    const m = f.measured;
+    if (!m) {
+      slot.append(el("p", "empty", "This bundle carries no measured record."));
+      return;
+    }
+    slot.append(
+      readout([
+        ["Held-out functions", m.units.toLocaleString(), null, m.partition],
+        ["Flawed line in top 5", pct(m.top_5), "live"],
+        ["Flawed line first", pct(m.top_1)],
+        ["Top 5, reading top-down", pct(m.source_order_top_5)],
+        ["Labelled lines over the cut-off", pct(m.line_recall)],
+        ["Lines over the cut-off that were labelled", pct(m.line_precision)],
+      ])
+    );
+    slot.append(
+      el("p", "note", "Every one of those functions contains a vulnerability, so none of this is a rate of detecting vulnerable functions.")
+    );
+    const record = f.pattern_record;
+    if (record) {
+      slot.append(
+        el("p", "note", `On validation a pattern matched a line over the cut-off in ${pct(record.vulnerable.raised / record.vulnerable.n)} of ${record.vulnerable.n} vulnerable functions and ${pct(record.not_vulnerable.raised / record.not_vulnerable.n)} of ${record.not_vulnerable.n.toLocaleString()} harmless ones (an experiment).`)
+      );
+    }
+  });
+}
+
+function renderServe(body, _data, pending) {
+  return whenAnswered(body, pending.findings, (slot, f) => {
+    const c = f.coverage;
+    slot.append(
+      readout([
+        ["Bundle", f.model.bundle],
+        ["Run", f.model.run_id.slice(0, 8)],
+        ["Code", f.model.git_sha],
+        ["Answered in", `${f.seconds.toFixed(2)} s`, null, f.model.device],
+      ])
+    );
+    slot.append(
+      readout([
+        ["Lines", c.lines],
+        ["Scored", c.lines_scored],
+        ["Past the line cap", c.lines_beyond_cap, c.lines_beyond_cap ? "void" : null],
+        ["Code with nothing to score", c.lines_without_features, c.lines_without_features ? "void" : null],
+        ["Blank, never offered", c.blank_lines],
+      ])
+    );
+    if (!c.parse_clean) {
+      slot.append(
+        el("p", "note note-warn", c.first_parse_error_line
+          ? `The parser had to repair this function, first at line ${c.first_parse_error_line}; the structural branch read a damaged graph.`
+          : "The parser had to repair this function; the structural branch read a damaged graph.")
+      );
+    }
+    if (!c.dataflow_available) {
+      slot.append(el("p", "note note-warn", "No data-flow graph could be built, so no reason carries a data-flow path."));
+    }
+  });
 }
 
 boot();

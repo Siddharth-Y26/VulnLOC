@@ -3471,12 +3471,83 @@ also stored with the run. The script and its 15 tests are on the experiment bran
 
 ---
 
+## 1.36 One site that holds everything — `frontend/` on port 8000: Findings is the released model, a reason only where a pattern matches, 17 hand-written examples (2026-10-12)
+
+**The owner's words, after seeing both interfaces side by side** (§2): *"i like the 8000
+port one its format is exactly like what we want, but I want you to make one complete site
+which has everything also on the 8080 port one i dont like the count of number of lines
+flagged card also below only mention the lines who match a pattern"*. Built the same
+evening. **On seeing it the owner said: *"okay save these for now, theres some improvement
+to be done for sure we will tackle that later"* — committed as it stood. Which
+improvements was not said; ask before changing the page.** **The released service (`src/vulnloc/serving/`,
+`scripts/serve.py`, port 8080) is unchanged** — a picker added to its page earlier in the
+session was taken back out.
+
+What `python frontend/server.py` now serves on `http://127.0.0.1:8000`:
+
+- **Findings is the model of record**, not the Phase 3 semantic model: `frontend/released.py`
+  loads the bundle `artifacts/serving/ba7dcc5f-r2` through the service's own
+  `vulnloc.serving.inference.Analyzer` — same scores, cut-off, explanations and verifier.
+  Nothing is re-implemented; every line's rank is rebuilt from the analysis' logits for the
+  whole-function view and **refused if it disagrees with the service's report**.
+- **No count of flagged lines as a headline** (the service's `summary` sentence is not
+  passed to the page), and **a card only for a line over the cut-off that a known weakness
+  pattern matches** — the explainer's verified sentence shown whole, the usual fix from
+  `frontend/fix_templates.py` joined on the pattern's id (`advice_for`; the three
+  index/offset patterns are declared in `NO_ADVICE` and carry no fix), and what the model
+  weighted behind a toggle. The model's five highest-ranked lines and the whole function
+  with its ordering stay on the page whether or not anything matches.
+- **This is the "pattern" headline of §1.35, by the owner's choice of presentation.** So
+  the page quotes that record beside it, read from `artifacts/screening/verdicts_val.json`
+  and only for the bundle it was measured with (run `6c942e6c…`, `val`, an experiment): a
+  pattern matched in 135 of 488 vulnerable functions and 210 of 1,000 harmless ones. "No
+  known weakness pattern matches…" is followed by "That is not a statement that the
+  function is safe."
+- **Samples: 21.** The four pipeline samples (still `?sample=0…3`) and 17 functions
+  written by hand in `frontend/samples.py` — ten with a weakness written into a named
+  line, seven with none intended. For an unedited sample the page adds a "Sample check":
+  where the named line was ranked and whether a pattern matches it. **A sample's line is
+  its author's intent, never a label; "no weakness intended" was audited by nobody;
+  seventeen functions are an illustration and no figure from them is quoted anywhere.**
+  Seen once, on the bundle of record: every weakness sample gets at least one card, and
+  so do four of the seven harmless ones — a pattern is a text match (landmine #74's
+  cousin). One of those is the crude use-after-free template firing on `return items;`
+  after a `free(items)` on an error path: names only, no control flow (#19).
+- **Detailed report: all twelve stages now say something about the paste or the
+  checkpoint.** Semantic and structural models each rank the paste alone, with the released
+  model's rank beside; Fusion, Localization head and Explanation run on the paste;
+  Evaluation shows the bundle's held-out record (`test`, 533 units); Serving shows which
+  checkpoint answered and what was not examined. `frontend/phases.json` was updated; the
+  Fusion panel's old sentence "A full run is pending" was false since 2026-10-07 and is gone.
+
+Endpoints: `/api/findings` is the released model; the Phase 3 semantic ranking moved to
+`/api/semantic`. Tests: `tests/unit/test_frontend_released.py` (14; one reads the real
+bundle, one the real screening record — landmine #71) — with the other frontend and
+serving-app tests, 81 pass. Checked in a headless browser on both tabs.
+
+**The first thing the owner saw was a hung page**, and the cause was not the code under
+test: the browser had kept the old `app.js`, which could not draw the new `/api/findings`
+answer and threw with the button stuck at "Analysing…". Headless Edge, with an empty
+cache, had shown the page working an hour earlier. Fixed the same evening — the server
+sends `Cache-Control: no-cache` for everything outside `/api/`, the page's script and
+stylesheet addresses carry a query string that retires the cached copies, and a result
+the script cannot draw is an error box, not a stuck button. **A check made with an empty
+cache says nothing about a browser that has been here before.**
+
+**Not done, and worth knowing:** the semantic model alone (`fc902107…`) is still the one
+trained with comments in place, and its panel says so; the structural panel's held-out
+figure was measured on that text too and does not say so. The first request after a
+start waits for three models (about 80 s on a busy disk, 0.3–0.4 s afterwards).
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-10-12 | **One site holds everything, in the port-8000 layout; no count of flagged lines as a headline; a reason only for a line a pattern matches** (owner, session 20, shown the released demo page on port 8080 and the two-tab tool on port 8000 side by side: ***"i like the 8000 port one its format is exactly like what we want, but I want you to make one complete site which has everything also on the 8080 port one i dont like the count of number of lines flagged card also below only mention the lines who match a pattern"***). Read by the session as: build it in `frontend/`, put the released bundle behind Findings, move the examples there, and leave the packaged service and its page as released — **that last part is the session's reading, not the owner's words** (§1.36) | Change the released page under `src/vulnloc/serving/` as well; keep two sites | The owner chose the layout and the presentation. The pattern presentation is §1.35's second headline, so its measured record is quoted on the page beside it. The released page is what the Phase 9 gate, the Docker image and `docs/VerdictComparison.md` describe, and the pipeline panels need layers the packaged service may not import | — |
 | 2026-10-12 | **The results so far are kept in one record so the three headlines can be compared later: `docs/VerdictComparison.md`** (owner, after being told that the pattern page exists apart from the released system and asked whether the screening gate should be attempted the next day: ***"its fine save these results in a fle for later so we can compare all the three, the original the pattern and the screening gate later"***). Session 19 wrote the record and, **as its own addition**, measured both existing headlines on 1,000 `val` functions the corpus does not mark vulnerable (run `6c942e6c…`, §1.35). **"its fine" is not read as a yes to the gate: it is new training, the owner chose on 2026-10-11 to go on without any, and nothing was started** | Keep only the figures already reported (417 / 71 and 135 / 353 on vulnerable functions), the harmless side left "not measured" · read "its fine" as the go-ahead and start the gate | The owner asked for a record to compare against, and a "nothing found" line cannot be compared on vulnerable functions alone. The measurement trains nothing and touches no held-out partition and no file of record. The gate waits for words that name it | — |
 | 2026-10-12 | **Phase 9's Docker box is ticked as "a clean container on this laptop", the bundle of record becomes `artifacts/serving/ba7dcc5f-r2`, and the Phase 9 gate is closed** (owner: *"okay finish these two also so phase 8 and 9 done?"* — the same words as the Phase 8 row below; their first word answered the session's question whether to go ahead with the demo page). Session 19 finished the page on `POST /analyze/report`, added `export.measured_from`, re-exported the released checkpoint (`ef031969…`), rebuilt the image and checked the service in it against the host, then ticked the box and wrote §1.1g. **The Docker box had been left for the owner to say whether one laptop is what "clean" asks; the owner's words do not address that, and the tick's reading is the session's.** The owner has not read §1.1g | Leave the Docker box unticked and Phase 9 at 3 / 4 until the second laptop is tried; keep the first bundle as the bundle of record and treat the re-export as a second artefact | The owner's stated aim is both phases done. A container built from the repository alone, with only a bundle mounted and no network, is clean in everything but hardware; the second-machine check has a place of its own in Phase 10 (the independent reader). The new bundle has the same weights by digest and passed the same export check, so nothing measured on the first one is lost | — |
 | 2026-10-12 | **Phase 8's two remaining boxes are ticked and its gate is closed** (owner, after being told that two Phase 8 boxes and the Phase 8 and 9 gate signatures were what remained on the owner's side: *"okay finish these two also so phase 8 and 9 done?"*). Session 19 read those words as the instruction to finish both boxes and close both gates, and did the work first: a read-only trace of every run the Phase 8 tables name (`scripts/trace_phase8_tables.py` — 0 did not trace), and a verdict for each of the ten novelty claims written into `Phases.md`. **"Ablations confirm or refute each novelty claim" is ticked as "every claim has a written verdict", not as "every ablation was run": A3, A7 and A10 were not run and no claim is made about them.** The gate's three answers are §1.1f. **The owner has not read them and did not write "signed"; the reading is the session's and any part of it can be reversed** | Leave both boxes and the gate unsigned until the owner reads §1.1f; run A3, A7 and A10 first (A3 needs ADR-007 accepted and CPG graphs costed on the 4 GiB card; A7 needs the live encoder; A10 needs explainers that are not built) — new training, which the owner declined on 2026-10-11 | The owner's stated aim is both phases done, and each tick says in `Phases.md` what it claims and what it does not. The weakest of the four is the ablations box, and it is recorded as such | — |

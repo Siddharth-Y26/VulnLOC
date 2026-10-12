@@ -573,6 +573,8 @@ def structural_findings(code: str) -> dict[str, Any]:
     ranked = sorted((e for e in scored["scores"] if e["rank"] is not None), key=lambda e: e["rank"])
     chosen = [e for e in ranked if not _PUNCTUATION_ONLY.match(lines[e["line"] - 1])]
     return {
+        # Every line's rank, so another model's table can say where this one put a line.
+        "scores": scored["scores"],
         "top": [{**e, "text": lines[e["line"] - 1]} for e in chosen[: scored["top_k"]]],
         # Only lines holding code: a blank line having no node is not worth a reader's time.
         "lines_without_node": [
@@ -624,7 +626,21 @@ def measured_results() -> dict[str, Any]:
     return results
 
 
-def sample_functions() -> list[dict[str, str]]:
+def sample_functions() -> list[dict[str, Any]]:
+    """Every sample the page offers: the four pipeline samples, then the examples.
+
+    The pipeline samples come first so ``?sample=0`` keeps opening the one it always did.
+
+    Returns:
+        ``{name, note, code, group, lines}`` per sample (``frontend.samples``).
+    """
+    from frontend.samples import examples
+
+    pipeline = [{**sample, "group": "pipeline", "lines": []} for sample in _pipeline_samples()]
+    return pipeline + examples()
+
+
+def _pipeline_samples() -> list[dict[str, str]]:
     """Short C/C++ functions that exercise specific parts of the pipeline.
 
     Written for this tool rather than taken from the corpus: pasting a real Big-Vul

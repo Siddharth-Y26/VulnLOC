@@ -413,6 +413,24 @@ input[type="number"] {
   color: var(--dim);
 }
 
+/* Samples come in groups; only the first is open, so the list stays one screen tall. */
+.sample-group {
+  margin-bottom: 0.6rem;
+}
+
+.sample-group summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--type);
+  padding: 0.25rem 0;
+  margin-bottom: 0.35rem;
+}
+
+.sample-group summary:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
 /* ─── Stage panels ─────────────────────────────────────────────────────────── */
 
 .stage {
@@ -1237,6 +1255,60 @@ tr[data-chosen="true"] td {
 .heat-rank:hover,
 .heat-rank:focus-visible {
   text-decoration: underline;
+}
+
+/* What a sample's author wrote in, against what came back. Set apart from the trust box:
+   it is about this one function, not about the model. */
+.sample-check {
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  padding: 0.6rem 0.8rem;
+  margin: 0 0 1.25rem;
+  color: var(--type);
+}
+
+.sample-check b {
+  font-weight: 500;
+  color: var(--live);
+}
+
+/* No pattern matched: said once, where the cards would have been. */
+.no-cards {
+  border: 1px dashed var(--rule);
+  border-radius: 3px;
+}
+
+.elsewhere-list .heat-rank {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.pattern .more .readout {
+  margin: 0;
+}
+
+.pattern-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.pattern-chips li {
+  color: var(--dim);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.05rem 0.4rem;
+}
+
+.pattern-chips li.matched {
+  color: var(--live);
+  border-color: var(--live);
 }
 
 /* ─── Responsive ───────────────────────────────────────────────────────────── */

@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["TEMPLATES", "match_templates"]
+__all__ = ["NO_ADVICE", "TEMPLATES", "advice_for", "match_templates"]
 
 
 @dataclass(frozen=True)
@@ -304,6 +304,50 @@ FLOW_TEMPLATES: dict[str, dict[str, Any]] = {
         ),
     },
 }
+
+
+_ADVICE_ALIASES = {
+    "format-string-printf": "format-string",
+    "format-string-stream": "format-string",
+    "format-string-snprintf": "format-string",
+}
+"""The released explainer splits one weakness — a variable used as the format — by the call
+it sits in; the fix is the same for all three."""
+
+NO_ADVICE = frozenset({"pointer-offset-dereference", "array-index-write", "array-index-read"})
+"""Patterns of the released explainer this library has no fix for. An index or an offset
+is bounded somewhere else in the function, in a way a one-line template cannot write; a
+card for one of these carries the explanation and no fix, rather than a generic one."""
+
+
+def advice_for(pattern_id: str) -> dict[str, Any] | None:
+    """The usual fix for a pattern the released explainer matched.
+
+    The explainer (``vulnloc.explanation.templates``) says why a line matches; this
+    library says how such a line is usually fixed. They are joined on the pattern's id, so
+    the text of the line is matched once, by the explainer.
+
+    Args:
+        pattern_id: The explainer's template id.
+
+    Returns:
+        ``{fix, example: {before, after}}``, or ``None`` for a pattern in :data:`NO_ADVICE`
+        or one this library does not know.
+    """
+    key = _ADVICE_ALIASES.get(pattern_id, pattern_id)
+    for template in TEMPLATES:
+        if template.id == key:
+            return {
+                "fix": template.fix,
+                "example": {"before": template.example[0], "after": template.example[1]},
+            }
+    spec = FLOW_TEMPLATES.get(key)
+    if spec is not None:
+        return {
+            "fix": spec["fix"],
+            "example": {"before": spec["example"][0], "after": spec["example"][1]},
+        }
+    return None
 
 
 def match_templates(lines: list[str]) -> dict[int, list[dict[str, Any]]]:

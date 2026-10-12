@@ -1,13 +1,13 @@
-"""HTTP around :mod:`frontend.pipeline` — the VulnLoc pipeline inspector.
+"""HTTP around :mod:`frontend.pipeline` — the one VulnLoc site.
 
-A development instrument, not a product. It exists so the pipeline can be *watched*
-working on a real function instead of inferred from test output, and so the gap between
-what is built and what is planned is visible at a glance.
+**One site that holds everything (owner, 2026-10-12).** Findings is the released model —
+the serving bundle of record, run through the packaged service's own ``Analyzer``
+(:mod:`frontend.released`) — and the Detailed report shows every stage on the paste, each
+branch's own ranking beside it, and what the bundle says was measured.
 
-**This is not the Phase 9 serving API.** Phase 9 is unstarted and ``Phases.md`` forbids
-building ahead, so nothing here lives under ``src/vulnloc`` and nothing here is designed
-to be inherited. When Phase 9 lands it should be written against its own requirements;
-this tool can then be deleted or kept as a debugging view.
+**It is still not the Phase 9 serving API**, which is ``scripts/serve.py`` and answers the
+``PRD.md`` §5.4 contract. This site lives outside ``src/vulnloc`` and the layer graph
+because it reads from every layer at once; the packaged service may not.
 
 Run it::
 
@@ -23,6 +23,7 @@ import argparse
 import json
 import sys
 import traceback
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +37,7 @@ if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
 import uvicorn  # noqa: E402
-from fastapi import FastAPI  # noqa: E402
+from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
@@ -49,10 +50,26 @@ from frontend.pipeline import (  # noqa: E402
     sample_functions,
     structural_findings,
 )
+from frontend.released import released_findings, version  # noqa: E402
+from vulnloc.utils.exceptions import GraphBuildError, ParseError  # noqa: E402
 
 _ARTIFACTS = _REPO / "artifacts"
 
-app = FastAPI(title="VulnLoc pipeline inspector", docs_url="/api/docs")
+app = FastAPI(title="VulnLoc", docs_url="/api/docs")
+
+
+@app.middleware("http")
+async def revalidate_the_page(request: Request, call_next: Any) -> Any:
+    """Make the browser check the page, its script and its styles on every load.
+
+    Static files carry no ``Cache-Control`` by default, so a browser keeps ``app.js`` for
+    as long as it likes. On 2026-10-12 a new page was drawn by an old script against a new
+    server: Findings stopped at "Analysing…" with nothing on screen to say why.
+    """
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 class AnalyseRequest(BaseModel):
@@ -108,24 +125,26 @@ def api_analyse(request: AnalyseRequest) -> JSONResponse:
 
 
 class FindingsRequest(BaseModel):
-    """One Findings request. No options: normalization is not optional when scoring."""
+    """One scoring request. No options: every model runs the configuration it trained under."""
 
     code: str
 
 
-@app.post("/api/findings")
-def api_findings(request: FindingsRequest) -> JSONResponse:
-    """Rank a pasted function's lines and attach any known weakness pattern to them.
+def _scored(call: Callable[[str], dict[str, Any]], code: str) -> JSONResponse:
+    """Run one model over the paste and answer with its report or its real error.
 
     Args:
-        request: The code.
+        call: The scoring function.
+        code: The pasted source.
 
     Returns:
-        The findings report, or a 400/500 carrying the real error.
+        The report; a 400 for input the pipeline cannot read (nothing pasted, a parse or a
+        graph that cannot be built); a 500 carrying the error and its traceback otherwise.
+        A failure is never turned into an empty result.
     """
     try:
-        return JSONResponse(findings(request.code))
-    except ValueError as exc:
+        return JSONResponse(call(code))
+    except (ValueError, ParseError, GraphBuildError) as exc:
         return JSONResponse({"error": str(exc), "kind": "input"}, status_code=400)
     except Exception as exc:  # noqa: BLE001 - returned to the caller, never hidden
         return JSONResponse(
@@ -138,9 +157,35 @@ def api_findings(request: FindingsRequest) -> JSONResponse:
         )
 
 
+@app.post("/api/findings")
+def api_findings(request: FindingsRequest) -> JSONResponse:
+    """The Findings tab: the released model's ranking, and a reason where a pattern matches.
+
+    Args:
+        request: The code.
+
+    Returns:
+        :func:`frontend.released.released_findings`, or a 400/500 carrying the real error.
+    """
+    return _scored(released_findings, request.code)
+
+
+@app.post("/api/semantic")
+def api_semantic(request: FindingsRequest) -> JSONResponse:
+    """Rank a pasted function's lines with the Phase 3 semantic model alone.
+
+    Args:
+        request: The code.
+
+    Returns:
+        :func:`frontend.pipeline.findings`, or a 400/500 carrying the real error.
+    """
+    return _scored(findings, request.code)
+
+
 @app.post("/api/structural")
 def api_structural(request: FindingsRequest) -> JSONResponse:
-    """Rank a pasted function's lines with the Phase 4 structural model.
+    """Rank a pasted function's lines with the Phase 4 structural model alone.
 
     Args:
         request: The code.
@@ -148,19 +193,7 @@ def api_structural(request: FindingsRequest) -> JSONResponse:
     Returns:
         The structural ranking, or a 400/500 carrying the real error.
     """
-    try:
-        return JSONResponse(structural_findings(request.code))
-    except ValueError as exc:
-        return JSONResponse({"error": str(exc), "kind": "input"}, status_code=400)
-    except Exception as exc:  # noqa: BLE001 - returned to the caller, never hidden
-        return JSONResponse(
-            {
-                "error": f"{type(exc).__name__}: {exc}",
-                "kind": "model",
-                "traceback": traceback.format_exc(limit=12),
-            },
-            status_code=500,
-        )
+    return _scored(structural_findings, request.code)
 
 
 @app.get("/api/results")
@@ -174,11 +207,12 @@ def api_results() -> dict[str, Any]:
 
 
 @app.get("/api/samples")
-def api_samples() -> list[dict[str, str]]:
+def api_samples() -> list[dict[str, Any]]:
     """Return the built-in sample functions.
 
     Returns:
-        Named samples with their source.
+        Named samples with their source, their group and — for an example with a weakness
+        written in — the lines it was written into.
     """
     return sample_functions()
 
@@ -247,36 +281,30 @@ def api_corpus() -> dict[str, Any]:
 def api_model() -> dict[str, Any]:
     """Report what scores lines in this tool.
 
-    The Findings tab ranks lines with the Phase 3 semantic model (seed 42); no fused score
-    is shown anywhere. This used to also carry the text of a status banner on the Detailed
-    report tab, removed by the owner on 2026-09-15 — its "A1 has no result" had gone stale.
+    The Findings tab is the released bundle; the semantic and structural models alone are
+    shown only in the Detailed report, as the branches they are.
 
     Returns:
-        The model record, including the held-out numbers read from the seed report.
+        The bundle's provenance, read from its manifest.
     """
-    from frontend.scoring import RUN_ID, _measured
-
-    return {
-        "available": True,
-        "scores_with": "phase-3-semantic",
-        "run_id": RUN_ID,
-        "measured": _measured(),
-    }
+    return {"available": True, "scores_with": "released-bundle", **version()}
 
 
 @app.on_event("startup")
 def warm_model() -> None:
-    """Load the scoring model in the background, so the first paste does not wait for it.
+    """Load the scoring models in the background, so the first paste does not wait for them.
 
     A failure here is logged by the thread and surfaces again, verbatim, on the first
-    ``/api/findings`` call — it is not swallowed.
+    request that needs the model — it is not swallowed.
     """
     import threading
 
+    from frontend.released import _load as _load_released
     from frontend.scoring import _load
     from frontend.structural import _load as _load_structural
 
     def warm() -> None:
+        _load_released()
         _load()
         _load_structural()
 
@@ -288,7 +316,7 @@ app.mount("/", StaticFiles(directory=_HERE / "static", html=True), name="static"
 
 def main() -> None:
     """Parse arguments and serve."""
-    parser = argparse.ArgumentParser(description="VulnLoc pipeline inspector")
+    parser = argparse.ArgumentParser(description="VulnLoc: Findings and the detailed report")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--reload", action="store_true")

@@ -61,6 +61,23 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-12 late evening (session 20): THERE IS NOW ONE SITE — `python frontend/server.py`,
+`http://127.0.0.1:8000` (`Memory.md` §1.36) — built on the owner's words ("i like the 8000
+port one its format is exactly like what we want, but I want you to make one complete site
+which has everything", `Memory.md` §2).** Seeing it, the owner said: "okay save these for
+now, theres some improvement to be done for sure we will tackle that later" — **committed
+as it stood; which improvements was not said, so ask before changing the page.** Its Findings
+tab is the **released model** (bundle `ba7dcc5f-r2`, through the service's own `Analyzer`),
+no longer the Phase 3 semantic model. The owner asked for two things on it: **no count of
+flagged lines as a headline, and a reason only for a line a known weakness pattern
+matches** — that is §1.35's "pattern" headline as a presentation, so the page quotes that
+record beside it (135 of 488 vulnerable `val` functions, 210 of 1,000 harmless; run
+`6c942e6c…`, an experiment). It carries 17 hand-written examples (`frontend/samples.py`);
+a sample's named line is its author's intent, never a label, and nothing seen on them is a
+number to quote. **The packaged service and its page (`src/vulnloc/serving/`, port 8080)
+are unchanged — leaving them so is the session's reading, not the owner's words.** The
+paragraphs below describe the state before this.
+
 **2026-10-12 16:10 (session 19): THE THREE-HEADLINE RECORD IS `docs/VerdictComparison.md`
 (`Memory.md` §1.35) — kept at the owner's request ("save these results in a fle for
 later so we can compare all the three", `Memory.md` §2).** Both existing headlines were
@@ -491,20 +508,25 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
   line scores; no model is loaded.
 - Phase 9 (2026-10-11): **`serving/{bundle,inference,schemas,app}.py`** and `serving/static/index.html` — a bundle is the weights plus everything the service would otherwise have to go and find, with a SHA-256 of every file; `inference.py` featurizes one function with L1 code of its own (**serving may not import training**) and is pinned, tensor for tensor, against `collate_fused`; the app returns exactly the `PRD.md` §5.4 contract and every failure in one shape. **The service never flags a line with no code on it, and `is_vulnerable: false` is not a claim that a function is safe.** **2026-10-12: `serving/report.py`** builds the reader's report behind `POST /analyze/report` — a summary, the highest-ranked lines whether or not any is flagged, every finding's verified explanation and evidence, the patterns tested, coverage, and the bundle's `measured` record — and the demo page draws it. `/analyze` stays exactly the contract.
 
-Outside the package: `frontend/` has two tabs. **Findings** (owner decision 2026-09-15)
-ranks a pasted function's lines with the Phase 3 semantic model, seed 42 (`fc902107…`, on
-CPU), and attaches **template** fix advice from `frontend/fix_templates.py` — pattern text,
-never the model's reasoning, and not Phase 7. The model **ranks lines; it cannot say a
-function is safe** (it never saw one), and its scores are not calibrated, so the UI leads
-with rank. **Detailed report** is the original pipeline inspector — normalize → parse →
-graphs → tokenize → line axis, live — plus the **Phase 4 structural model's ranking of the
-paste** (`frontend/structural.py`, run `77370d56…`, vocabularies pinned) beside the semantic
-rank, and held-out numbers read from the seed reports. One sentence per stage; keep it that
-way (owner, 2026-09-15). Restart the server after any `.py` change — a stale one answers 405. It is a development
-instrument, **not** the Phase 9 serving API, which is why it lives outside `src/vulnloc` and
-the `import-linter` layer graph. **No fused score is shown anywhere.** See
-`frontend/README.md`; `frontend/phases.json` mirrors §3 of this file and must be updated
-when a phase changes.
+Outside the package: `frontend/` is **the one site** (owner, 2026-10-12; `Memory.md`
+§1.36), two tabs on port 8000. **Findings** ranks a pasted function's lines with the
+**released model** — the bundle of record, loaded through the service's own `Analyzer`
+(`frontend/released.py`) — and gives a card, with the explainer's verified sentence and the
+usual fix from `frontend/fix_templates.py`, **only to a line over the cut-off that a known
+weakness pattern matches; it shows no count of flagged lines** (both the owner's, same
+day). A pattern is text matching, never the model's reasoning, and the page quotes how
+often one matches harmless functions. The model **ranks lines; it cannot say a function is
+safe**. **Detailed report** runs every stage on the paste — normalize → parse → graphs →
+tokenize → line axis, then the Phase 3 semantic model (`fc902107…`, trained with comments
+in place, and labelled so) and the Phase 4 structural model (`77370d56…`) each alone, the
+fused model, its calibrated scores, the patterns tested, the bundle's held-out record and
+what was not examined. Samples: four pipeline samples and 17 hand-written examples
+(`frontend/samples.py`) — an example's named line is its author's intent, never a label.
+One sentence per stage; keep it that way (owner, 2026-09-15). Restart the server after any
+`.py` change — a stale one answers 405. It is **not** the Phase 9 serving API
+(`scripts/serve.py`, unchanged), which is why it lives outside `src/vulnloc` and the
+`import-linter` layer graph. See `frontend/README.md`; `frontend/phases.json` mirrors §3 of
+this file and must be updated when a phase changes.
 
 ### Starting Phase 3 / Phase 4
 
@@ -666,7 +688,8 @@ python scripts/measure_latency.py +latency.bundle=./artifacts/serving/ba7dcc5f-r
 docker compose --profile serve up serve                     # the same service in the image (Docker Desktop must be running;
                                                             #   never beside training) -> http://localhost:8080
 
-python frontend/server.py                                   # Findings + Detailed report on http://127.0.0.1:8000
+python frontend/server.py                                   # the one site: Findings (released model) + Detailed report + 21 samples,
+                                                            #   http://127.0.0.1:8000 — first paste waits for three models to load
 ```
 
 **A fine-tuned run is 3–4 h and is expected to be interrupted.** `--until HH:MM`, `--stop`,
