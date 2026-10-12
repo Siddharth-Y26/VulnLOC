@@ -431,19 +431,37 @@ before the single held-out pass was started.**
 - API docs + usage examples
 
 **Exit criteria**
-- [ ] End-to-end request works in Docker on a clean machine
+- [x] End-to-end request works in Docker on a clean machine
   - *2026-10-11:* **works in Docker on this laptop.** Image `053c0a4ae9b4`, built from
     `193f3ac`; the `serve` container mounts only the bundle of record, reports healthy
     and answers `POST /analyze` with the host's lines and scores (`Memory.md` §1.33).
     The first run found a bug in the image, since fixed. **Not tried on a second
     machine** — left unticked for the owner to say whether this is what "clean" asks.
+  - *2026-10-12:* **ticked on the owner's words (*"okay finish these two also so phase 8 and 9 done?"*, `Memory.md` §2) — as "a clean
+    container on this laptop", not a second machine.** The image was rebuilt from the
+    tree at `5d806ad` (id `7283510c22c7`, 2.9 GB: Python 3.11.17, torch 2.14.1+cpu,
+    transformers 5.19.0, fastapi 0.143.0 — resolved on the day from `pyproject.toml`'s
+    lower bounds, not pinned). The `serve` container mounts only the re-exported bundle,
+    read-only, with the Hugging Face hub offline, and reports healthy. Asked what the
+    host service was asked: the same eight flagged lines in the same order, scores
+    within 5.2e-7, the same explanation, evidence and report from `POST /analyze` and
+    `POST /analyze/report`; a failure in the one error shape; the demo page driven in a
+    headless browser against the container with no script error. `docker run --rm
+    vulnloc:0.1.0` still runs Phase 0's command to completion. **What the tick does not
+    claim:** a second physical machine, another operating system or another Docker
+    install (Phase 10's independent reader is where that is tried); pinned versions; or
+    a commit SHA inside the image — a run inside still logs `git_sha=unknown`, so
+    nothing of record is run in a container. The reading is the session's, under the
+    owner's instruction, and the owner can reverse it.
 - [x] Latency measured and reported (NFR-4)
   - *2026-10-11:* run `3e91feba…`, 200 `val` functions on this laptop's CPU: p50
     0.30 s, **p95 2.63 s — over the recommended 2 s**; p95 1.96 s for functions up to
     250 lines, 3–18 s beyond (`Memory.md` §1.33). Measured and reported; the bound is
     missed and nothing was tuned towards it.
   - *2026-10-12:* **the miss is accepted and stated** — the owner delegated the choice
-    (`Memory.md` §2); `docs/MODEL_CARD.md` carries the figures under known limits.
+    (`Memory.md` §2); `docs/MODEL_CARD.md` carries the figures under known limits. The
+    figures were taken on the first bundle; the bundle of record since the same day has
+    the same weights by SHA-256 and was not timed again.
 - [x] Error responses structured per `Rules.md` §4.7
   - *2026-10-11:* one shape for every failure, `{"error": {type, message, unit_id}}`
     (`tests/unit/test_serving_app.py`).
@@ -451,9 +469,15 @@ before the single held-out pass was started.**
   - *2026-10-11:* `docs/MODEL_CARD.md`, with the held-out numbers, is copied into
     every bundle and listed in its manifest; bundle of record
     `artifacts/serving/ba7dcc5f` (`ff9d1bd2…`).
+  - *2026-10-12:* **the bundle of record is now `artifacts/serving/ba7dcc5f-r2`** (export
+    run `ef031969…`): the same checkpoint — every file's digest equal but the model card
+    and one tokenizer flag — with the card as it stands today (latency, and that no
+    person rated the explanations) and a `measured` block quoted from the held-out
+    evaluation `f3a7dbdf…`. Nothing was scored to make it. The first bundle is kept.
 
-**Built 2026-10-10 on branch `phase-9/serving`, merged 2026-10-11 (`f5f450a`).** The
-gate is unsigned.
+**Built 2026-10-10 on branch `phase-9/serving`, merged 2026-10-11 (`f5f450a`).** **The
+gate was closed on the owner's instruction on 2026-10-12 (`Memory.md` §1.1g); the owner
+has not read its answers.**
 
 ---
 

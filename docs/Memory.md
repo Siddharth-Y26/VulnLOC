@@ -49,7 +49,7 @@
 | 6 Localization Head | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1d)** | **4 / 4** | "Best full-model configuration frozen and checkpointed": **met by decision** — the designed cross-attention model, D9.7's config, checkpoints `80fc5238` / `c193e3bc` / `829c3555` (§2). **Calibrated, reliability curve reported, threshold chosen on `val` only: met 2026-10-07 (§1.24)** — ECE 0.1704 → 0.0137, line F1 0.2954 → 0.3898 out of fold. **Q5 (CWE labels): explicitly deferred by the owner 2026-10-07 — no type classifier; Phase 7a names a template-derived category and says so (§2).** **Deferred in writing (§2):** unit-level aggregation and a joint loss that means something — no negatives; the sweep is frozen-only |
 | 7 Explanation | ✅ **Done — gate signed by the owner 2026-10-08 (§1.1e)** | **4 / 4** (the owner read the explainer's sentences and named none of concern, §2) | 7a built and measured the same day (§1.27): 13,908 of 13,908 flagged lines on `val` explained and verified, three seeds; grounding suite passes; protocol written; four template sentences corrected after reading real output. **Open: the owner's reading of the template sentences for attack instructions.** A pattern names a cause for about one flagged line in twelve. 7b is deferred in writing (§2); the category is template-derived (Q5) |
 | 8 Evaluation | ✅ **Done — gate closed on the owner's instruction 2026-10-12 (§1.1f); the owner has not read the gate's answers** | **4 / 4** | The line-level metric suite is built and reconciles with every logged `d97r` number. **The held-out pass was made once, on 2026-10-11 (§1.30).** The ablation tables of record are `bcfeb4ff…` (§1.32); the figures are drawn for `val`, `test` and `clean_eval`. **Ticked: the failure taxonomy — accepted by the owner on 2026-10-11 as revised (§1.31, §2).** **Ticked 2026-10-12 on the owner's words:** every table cell traceable to a run (checked by `scripts/trace_phase8_tables.py`, 0 did not trace), and the ablations' verdict on each novelty claim — as "every claim has a written verdict"; A3, A7 and A10 were not run and no claim is made about them (`Phases.md`). **Ticked 2026-10-12: the clean-clone criterion** — from a clone and the lock file the tests, split, shards and vocabularies reproduce exactly; of two same-seed frozen reruns one missed the band written beforehand, and the tick says so (§1.34, §2) |
-| 9 Serving | 🟨 **Merged 2026-10-11 (`f5f450a`); gate unsigned** | **3 / 4** | Bundle of record `artifacts/serving/ba7dcc5f` (`ff9d1bd2…`); latency measured (`3e91feba…`: p95 2.63 s, over NFR-4's recommended 2 s); errors in one shape; the model card ships in the bundle. **Docker works on this laptop and was not tried on a second machine — that box is left for the owner** (§1.33) |
+| 9 Serving | ✅ **Done — gate closed on the owner's instruction 2026-10-12 (§1.1g); the owner has not read the gate's answers** | **4 / 4** | Bundle of record `artifacts/serving/ba7dcc5f-r2` (`ef031969…`) — the same weights as the first, with a `measured` block and today's model card; latency measured (`3e91feba…`: p95 2.63 s, over NFR-4's recommended 2 s — accepted and stated); errors in one shape; the demo page reads `POST /analyze/report`. **Docker: ticked as a clean container on this laptop (image `7283510c22c7`, same answers as the host to 5.2e-7); a second machine was not tried** (§1.33) |
 | 10 Artifacts | ⬜ Not started | 0 / 3 | |
 
 Legend: ⬜ not started · 🟨 in progress · ✅ done · 🟥 blocked
@@ -305,6 +305,47 @@ experiment at all. **A3 (line-level labels obtainable) stands as weakened in §1
 the held-out numbers are bounded by the same ~30% label noise. **A4 (one language
 family) is unchanged**: C and C++ from one corpus, and cross-corpus generalization was
 not run. Nothing is falsified outright.
+
+### 1.1g Phase 9 Gate (`Phases.md` §Phase Gate Rule) — **CLOSED ON THE OWNER'S INSTRUCTION 2026-10-12**
+
+Written by session 19, on the same words as §1.1f (*"okay finish these two also so phase 8 and 9 done?"*). **The owner has not read
+the answers below and did not write "signed"; the reading is the session's and the owner
+can reverse any part of it (§2).**
+
+**1. Did we meet every exit criterion?** **Four of four, each with what its tick claims
+in `Phases.md`.** *Docker* — a clean container on this laptop answers as the host does;
+a second machine was not tried. *Latency* — measured and reported; the recommended bound
+is missed on long functions and the miss is accepted and stated. *Errors* — one shape.
+*Model card* — shipped in every bundle; the bundle of record carries today's card and a
+measured record. Every deliverable exists: `POST /analyze`, `GET /health`,
+`GET /version`, the schemas, a CPU image, the demo page, `docs/Serving.md` and `/docs`.
+
+Not done, said plainly: the image's versions are unpinned and it has no commit SHA; no
+authentication (the service binds `127.0.0.1` by default); nothing tuned for latency; the
+explanations give a reason and no remedy.
+
+**2. What did we learn that changes a later phase?**
+
+- **The served model flags a line in every function it is given** (six of six tried,
+  including `int add(int a, int b)`), because its threshold was fitted on vulnerable
+  functions only. Phase 10's README and the paper must present the tool as a *ranker for
+  a function already suspected*, first and in plain words — not as a detector with a
+  caveat. The owner's "No known vulnerability found" wording is correct and almost
+  never shown.
+- **Host and container agree to 5.2e-7 across torch 2.13.0 and 2.14.1**, on one
+  function. The unpinned image is not changing answers today; pinning is still owed for
+  the day it does.
+- **A measured record can travel with a checkpoint without scoring anything**; the same
+  option can carry validation figures.
+- **What a reader needs did not fit the §5.4 object**: a second endpoint carries it and
+  `/analyze` stays the contract.
+
+**3. What `PRD.md` §10 assumption has been confirmed or falsified?**
+**A5 (the `evidence` schema of §5.4) is confirmed as served** — the response is exactly
+that object — with the note that it was not enough for a person reading a result.
+**A1 (the primary persona is the application developer) is weakened**: the question a
+developer brings — is this function safe? — is the one this model cannot answer; it can
+only say which lines to read first. Nothing is falsified outright.
 
 ### 1.2 What Exists Right Now
 
@@ -3212,6 +3253,68 @@ of eight is the model card's "treat the flag as a hint" seen once.
 - **That it runs on another machine.** The image was built and run on this laptop only,
   and its package versions are not pinned.
 
+### 2026-10-12 — the report page, a measured record in the bundle, the re-export, the image rebuilt
+
+**The demo page now draws `POST /analyze/report`** (`serving/static/index.html`, commits
+`61c8489`, `5d806ad`): the summary; one entry per flagged line with its verified
+explanation, the lines each of the two attention maps weighted, the name-based data-flow
+path and a count of syntax nodes (both labelled as static analysis); the five
+highest-ranked lines; the source with flagged lines marked and the open entry's weighted
+lines beside them; coverage; and the 19 weakness patterns with the matched ones marked.
+Driven in headless Chrome over the DevTools protocol, against the host service and
+against the container: empty input gives the client-side message; a ten-line function
+with an overrun gives 8 of 10 lines flagged, three pattern matches and the measured
+sentence; no script error.
+
+**The model flags a line in every function it was given — six of six inputs**, down to
+`;`, `int x;`, an empty-bodied function and `int add(int a, int b)` (its `return` at a
+calibrated 0.99). The threshold was fitted on functions that are all vulnerable (§1.28),
+so `is_vulnerable` is close to always true and **the "No known vulnerability found"
+state could not be reached through the real model in this check; its wording is pinned
+by unit tests only.** This is the model card's "not a detector" seen from the page.
+
+**A bundle can carry what was measured for its checkpoint.**
+`scripts/export_serving_bundle.py +export.measured_from=<evaluation file>` quotes the
+checkpoint's own figures into the manifest's `measured` block, with the file's SHA-256
+and the evaluation's run id; a file for another run, threshold or text variant is
+refused. **Nothing is scored for it** — reading `evaluation_test.json` is not a second
+evaluation. The first attempt stopped before writing a byte: the hand-made test fixture
+had bare numbers where the file stores one value per tie order (§7 #71; fixed `b0afb75`,
+with a test that reads the real file).
+
+**The bundle of record is now `artifacts/serving/ba7dcc5f-r2`, export run `ef031969…`**
+(at `b0afb75`, clean tree): on 48 `val` functions the served batch equals training's,
+tensor for tensor (0 differing), the top-ranked line is the same on 48 of 48, and the
+largest logit difference is 0.08998 over 3,272 lines — the first bundle's figures. Every
+file's digest equals the first bundle's except `MODEL_CARD.md` (today's card) and
+`tokenizer/tokenizer_config.json` (`local_files_only` is `false` where the first export,
+made offline, wrote `true`). Its `measured` block, quoted from `f3a7dbdf…` for seed 42
+on `test`, blank lines withheld, 533 functions: Top-1 0.2495, Top-3 0.4071, **Top-5
+0.4765** (source order 0.2852), Top-10 0.6248, median IFA 5; pooled line precision
+0.1583 and recall 0.2969 at the `val` threshold. The first bundle
+(`artifacts/serving/ba7dcc5f`) is kept; latency was measured on it and not again.
+
+**The image was rebuilt and the service checked in it** (Docker box, `Phases.md`):
+`vulnloc:0.1.0` is now `7283510c22c7`, built from the tree at `5d806ad` — Python
+3.11.17, torch 2.14.1+cpu, transformers 5.19.0, fastapi 0.143.0, unpinned. The image of
+2026-10-11 is kept as `vulnloc:0.1.0-193f3ac`. With only the new bundle mounted and the
+hub offline, the container answered one function exactly as the host service did (torch
+2.13.0, same CPU): the same eight flagged lines in order, scores within 5.2e-7, equal
+explanation, evidence and report; `ParseError` in the one error shape; `x-vulnloc-seconds`
+0.37. Phase 0's command still runs to completion in it. One function, one machine.
+Docker Desktop is shut down again.
+
+**Tests.** On the main tree at `86aa7a3`, Docker closed: 1,521 tests pass, 3 skip. A first run of the suite, made while Docker Desktop was starting, had
+one failure: `test_evaluation_localization.py`'s Hypothesis property took 2.0 s on its
+first call against a 200 ms deadline (0.37 ms on the next). It failed the same way once
+more while Docker was shutting down and passes on a quiet machine (33 of 33 in 7 s). The
+test and `src/vulnloc/evaluation/` were not touched.
+
+Still open, none of it an exit criterion: the image's versions are not pinned to the lock
+file and it carries no commit SHA; a second machine; no fix advice in the explanations;
+`frontend/fix_templates.py` unreviewed; the older `frontend/` tool still shows the
+Phase 3 and Phase 4 models, not the bundle.
+
 ### Runs and commits behind this section
 
 Export `ff9d1bd2…`; latency `3e91feba…` (and `8b74b485…`, failed). Commits `3a119ba`,
@@ -3219,6 +3322,9 @@ Export `ff9d1bd2…`; latency `3e91feba…` (and `8b74b485…`, failed). Commits
 `193f3ac` (the Dockerfile fix).
 Pre-merge checks: `artifacts/queue/after_a1rep_checks.out`. After the merge and the fix,
 on the main tree: 1,498 tests pass, 3 skip; black, ruff, mypy and import-linter clean.
+2026-10-12: export `ef031969…`; commits `61c8489` (the page, the measured record),
+`b0afb75` (the tie-order fix), `5d806ad` (the trace script, the page's details, the
+serving guide).
 
 ---
 
@@ -3302,6 +3408,7 @@ Append-only. Format: date · decision · alternatives considered · rationale ·
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-10-12 | **Phase 9's Docker box is ticked as "a clean container on this laptop", the bundle of record becomes `artifacts/serving/ba7dcc5f-r2`, and the Phase 9 gate is closed** (owner: *"okay finish these two also so phase 8 and 9 done?"* — the same words as the Phase 8 row below; their first word answered the session's question whether to go ahead with the demo page). Session 19 finished the page on `POST /analyze/report`, added `export.measured_from`, re-exported the released checkpoint (`ef031969…`), rebuilt the image and checked the service in it against the host, then ticked the box and wrote §1.1g. **The Docker box had been left for the owner to say whether one laptop is what "clean" asks; the owner's words do not address that, and the tick's reading is the session's.** The owner has not read §1.1g | Leave the Docker box unticked and Phase 9 at 3 / 4 until the second laptop is tried; keep the first bundle as the bundle of record and treat the re-export as a second artefact | The owner's stated aim is both phases done. A container built from the repository alone, with only a bundle mounted and no network, is clean in everything but hardware; the second-machine check has a place of its own in Phase 10 (the independent reader). The new bundle has the same weights by digest and passed the same export check, so nothing measured on the first one is lost | — |
 | 2026-10-12 | **Phase 8's two remaining boxes are ticked and its gate is closed** (owner, after being told that two Phase 8 boxes and the Phase 8 and 9 gate signatures were what remained on the owner's side: *"okay finish these two also so phase 8 and 9 done?"*). Session 19 read those words as the instruction to finish both boxes and close both gates, and did the work first: a read-only trace of every run the Phase 8 tables name (`scripts/trace_phase8_tables.py` — 0 did not trace), and a verdict for each of the ten novelty claims written into `Phases.md`. **"Ablations confirm or refute each novelty claim" is ticked as "every claim has a written verdict", not as "every ablation was run": A3, A7 and A10 were not run and no claim is made about them.** The gate's three answers are §1.1f. **The owner has not read them and did not write "signed"; the reading is the session's and any part of it can be reversed** | Leave both boxes and the gate unsigned until the owner reads §1.1f; run A3, A7 and A10 first (A3 needs ADR-007 accepted and CPG graphs costed on the 4 GiB card; A7 needs the live encoder; A10 needs explainers that are not built) — new training, which the owner declined on 2026-10-11 | The owner's stated aim is both phases done, and each tick says in `Phases.md` what it claims and what it does not. The weakest of the four is the ablations box, and it is recorded as such | — |
 | 2026-10-12 | **Phase 8's "results reproducible from a clean clone" box is ticked, with the cross-attention miss stated beside it** (owner). Session 19 explained the check (§1.34) and offered two options — tick it with the miss stated, or leave it unticked; the owner asked *"what do you recommend"*, was told "tick it, with the cross-attention miss written beside it", and answered ***"okay then proceed"***. The claim is: the tests, split, shards and vocabularies reproduce exactly from a clean clone and the lock file, and a retrained frozen model lands within its arm's spread over seeds — not that a single run's number can be recovered. The online draft's reproducibility section says so, with both reruns' figures | Leave it unticked, holding to the criterion written before the check (each rerun within its arm's three-seed sd of one logged run) | That criterion was the session's and was too narrow: a same-seed rerun of this model moves more than the three-seed sd with every input equal (§7 #70), so a correct pipeline can fail it. Everything deterministic reproduced exactly. Kept in the record: one of two reruns missed the pre-stated band, the six-seed comparison was made after the run, the cause was not isolated, the corpora were verified and not downloaded, and it was one machine | — |
 | 2026-10-12 | **Q15 is closed: the paper leads with the fine-tuned null and reports the frozen result beside it as a qualified, validation-only finding** (owner, delegating: asked for four things — (1) how A1 is stated, (2) latency, (3) the clean-clone box, (4) the gates — the owner wrote ***"do 1 and 2 according to you explain to me 3"***; the choice is the session's recommendation of §5 and the owner can reverse it). Applied the same hour to the online draft, whose Section 3.10 already read this way: the Abstract, Table 1 (now with both held-out rows), the answers to RQ1 and RQ2, the second contribution and the limits paragraph of Section 1.4 — every figure from §1.28, §1.30 and §1.32; the draft-status line under the Abstract is removed | Lead with the frozen result · give both equal weight | The models of record and the only held-out numbers are the fine-tuned ones; the frozen lead is validation-only by protocol, six seeds of one screen, and carries every qualifier §1.32 lists. "Replicated null" could no longer stand in the Abstract either: with the encoder frozen, on repaired text, the arms are separated | — |
@@ -4463,7 +4570,21 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
     *"okay then proceed"*; ticked in `Phases.md`, Phase 8 is 2 / 4, and the online
     draft's reproducibility section has a paragraph on it (not highlighted). *Not
     raised again:* the Phase 8 and Phase 9 gates.
-  - *Left, in order:* the two gates and Phase 8's two remaining boxes, all the owner's; the
+  - **Then the owner wrote *"okay finish these two also so phase 8 and 9 done?"*** — in answer to whether to go ahead with the demo page.
+    Session 19 read it as: finish the two Phase 8 boxes and close both gates. Done the
+    same day — **Phase 8 is 4 / 4 (§1.1f) and Phase 9 is 4 / 4 (§1.1g); the owner has
+    read neither gate's answers, and each tick says in `Phases.md` what it claims.** The
+    two weakest: the ablations box (A3, A7 and A10 were never run — ticked as "every
+    claim has a verdict") and the Docker box (one laptop). Also done: the demo page on
+    `/analyze/report`, `export.measured_from`, the bundle of record re-exported to
+    `artifacts/serving/ba7dcc5f-r2`, the image rebuilt (`7283510c22c7`) — §1.33's last
+    subsection. Docker Desktop is shut down; nothing is running; the tree is clean.
+  - *What is left now is Phase 10* — Sections 4 to 6 of the paper, the public README
+    (it must say "a ranker for a function already suspected" first, §1.1g), the
+    reproducibility appendix, licences and citations, and the independent reader on the
+    second laptop, who should be given something deterministic to reproduce (§1.1f).
+    Smaller: pin the image to the lock file; a commit SHA in the image.
+  - *Superseded — left, in order, as it stood before that:* the two gates and Phase 8's two remaining boxes, all the owner's; the
     demo page on `/analyze/report`, the `measured` block and the re-export (the 12:30
     bullet of 2026-10-11 below); Phase 10 — Sections 4–6, the README, the
     reproducibility appendix, licences and citations, the independent reader.
@@ -5570,6 +5691,9 @@ Things that cost time once and should not cost time twice.
 | 68 | **A script that logs a measured value under a name the config already logged loses its run after the work is done.** `start_run` logs every override as a parameter, as given. `measure_latency.py` then logged the bundle path, normalized, as `latency.bundle`; MLflow refuses a parameter whose value changes, and run `8b74b485…` failed after timing all 200 requests and before writing anything. Found 2026-10-11 by running it on the bundle of record. Same family as #60: a value that looks the same and is not | ✅ `7d7c102`: measured facts are logged under names of their own, and a test fails if one collides with a config key. Fifteen other scripts call `log_params`; each has completed runs, none was audited for this |
 | 69 | **An image whose work directory belongs to root starts no Hydra script.** The Dockerfile chowned everything it copied into `/workspace` and `artifacts/`, but `WORKDIR` itself was created by root; Hydra writes `outputs/<date>/<time>` beside the launch directory and the non-root user could not create it. The first image this project built (2026-10-11) died on `PermissionError: 'outputs'` before loading a model — the Dockerfile had been in the repo, unbuilt, since Phase 0 | ✅ `193f3ac`: `/workspace` and `outputs/` are the user's; the `serve` container and the default command both run. **Still open, two things the same build showed:** the image installs from `pyproject.toml`'s lower bounds, not the lock file (torch 2.14.1 inside, 2.13.0 on the host), and it has no `.git`, so a run inside logs `git_sha=unknown` |
 | 70 | **A run repeated at the same seed is not the same number, and for cross-attention the gap can exceed the seed sd.** The clean-clone check (§1.34) reran two frozen runs at seed 42 with every logged parameter, vocabulary digest and cache digest equal: concat came back −0.0145 Top-5 from its run of record, cross_attention +0.0228 — 2.2 times its arm's three-seed sd (0.0102). The reported value is the best epoch of a `val` curve that moves by up to 0.10–0.11 from one epoch to the next. A reproduction criterion written as "within the seed sd of one logged run" therefore fails on a correct pipeline. | **Judge a rerun against the arm's distribution over seeds, and say so before running it; never promise an individual run's number.** Byte-compare only files that record no run id. The cause (CUDA scatter order, #50, suspected) is not isolated; one rerun an arm. |
+| 71 | **A fixture written from memory of a file's shape passes against itself.** `measured_block`'s first tests fed it bare numbers; `evaluation_<split>.json` stores each ranking metric as one value per tie order, and the export died on the real file — before writing anything, only because the block is read first. | ✅ `b0afb75`: the fixture mirrors the file, and a test reads the real file when the tree has one. **When code reads an artefact another script wrote, one test must read a real one.** |
+| 72 | **From Git Bash the pre-commit `import-linter` hook runs the system Python and fails** (`No module named 'importlinter'`) on any commit that touches a `.py` file; docs-only commits skip the hook and hide it. | Commit with the environment first on the path — `PATH="/d/project/.venv/Scripts:$PATH" git commit …` — or from an activated PowerShell. Never `--no-verify`. |
+| 73 | **Docker Desktop starting or stopping makes a Hypothesis deadline fail.** `test_evaluation_localization.py`'s property took 2.0 s on its first call against a 200 ms deadline with D: busy, twice; it passes on a quiet machine. | Not changed — the evaluation layer and its tests stay as they are. **Run the suite with Docker closed, and read a `DeadlineExceeded` before reading it as a failure.** |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**
