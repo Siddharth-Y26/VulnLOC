@@ -357,6 +357,14 @@ before the single held-out pass was started.**
     existing environment: 1,434 tests pass, 5 skip. Not done: an environment installed
     from the lock file, the data pipeline end to end, and a logged run reproduced from
     the clone.
+  - *2026-10-11, read 2026-10-12:* **those three were run (`Memory.md` §1.34); the box is
+    left for the owner at the gate.** From a clone of `65e65dc` and an environment built
+    from the lock file alone: 1,506 tests pass; the split fingerprint, the assignment,
+    the four shards and both vocabularies (in content) equal the main tree's. Two frozen
+    runs repeated at seed 42 on `val`: concat inside the band written beforehand (0.4772
+    against 0.4917, sd 0.0157), **cross-attention outside it (0.5436 against 0.5207, sd
+    0.0102)** with every logged parameter equal — both inside their arm's six-seed
+    spread, a reading made after the run. The raw corpora were verified, not downloaded.
 
 ---
 

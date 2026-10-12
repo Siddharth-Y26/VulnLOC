@@ -3171,6 +3171,78 @@ on the main tree: 1,498 tests pass, 3 skip; black, ruff, mypy and import-linter 
 
 ---
 
+## 1.34 The clean-clone check — the pipeline rebuilds exactly; of two frozen runs repeated at seed 42, concat lands inside the band written beforehand and cross-attention does not (2026-10-11, read 2026-10-12)
+
+**What ran.** `artifacts/queue/cleanclone_check.py`, 12:29–13:39 on 2026-10-11, in
+`D:\vulnloc-cleanclone` (log `cleanclone.log`, outcome `result.json`); seventeen steps,
+every one exit 0. A `git clone --no-hardlinks` of this tree at `65e65dc`; a new Python
+3.12 environment from `requirements.lock.txt` alone (`torch 2.13.0+cu130`, the same RTX
+3050 Ti; `pip check` clean); the raw corpora hard-linked and their digests verified, not
+downloaded; everything downstream rebuilt. No held-out partition was touched. The
+clone's runs are in the clone's own MLflow store and are not pooled with this tree's.
+What it would be read for was committed first (`65e65dc`, §6 item 0a).
+
+| Check, as written before the run | Outcome |
+|---|---|
+| Test suite in the new environment | 1,506 passed, 5 skipped |
+| Split fingerprint equals `0ade7483…` | yes |
+| `assignment.csv` and the four shards equal the main tree's, byte for byte | yes, all five |
+| Both vocabularies equal the main tree's, byte for byte | **no as written — yes in content** (below) |
+| cross_attention, seed 42, `val` Top-5 within the arm's three-seed sd (0.0102) of `8cde0dd5…`'s 0.5207 | **no: 0.5436 (clone run `c1add839…`), +0.0228 = 2.2 of those sd** |
+| concat, seed 42, within 0.0157 of `6ce89a15…`'s 0.4917 | yes: 0.4772 (clone run `1078e39a…`), −0.0145 |
+
+The script's verdict is `COMPLETED - NOT ALL CHECKS HOLD`, and that stands as the
+outcome against the criterion as it was written.
+
+**The vocabularies differ in one field: the `run_id` of the MLflow run that wrote
+them.** Compared field by field on 2026-10-12, every other field of both files is equal —
+`digest`, `size` (305 and 31,389), `counts`, `vocab`, `units_scanned`. The check asked
+for byte equality of a file that records which run made it; the check was wrong, not the
+vocabulary. Both training runs also logged the same `node_vocab_digest`,
+`subtoken_vocab_digest` and `semantic_cache_digest` as the runs of record.
+
+**The cross-attention run is not explained by any input.** All 165 logged parameters
+are equal between `c1add839…` and `8cde0dd5…` (163 of 163 for concat); the source
+differs between the two commits only under `src/vulnloc/serving/`, which training cannot
+import. The curves (`val` Top-5 per epoch):
+
+| | epochs |
+|---|---|
+| cross_attention, of record | 0.5187, 0.4564, **0.5207**, 0.5083, 0.4108, 0.5104 |
+| cross_attention, clone | 0.4793, 0.4419, 0.4855, 0.5104, 0.5166, 0.4357, **0.5436**, 0.4793, 0.4689, 0.5124 |
+| concat, of record | 0.4440, **0.4917**, 0.4253, 0.4627, 0.4793 |
+| concat, clone | 0.4481, **0.4772**, 0.4253, 0.4689, 0.4751 |
+
+Epoch-0 training loss is equal to four decimals in both arms (0.0645; 0.0666). Concat
+then follows its run of record epoch for epoch, within 0.015. Cross-attention is already
+0.039 apart at the first evaluation, and its curve moves by 0.04–0.11 between
+consecutive epochs in *both* runs — so the reported number, the best epoch's, is a
+maximum over a noisy curve, and early stopping ended one run after 6 epochs and the
+other after 10.
+
+**What can and cannot be said.**
+
+- The data pipeline, the split, the shards and both vocabularies are reproduced exactly
+  from a clean clone and the lock file.
+- A frozen run repeated at the same seed is a replicate, not a copy (§7 #50 expected
+  that; its size was not known). **For cross-attention the same-seed difference measured
+  here, 0.0228, is larger than the three-seed sd (0.0102) it was to be judged by.** That
+  band was the wrong yardstick, and it was the one written down.
+- Against the arm's six-seed distribution (§1.32) both clone runs are ordinary:
+  cross_attention 0.5436 against 0.5422 ± 0.0204; concat 0.4772 against 0.4948 ± 0.0181
+  (0.97 sd). That comparison was **not** stated before the run and is reported as an
+  after-the-fact reading.
+- No number of record changes: the seed sd of every arm already contains this
+  run-to-run variation, since each seed was run once.
+- **Not established:** the cause. Non-deterministic CUDA scatter order (§7 #50) is the
+  suspect; it was not isolated. And this is one rerun an arm — it shows the difference
+  can be this large, not how large it usually is.
+
+Whether Phase 8's "reproducible from a clean clone" box is ticked on this is the
+owner's, at the gate.
+
+---
+
 ## 2. Decision Log
 
 Append-only. Format: date · decision · alternatives considered · rationale · ADR reference.
@@ -4274,7 +4346,17 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   concat `6ce89a15…` 0.4917 (sd 0.0157). A same-seed rerun is not expected to be
   bit-identical (§7 #50); the difference is reported as it is. No held-out partition is
   touched. The clone's runs live in the clone's own MLflow store and are never pooled
-  with this tree's. **The result is not written up yet — read `result.json`.**
+  with this tree's.
+- **2026-10-12 (session 19) — the clean-clone check was read and written up: §1.34.** It
+  ran 12:29–13:39, every step exit 0. The split, the shards and both vocabularies
+  rebuild exactly (the vocabulary files differ only in the `run_id` they record — the
+  check's byte comparison was too strict); 1,506 tests pass in the new environment.
+  Concat at seed 42 lands inside the band written beforehand (0.4772 against 0.4917);
+  **cross-attention does not (0.5436 against 0.5207, 2.2 of the three-seed sd)** with
+  every logged parameter and digest equal — a same-seed rerun is a replicate, and both
+  runs sit inside their arm's six-seed spread. The Phase 8 box is not ticked: the
+  owner's, at the gate. `D:\vulnloc-cleanclone` (the clone, its environment and two
+  checkpoints) is still on disk; nothing was deleted.
 - **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
   `phase-8/tables`, `wt9` on `phase-9/serving`) are merged and no longer needed —
   `git worktree prune` once that directory is gone. `artifacts/serving/ba7dcc5f` (536 MB)
@@ -5377,6 +5459,7 @@ Things that cost time once and should not cost time twice.
 | 67 | **A group that gains seeds turns its old seed-report command into a different report.** `a1r`'s reports select on `{fusion_kind, frozen, strip_comments}`. Once `a1rep` has run, the same command by hand aggregates six seeds and writes over the three-seed file of record — and nothing refuses, because six runs with identical parameters *are* replicates. Noticed 2026-10-11 while adding the group, before any `a1rep` run existed | ✅ `report_seeds.py` takes `+seeds.seeds=[…]`; `a1rep`'s reports name their seeds and write to files of their own. **An `a1r` seed report re-run by hand needs `'+seeds.seeds=[42,1,2]'`.** The queue does not re-run them: they are recorded `done` |
 | 68 | **A script that logs a measured value under a name the config already logged loses its run after the work is done.** `start_run` logs every override as a parameter, as given. `measure_latency.py` then logged the bundle path, normalized, as `latency.bundle`; MLflow refuses a parameter whose value changes, and run `8b74b485…` failed after timing all 200 requests and before writing anything. Found 2026-10-11 by running it on the bundle of record. Same family as #60: a value that looks the same and is not | ✅ `7d7c102`: measured facts are logged under names of their own, and a test fails if one collides with a config key. Fifteen other scripts call `log_params`; each has completed runs, none was audited for this |
 | 69 | **An image whose work directory belongs to root starts no Hydra script.** The Dockerfile chowned everything it copied into `/workspace` and `artifacts/`, but `WORKDIR` itself was created by root; Hydra writes `outputs/<date>/<time>` beside the launch directory and the non-root user could not create it. The first image this project built (2026-10-11) died on `PermissionError: 'outputs'` before loading a model — the Dockerfile had been in the repo, unbuilt, since Phase 0 | ✅ `193f3ac`: `/workspace` and `outputs/` are the user's; the `serve` container and the default command both run. **Still open, two things the same build showed:** the image installs from `pyproject.toml`'s lower bounds, not the lock file (torch 2.14.1 inside, 2.13.0 on the host), and it has no `.git`, so a run inside logs `git_sha=unknown` |
+| 70 | **A run repeated at the same seed is not the same number, and for cross-attention the gap can exceed the seed sd.** The clean-clone check (§1.34) reran two frozen runs at seed 42 with every logged parameter, vocabulary digest and cache digest equal: concat came back −0.0145 Top-5 from its run of record, cross_attention +0.0228 — 2.2 times its arm's three-seed sd (0.0102). The reported value is the best epoch of a `val` curve that moves 0.04–0.11 between epochs. A reproduction criterion written as "within the seed sd of one logged run" therefore fails on a correct pipeline. | **Judge a rerun against the arm's distribution over seeds, and say so before running it; never promise an individual run's number.** Byte-compare only files that record no run id. The cause (CUDA scatter order, #50, suspected) is not isolated; one rerun an arm. |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**
