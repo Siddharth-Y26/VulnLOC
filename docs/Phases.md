@@ -356,7 +356,7 @@ before the single held-out pass was started.**
     and Siddharth read this"* (`Memory.md` §2). Thirty cases are documented with what
     was read in each; the words do not say how many of them the owner's reader opened
     (`docs/FailureTaxonomy.md` §8).
-- [ ] Results reproducible from a clean clone
+- [x] Results reproducible from a clean clone
   - *2026-10-10:* **partly.** From a fresh clone of `a63a62e` with no artefacts, in the
     existing environment: 1,434 tests pass, 5 skip. Not done: an environment installed
     from the lock file, the data pipeline end to end, and a logged run reproduced from
@@ -369,6 +369,16 @@ before the single held-out pass was started.**
     against 0.4917, sd 0.0157), **cross-attention outside it (0.5436 against 0.5207, sd
     0.0102)** with every logged parameter equal — both inside their arm's six-seed
     spread, a reading made after the run. The raw corpora were verified, not downloaded.
+  - *2026-10-12:* **ticked on the owner's words, with the miss beside it.** Told what
+    the check found and that the session recommended ticking it with the
+    cross-attention miss stated, the owner asked *"what do you recommend"* and then
+    said *"okay then proceed"* (`Memory.md` §2). **What the tick claims:** the tests,
+    the split, the shards and both vocabularies reproduce exactly from a clean clone
+    and the lock file, and a retrained frozen model lands within its arm's spread over
+    seeds. **What it does not claim:** that one run's number can be recovered — one of
+    two reruns missed the criterion written before the check, and the comparison with
+    the six-seed spread was made after it. The cause of the same-seed variation was
+    not isolated; the corpora were not downloaded again; one machine.
 
 ---
 
