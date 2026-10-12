@@ -137,6 +137,10 @@ Two-track, because automatic metrics alone are not credible for this:
 - BERTScore / semantic similarity
 - **Grounding rate:** % of explanations whose cited lines and symbols actually appear in the flagged region (this one is fully automatic and always available — it operationalizes FR-15)
 
+> **2026-10-12: deferred in writing by the owner (`Memory.md` §2) — defined
+> (`HumanEvalProtocol.md`), not run. Explanation quality is reported from the automatic
+> checks alone, and the write-up says no human rated the explanations.**
+
 **Human evaluation (primary):** `[RECOMMENDATION]` ≥ 3 raters, ≥ 100 samples, 5-point Likert:
 | Dimension | Question |
 |-----------|----------|

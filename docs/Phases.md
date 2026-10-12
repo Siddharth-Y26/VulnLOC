@@ -262,6 +262,10 @@ The hyperparameter sweep is frozen-encoder only.
   - *2026-10-07:* `docs/HumanEvalProtocol.md` — three raters, 100 functions drawn by
     content hash from `test`, four 1–5 dimensions, Krippendorff's α. Its approval is
     part of the gate. A pilot pack on `val` is drawn.
+  - *2026-10-12:* **the evaluation itself is deferred in writing by the owner** ("then do
+    1", `Memory.md` §2). The protocol stays defined and the `test` pack stays drawn; no
+    person has rated it. Three sheets returned that day were a language model's output
+    and are not used.
 
 Gate answers in `Memory.md` §1.1e — **signed by the owner 2026-10-08.**
 

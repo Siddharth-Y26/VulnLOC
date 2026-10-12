@@ -1,6 +1,14 @@
 # Human Evaluation Protocol — explanations (Phase 7 exit criterion; run in Phase 8)
 
-**Status: approved by the project owner on 2026-10-08, with the Phase 7 gate**
+**Status, 2026-10-12: NOT RUN — deferred in writing by the project owner** (`Memory.md`
+§2). The `test` pack was drawn on 2026-10-11 (`artifacts/phase7/rater_pack_test/`, 100 of
+437 functions, 16 pattern-matched, 31 whose flagged line the dataset labels) and no
+person has rated it. Three filled sheets returned on 2026-10-12 were a language model's
+output — identical scores in 400 of 400 cells — and are not ratings under §3; nothing was
+computed from them. The procedure below stands unchanged for whenever three people rate
+the pack.
+
+**Approved by the project owner on 2026-10-08, with the Phase 7 gate**
 (`Memory.md` §2). Defined 2026-10-07 (session 16). Nothing has
 been rated yet. This document fixes the procedure **before** any rating exists, so that
 no choice below can be made with the answers in view.

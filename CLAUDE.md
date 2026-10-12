@@ -61,6 +61,15 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-12 (session 19): THE OWNER DEFERRED THE HUMAN EVALUATION IN WRITING ("then do
+1", `Memory.md` §2).** Three rating sheets the owner downloaded carried the same score in
+400 of 400 cells and were, by the owner's word, a language model's output — **never
+report them as human evaluation, raters or agreement; they are not in the repo.** No
+person has rated the `test` pack. Explanation quality is reported from the automatic
+checks (every explanation verified; a cause named for about one flagged line in twelve)
+with the sentence that no human rated them. The protocol and the pack stand unchanged.
+The paragraphs below describe the state before this.
+
 **2026-10-12 (session 19): THE CLEAN-CLONE CHECK IS READ AND WRITTEN UP (`Memory.md`
 §1.34).** From a clone of `65e65dc` and an environment built from the lock file alone,
 every step exit 0: 1,506 tests pass; the split fingerprint, the assignment, the four
