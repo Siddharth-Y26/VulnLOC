@@ -23,7 +23,8 @@
   main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
   h1 { font: 700 31px/38px var(--serif); color: var(--text-primary); margin: 0 0 4px; }
   h2 { font: 600 20px/28px var(--sans); color: var(--text-primary); margin: 0 0 8px; }
-  p { max-width: 70ch; }
+  h3 { font: 600 16px/24px var(--sans); color: var(--text-primary); margin: 16px 0 4px; }
+  p { max-width: 70ch; margin: 0 0 8px; }
   .muted { color: var(--text-muted); font-size: 14px; line-height: 20px; }
   .summary { position: sticky; top: 0; z-index: 1; background: var(--bg-elevated);
     border-bottom: 1px solid var(--border-subtle); padding: 8px 16px; font-size: 14px;
@@ -31,7 +32,7 @@
   .summary b { color: var(--text-primary); }
   textarea { width: 100%; min-height: 220px; padding: 12px; border: 1px solid var(--border-subtle);
     border-radius: 8px; background: var(--bg-elevated); font: 14px/22px var(--mono); color: var(--text-primary); }
-  textarea:focus, button:focus, .line:focus { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
+  textarea:focus, button:focus, summary:focus, .line:focus { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
   .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0 24px; }
   button { background: var(--brand-primary); color: #fff; border: 0; border-radius: 4px;
     padding: 8px 16px; font: 600 16px/24px var(--sans); cursor: pointer; }
@@ -44,11 +45,29 @@
   .card.warn { border-left: 4px solid var(--warning); }
   .card.error { border-left: 4px solid var(--error); }
   .card.clean { border-left: 4px solid var(--ok); }
+  .card.flag { border-left: 4px solid var(--flag); }
   .badge { display: inline-block; font: 600 12px/16px var(--sans); padding: 2px 8px; border-radius: 999px;
     color: var(--flag); background: var(--flag-tint); border: 1px solid rgba(209, 73, 91, .4); }
-  .evidence { border-top: 1px solid var(--border-subtle); margin-top: 12px; padding-top: 8px; font-size: 14px; }
-  .evidence dt { float: left; clear: left; width: 96px; color: var(--text-muted); }
-  .evidence dd { margin: 0 0 4px 96px; font-family: var(--mono); }
+  .badge.quiet { color: var(--text-muted); background: var(--bg-page); border-color: var(--border-subtle); }
+  .badge.match { color: var(--brand-primary-dark); background: var(--brand-surface-soft); border-color: var(--brand-border); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .grid .card { margin: 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 4px 12px 4px 0; border-bottom: 1px solid var(--border-subtle); }
+  td { padding: 4px 12px 4px 0; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.src { font-family: var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--text-primary); }
+  details.finding { border-top: 1px solid var(--border-subtle); padding: 8px 0; }
+  details.finding:first-of-type { border-top: 0; }
+  details.finding > summary { cursor: pointer; font-weight: 600; color: var(--text-primary); }
+  details.finding > summary .badge { margin-left: 8px; }
+  .snippet { margin: 8px 0; padding: 8px 12px; background: var(--flag-tint); border-left: 3px solid var(--flag);
+    font: 14px/22px var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--text-primary); }
+  dl.facts { margin: 0; font-size: 14px; }
+  dl.facts dt { float: left; clear: left; width: 190px; color: var(--text-muted); }
+  dl.facts dd { margin: 0 0 4px 190px; }
+  ul.plain { margin: 0; padding-left: 20px; font-size: 14px; }
+  ul.patterns { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
   .code { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 8px;
     overflow-x: auto; font: 14px/22px var(--mono); }
   .line { display: grid; grid-template-columns: 56px 1fr auto; border-left: 3px solid transparent; }
@@ -56,6 +75,9 @@
   .line pre { margin: 0; font: inherit; white-space: pre; color: var(--text-primary); }
   .line .chip { font: 600 12px/22px var(--sans); color: var(--flag); padding: 0 12px; white-space: nowrap; }
   .line.flagged { background: var(--flag-tint); border-left-color: var(--flag); }
+  .line.attended { border-left-color: var(--brand-primary); background: var(--brand-surface-soft); }
+  .line.attended .chip { color: var(--brand-primary-dark); }
+  .line.flagged.selected { outline: 2px solid var(--flag); outline-offset: -2px; }
   .line.unscored pre { color: var(--text-muted); }
   [hidden] { display: none !important; }
 </style>
@@ -70,7 +92,7 @@
 <main>
   <h1>VulnLoc</h1>
   <p class="muted">Paste one C or C++ function. The model ranks its lines by how likely each is
-  to be part of a vulnerability and explains the top one. It was trained on vulnerable
+  to be part of a vulnerability and explains the lines it flags. It was trained on vulnerable
   functions only: <b>a result with no flagged line is not evidence that the function is safe.</b></p>
 
   <label for="code" class="muted">Function source</label>
@@ -85,37 +107,72 @@
   <div id="error" class="card error" role="alert" hidden>
     <h2 id="error-type"></h2><p id="error-message"></p>
   </div>
-  <div id="truncated" class="card warn" hidden></div>
-  <div id="clean" class="card clean" hidden>
-    <h2>No known vulnerability found</h2><p id="clean-text"></p>
+
+  <div id="result" hidden>
+    <div id="verdict" class="card">
+      <h2 id="verdict-title"></h2>
+      <p id="verdict-text"></p>
+      <p id="measured" class="muted" hidden></p>
+    </div>
+
+    <div id="findings" class="card flag" hidden>
+      <h2>Why these lines</h2>
+      <p class="muted">One entry per flagged line, most suspicious first. Open an entry to see
+      its line and the lines the model weighted in the source below.</p>
+      <div id="finding-list"></div>
+      <p class="muted">The wording comes from a template matched against the line's text; it is
+      not the model's reasoning. Data-flow paths and syntax nodes are static analysis of the
+      function, not something the model reported.</p>
+    </div>
+
+    <div class="card">
+      <h2>Highest-ranked lines</h2>
+      <p class="muted">The model ranks every line it can score. These are the top of that
+      ranking whether or not any line reached the threshold of <span id="threshold"></span>.
+      Scores are calibrated probabilities and are low by construction — read the rank.</p>
+      <table aria-label="Highest-ranked lines">
+        <thead><tr><th class="num">Rank</th><th class="num">Line</th><th class="num">Score</th><th>Flagged</th><th>Code</th></tr></thead>
+        <tbody id="ranked"></tbody>
+      </table>
+    </div>
+
+    <h3>Your source, with the flagged lines marked</h3>
+    <div id="viewer" class="code" role="region" aria-label="Analyzed source"></div>
+
+    <h3>What was and was not examined</h3>
+    <div class="grid">
+      <div class="card">
+        <h2>Coverage</h2>
+        <dl class="facts" id="coverage"></dl>
+        <ul class="plain" id="coverage-notes"></ul>
+      </div>
+      <div class="card">
+        <h2>Weakness patterns checked</h2>
+        <p class="muted" id="patterns-text"></p>
+        <ul class="patterns" id="patterns"></ul>
+      </div>
+    </div>
   </div>
-  <div id="explanation" class="card accent" hidden>
-    <h2><span id="x-label"></span> · line <span id="x-line"></span>
-      <span class="badge" id="x-score"></span></h2>
-    <p id="x-text"></p>
-    <dl class="evidence" aria-label="Evidence">
-      <dt>Data flow</dt><dd id="x-flow"></dd>
-      <dt>Attention</dt><dd id="x-tokens"></dd>
-      <dt>Graph</dt><dd id="x-nodes"></dd>
-    </dl>
-    <p class="muted">The wording comes from a template matched against the line; it is not the
-    model's reasoning. Scores are calibrated probabilities and are low by construction —
-    read the ranking, not the number.</p>
-  </div>
-  <div id="viewer" class="code" role="region" aria-label="Analyzed source" hidden></div>
 </main>
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => { $(id).hidden = !on; };
 const text = (id, value) => { $(id).textContent = value; };
-let threshold = null;
+const percent = (value) => `${(100 * value).toFixed(0)}%`;
+
+// Every node is built with createElement and textContent: pasted code is never parsed as markup.
+function el(tag, className, content) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (content !== undefined) node.textContent = content;
+  return node;
+}
 
 async function loadVersion() {
   try {
     const version = await (await fetch("/version")).json();
-    threshold = version.threshold;
-    text("s-model", `${version.fusion} · run ${version.run_id.slice(0, 8)} · threshold ${threshold.toFixed(4)}`);
+    text("s-model", `${version.fusion} · run ${version.run_id.slice(0, 8)} · threshold ${version.threshold.toFixed(4)}`);
     text("cap", String(version.line_cap));
   } catch (failure) {
     text("s-model", "unavailable");
@@ -128,80 +185,208 @@ function fail(kind, message) {
   show("error", true);
 }
 
-function renderLines(source, flagged, cap) {
+function measuredSentence(measured) {
+  // The bundle carries this record only when it was exported with one; nothing is invented here.
+  if (!measured || typeof measured.top_5 !== "number" || typeof measured.units !== "number") return "";
+  const parts = [
+    `Measured for this checkpoint on ${measured.units} held-out functions that all contain a vulnerability: ` +
+    `a labelled line was among its five highest-ranked lines in ${percent(measured.top_5)} of them`,
+  ];
+  if (typeof measured.source_order_top_5 === "number") {
+    parts[0] += ` (reading from the first line down: ${percent(measured.source_order_top_5)})`;
+  }
+  parts[0] += `, so in ${percent(1 - measured.top_5)} it was not.`;
+  if (typeof measured.line_recall === "number" && typeof measured.line_precision === "number") {
+    parts.push(
+      `At its threshold it flagged ${percent(measured.line_recall)} of the labelled lines, and ` +
+      `${percent(measured.line_precision)} of the lines it flagged were labelled.`
+    );
+  }
+  parts.push("It was never measured on functions without a vulnerability.");
+  return parts.join(" ");
+}
+
+function renderVerdict(result, report) {
+  const flagged = report.findings.length > 0;
+  $("verdict").className = flagged ? "card flag" : "card clean";
+  text("verdict-title", flagged ? `${report.findings.length} line${report.findings.length === 1 ? "" : "s"} flagged` : "No known vulnerability found");
+  text("verdict-text", report.summary);
+  const sentence = measuredSentence(report.measured);
+  text("measured", sentence);
+  show("measured", sentence !== "");
+  text("s-verdict", flagged ? "lines flagged" : "no line flagged");
+  text("s-risk", result.risk_score.toFixed(3));
+  text("s-flagged", String(report.findings.length));
+  text("threshold", report.threshold.toFixed(3));
+}
+
+function renderRanked(report) {
+  const body = $("ranked");
+  body.replaceChildren();
+  report.ranked_lines.forEach((entry) => {
+    const row = el("tr");
+    row.append(
+      el("td", "num", String(entry.rank)),
+      el("td", "num", String(entry.line)),
+      el("td", "num", entry.score.toFixed(3)),
+      el("td", "", entry.flagged ? "yes" : "no"),
+      el("td", "src", entry.code)
+    );
+    body.append(row);
+  });
+  if (!report.ranked_lines.length) {
+    const row = el("tr");
+    const cell = el("td", "muted", "No line could be scored.");
+    cell.colSpan = 5;
+    row.append(cell);
+    body.append(row);
+  }
+}
+
+function fact(list, term, value) {
+  list.append(el("dt", "", term), el("dd", "", value));
+}
+
+function renderFinding(finding, open) {
+  const entry = el("details", "finding");
+  entry.open = open;
+  entry.dataset.line = String(finding.line);
+  const head = el("summary", "", `Line ${finding.line} · ${finding.label || "Unclassified"}`);
+  head.append(el("span", "badge", `▲ rank ${finding.rank} · ${finding.score.toFixed(3)}`));
+  head.append(finding.pattern
+    ? el("span", "badge match", finding.cwe ? `pattern matched · ${finding.cwe}` : "pattern matched")
+    : el("span", "badge quiet", "no pattern matched"));
+  entry.append(head, el("div", "snippet", finding.code || " "));
+  entry.append(el("p", "", finding.explanation === null
+    ? "The explanation written for this line did not pass verification against the prediction, so none is shown."
+    : finding.explanation));
+
+  const facts = el("dl", "facts");
+  if (finding.attended_lines.length) {
+    const lines = finding.attended_lines
+      .map((attended) => `line ${attended.line} (${attended.weight.toFixed(2)})`).join(", ");
+    fact(facts, "Lines the model weighted", lines);
+  } else {
+    fact(facts, "Lines the model weighted", "none recorded");
+  }
+  fact(facts, "Tokens it weighted", finding.attention_top_tokens.length ? finding.attention_top_tokens.join(" · ") : "none");
+  fact(facts, "Data-flow path (static)", finding.dataflow_path.length
+    ? `lines ${finding.dataflow_path.join(" → ")}${finding.dataflow_symbols.length ? ` · through ${finding.dataflow_symbols.join(", ")}` : ""}`
+    : "none found");
+  fact(facts, "Syntax nodes (static)", finding.graph_nodes.length ? finding.graph_nodes.join(", ") : "none");
+  entry.append(facts);
+  entry.addEventListener("toggle", () => { if (entry.open) select(finding); });
+  return entry;
+}
+
+function select(finding) {
+  // Mark the finding's own line and the lines its cross-attention weighted, in the source below.
+  document.querySelectorAll(".line.attended, .line.selected").forEach((row) => {
+    row.classList.remove("attended", "selected");
+    const chip = row.querySelector(".chip.att");
+    if (chip) chip.remove();
+  });
+  const own = document.querySelector(`.line[data-line="${finding.line}"]`);
+  if (own) own.classList.add("selected");
+  finding.attended_lines.forEach((attended) => {
+    const row = document.querySelector(`.line[data-line="${attended.line}"]`);
+    if (!row || row.classList.contains("flagged")) return;
+    row.classList.add("attended");
+    row.append(el("span", "chip att", `weighted ${attended.weight.toFixed(2)}`));
+  });
+}
+
+function renderFindings(report) {
+  const list = $("finding-list");
+  list.replaceChildren();
+  report.findings.forEach((finding, index) => list.append(renderFinding(finding, index === 0)));
+  show("findings", report.findings.length > 0);
+}
+
+function renderLines(source, report) {
   const viewer = $("viewer");
   viewer.replaceChildren();
-  const ranks = new Map(flagged.map((entry, index) => [entry.line, { rank: index + 1, score: entry.score }]));
+  const hits = new Map(report.findings.map((finding) => [finding.line, finding]));
+  const cap = report.coverage.line_cap;
   source.split("\n").forEach((content, index) => {
     const number = index + 1;
-    const row = document.createElement("div");
-    row.className = "line";
-    const gutter = document.createElement("span");
-    gutter.className = "no";
-    gutter.textContent = String(number);
-    const code = document.createElement("pre");
-    code.textContent = content || " ";
-    row.append(gutter, code);
-    const hit = ranks.get(number);
+    const row = el("div", "line");
+    row.dataset.line = String(number);
+    row.append(el("span", "no", String(number)), el("pre", "", content || " "));
+    const hit = hits.get(number);
     if (hit) {
       row.classList.add("flagged");
       row.tabIndex = 0;
       row.setAttribute("aria-label", `line ${number}, flagged, rank ${hit.rank}, score ${hit.score.toFixed(3)}`);
-      const chip = document.createElement("span");
-      chip.className = "chip";
-      chip.textContent = `▲ #${hit.rank} · ${hit.score.toFixed(3)}`;
-      row.append(chip);
+      row.append(el("span", "chip", `▲ #${hit.rank} · ${hit.score.toFixed(3)}`));
     } else if (number > cap) {
       row.classList.add("unscored");
     }
     viewer.append(row);
   });
-  show("viewer", true);
+}
+
+function renderCoverage(report) {
+  const coverage = report.coverage;
+  const facts = $("coverage");
+  facts.replaceChildren();
+  fact(facts, "Lines in the function", String(coverage.lines));
+  fact(facts, "Lines scored", String(coverage.lines_scored));
+  fact(facts, "Past the line cap", String(coverage.lines_beyond_cap));
+  fact(facts, "Code with nothing to score", String(coverage.lines_without_features));
+  fact(facts, "Blank lines, never offered", String(coverage.blank_lines));
+  fact(facts, "Explanations rejected", String(coverage.explanations_rejected));
+
+  const notes = $("coverage-notes");
+  notes.replaceChildren();
+  if (coverage.lines_beyond_cap > 0) {
+    notes.append(el("li", "", `Lines ${coverage.line_cap + 1}–${coverage.line_cap + coverage.lines_beyond_cap} were not analyzed at all: the model scores a function's first ${coverage.line_cap} lines.`));
+  }
+  if (!coverage.parse_clean) {
+    notes.append(el("li", "", coverage.first_parse_error_line
+      ? `The parser had to repair this function, first at line ${coverage.first_parse_error_line}; the structural branch read a damaged graph.`
+      : "The parser had to repair this function; the structural branch read a damaged graph."));
+  }
+  if (!coverage.dataflow_available) {
+    notes.append(el("li", "", "No data-flow graph could be built, so no explanation carries a data-flow path."));
+  }
+  if (!notes.children.length) {
+    notes.append(el("li", "", "The function parsed cleanly and every line with code inside the cap was scored or is counted above."));
+  }
+
+  const matched = new Set(report.patterns.matched);
+  text("patterns-text", `A flagged line's text is tested against these ${report.patterns.checked.length} patterns. "No known weakness pattern matches" means none of these — not that the line is harmless.`);
+  const patterns = $("patterns");
+  patterns.replaceChildren();
+  report.patterns.checked.forEach((pattern) => {
+    const item = el("li");
+    item.append(el("span", matched.has(pattern.id) ? "badge match" : "badge quiet",
+      `${pattern.label}${pattern.cwe ? ` · ${pattern.cwe}` : ""}${matched.has(pattern.id) ? " · matched" : ""}`));
+    patterns.append(item);
+  });
 }
 
 async function analyze() {
   const source = $("code").value;
-  ["error", "truncated", "clean", "explanation", "viewer"].forEach((id) => show(id, false));
+  ["error", "result"].forEach((id) => show(id, false));
   if (!source.trim()) { fail("Nothing to analyze", "Paste a function first."); return; }
   $("run").disabled = true;
   try {
-    const response = await fetch("/analyze", {
+    const response = await fetch("/analyze/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: source, language: $("language").value }),
     });
     const body = await response.json();
     if (!response.ok) { fail(body.error.type, body.error.message); return; }
-
-    const flagged = body.vulnerable_lines;
-    const cap = Number($("cap").textContent);
-    const beyond = Number(response.headers.get("X-VulnLoc-Lines-Beyond-Cap") || 0);
-    const bare = Number(response.headers.get("X-VulnLoc-Lines-Without-Features") || 0);
-    text("s-verdict", body.is_vulnerable ? "lines flagged" : "no line flagged");
-    text("s-risk", body.risk_score.toFixed(3));
-    text("s-flagged", String(flagged.length));
-    if (beyond > 0 || bare > 0) {
-      const parts = [];
-      if (beyond > 0) parts.push(`Lines ${cap + 1}–${cap + beyond} were not analyzed: the model scores a function's first ${cap} lines.`);
-      if (bare > 0) parts.push(`${bare} line(s) inside that range gave the model nothing to score (blank, or a comment only).`);
-      text("truncated", parts.join(" "));
-      show("truncated", true);
-    }
-    if (body.is_vulnerable) {
-      const top = flagged[0];
-      text("x-label", body.vulnerability_label || "Unclassified");
-      text("x-line", String(top.line));
-      text("x-score", `▲ rank 1 · ${top.score.toFixed(3)}`);
-      text("x-text", body.explanation);
-      text("x-flow", body.evidence.dataflow_path.length ? body.evidence.dataflow_path.join(" → ") : "none found");
-      text("x-tokens", body.evidence.attention_top_tokens.length ? body.evidence.attention_top_tokens.join(" · ") : "none");
-      text("x-nodes", `${body.evidence.graph_nodes.length} AST node(s) on the line`);
-      show("explanation", true);
-    } else {
-      text("clean-text", body.explanation);
-      show("clean", true);
-    }
-    renderLines(source, flagged, cap);
+    const { result, report } = body;
+    renderVerdict(result, report);
+    renderRanked(report);
+    renderLines(source, report);
+    renderFindings(report);
+    renderCoverage(report);
+    show("result", true);
+    if (report.findings.length) select(report.findings[0]);
   } catch (failure) {
     fail("Request failed", String(failure));
   } finally {

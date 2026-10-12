@@ -261,6 +261,18 @@ def test_the_demo_page_is_self_contained_and_says_what_a_clean_result_is_not(cli
     assert "/" not in client.get("/openapi.json").json()["paths"]
 
 
+def test_the_demo_page_reads_the_report_and_invents_no_measurement(client: Any) -> None:
+    page = " ".join(client.get("/").text.split())
+    # The page shows the reader's report, not only the contract's one explanation.
+    assert 'fetch("/analyze/report"' in page
+    # A template is never presented as the model's reasoning, and static analysis is named.
+    assert "not the model's reasoning" in page
+    assert "static analysis" in page
+    # The measured sentence is built only from the bundle's own record, and says its limit.
+    assert "if (!measured" in page
+    assert "never measured on functions without a vulnerability" in page
+
+
 def test_a_service_with_no_bundle_does_not_start(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(BUNDLE_ENV, raising=False)
     with pytest.raises(ConfigError, match="no serving bundle configured"), TestClient(create_app()):

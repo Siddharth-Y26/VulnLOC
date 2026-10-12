@@ -27,12 +27,19 @@ A bundle that fails either is removed. The largest difference found, its median 
 ``val`` only. A bundle is never checked against a held-out partition: that would be a
 second scoring of it.
 
+**What was measured for the checkpoint can travel with it.** ``export.measured_from`` names
+an evaluation file written by ``scripts/evaluate_scores.py``; the checkpoint's own figures
+are *quoted* from it into the manifest's ``measured`` block, with the file's digest and the
+evaluation's run id, and the service shows them beside every result. Nothing is scored to
+make that block, so quoting the held-out file is not a second evaluation of it.
+
 Usage::
 
     python scripts/export_serving_bundle.py +explainer=template \
         +export.run_id=ba7dcc5ff8354cc4b6d7e7b76f876fd9 \
         +export.scores_dir=./artifacts/phase6/scores_retrained \
-        +export.calibration_report=./artifacts/phase6/retrained/calibration_report.json
+        +export.calibration_report=./artifacts/phase6/retrained/calibration_report.json \
+        +export.measured_from=./artifacts/phase8/evaluation_test.json
 """
 
 from __future__ import annotations
@@ -99,6 +106,86 @@ def _load_script(name: str) -> Any:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+MEASURED_READING = "blank_lines_withheld"
+"""The evaluation's reading a bundle quotes: the service never ranks a line with no code on
+it, and this is the reading that withholds such lines (``EvaluationProtocol.md`` §5.1)."""
+
+MEASURED_NOTE = (
+    "Every function in the partition contains a vulnerability. top_k is the share of them "
+    "in which a line the dataset flags is among the model's k highest-ranked lines; it is "
+    "not a rate of detecting vulnerable functions, and nothing here was measured on "
+    "functions without a vulnerability. line_precision and line_recall are pooled over "
+    "every scoreable line at the checkpoint's validation threshold."
+)
+
+
+def measured_block(
+    evaluation: Path, run_id: str, *, threshold: float, strip_comments: bool
+) -> dict[str, Any]:
+    """What an evaluation recorded for one checkpoint, quoted from the evaluation's file.
+
+    Args:
+        evaluation: An ``evaluation_<split>.json`` written by ``scripts/evaluate_scores.py``.
+        run_id: The checkpoint's training run.
+        threshold: The threshold the bundle ships; the evaluation must have used the same.
+        strip_comments: The text variant the bundle serves; the evaluation's must match.
+
+    Returns:
+        The manifest's ``measured`` block. Every figure is read from the file as it stands;
+        none is computed here.
+
+    Raises:
+        ConfigError: If the file is missing, holds no record of this run, or was made with
+            another threshold or text variant than the bundle's — figures measured under
+            other conditions are not this bundle's.
+    """
+    if not evaluation.is_file():
+        raise ConfigError("the evaluation file to quote from does not exist", path=str(evaluation))
+    payload = json.loads(evaluation.read_text(encoding="utf-8"))
+    entry = (payload.get("runs") or {}).get(run_id)
+    if entry is None:
+        raise ConfigError(
+            "the evaluation file holds no record of this run",
+            path=str(evaluation),
+            run_id=run_id,
+        )
+    if bool(payload.get("strip_comments")) != strip_comments:
+        raise ConfigError(
+            "the evaluation was made on another text variant than the bundle serves",
+            path=str(evaluation),
+            evaluation_strip_comments=payload.get("strip_comments"),
+            bundle_strip_comments=strip_comments,
+        )
+    pooled = entry["pooled"]
+    if abs(float(pooled["threshold"]) - threshold) > 1e-9:
+        raise ConfigError(
+            "the evaluation used another threshold than the bundle ships",
+            path=str(evaluation),
+            evaluation_threshold=pooled["threshold"],
+            bundle_threshold=threshold,
+        )
+    ranking = entry["ranking"][MEASURED_READING]
+    source_order = entry["source_order"][MEASURED_READING]
+    return {
+        "source": evaluation.as_posix(),
+        "source_sha256": file_digest(evaluation),
+        "evaluation_run": str(payload["run_id"]),
+        "partition": str(payload["split"]),
+        "held_out": bool(payload["held_out"]),
+        "reading": MEASURED_READING,
+        "units": int(ranking["units"]),
+        "top_1": float(ranking["metrics"]["top_1"]),
+        "top_3": float(ranking["metrics"]["top_3"]),
+        "top_5": float(ranking["metrics"]["top_5"]),
+        "top_10": float(ranking["metrics"]["top_10"]),
+        "source_order_top_5": float(source_order["metrics"]["top_5"]),
+        "ifa_median": float(ranking["ifa_median"]),
+        "line_precision": float(pooled["precision"]),
+        "line_recall": float(pooled["recall"]),
+        "note": MEASURED_NOTE,
+    }
 
 
 def model_manifest(run_cfg: DictConfig, *, node_size: int, subtoken_size: int) -> dict[str, Any]:
@@ -313,8 +400,9 @@ def build_bundle(cfg: DictConfig) -> tuple[dict[str, Any], Path]:
             ``export.scores_dir`` and ``export.calibration_report``; reads
             ``export.output_dir`` (default ``./artifacts/serving/<run id, 8 characters>``),
             ``export.model_card`` (default ``./docs/MODEL_CARD.md``), ``export.check_units``
-            (default 16), ``export.check_seed``, ``export.tolerance`` and
-            ``export.checkpoint_dir``.
+            (default 16), ``export.check_seed``, ``export.tolerance``,
+            ``export.checkpoint_dir`` and ``export.measured_from`` (an evaluation file to
+            quote the checkpoint's measured figures from; none by default).
 
     Returns:
         The manifest, as written to ``bundle.json``, and the bundle directory.
@@ -374,6 +462,19 @@ def build_bundle(cfg: DictConfig) -> tuple[dict[str, Any], Path]:
             hint="Run scripts/score_checkpoint.py for this run first.",
         )
 
+    # Read before anything is written: a bundle that cannot carry the record it was asked
+    # to carry is not started.
+    measured = (
+        measured_block(
+            Path(str(option("measured_from"))),
+            run_id,
+            threshold=float(threshold),
+            strip_comments=strip_comments_enabled(run_cfg),
+        )
+        if option("measured_from") is not None
+        else None
+    )
+
     bundle_dir = Path(str(option("output_dir", f"./artifacts/serving/{run_id[:8]}")))
     if bundle_dir.exists():
         raise ConfigError(
@@ -417,6 +518,8 @@ def build_bundle(cfg: DictConfig) -> tuple[dict[str, Any], Path]:
         },
         "files": files,
     }
+    if measured is not None:
+        manifest["measured"] = measured
     manifest_path = bundle_dir / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
