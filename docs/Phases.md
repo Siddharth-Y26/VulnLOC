@@ -394,6 +394,8 @@ before the single held-out pass was started.**
     0.30 s, **p95 2.63 s — over the recommended 2 s**; p95 1.96 s for functions up to
     250 lines, 3–18 s beyond (`Memory.md` §1.33). Measured and reported; the bound is
     missed and nothing was tuned towards it.
+  - *2026-10-12:* **the miss is accepted and stated** — the owner delegated the choice
+    (`Memory.md` §2); `docs/MODEL_CARD.md` carries the figures under known limits.
 - [x] Error responses structured per `Rules.md` §4.7
   - *2026-10-11:* one shape for every failure, `{"error": {type, message, unit_id}}`
     (`tests/unit/test_serving_app.py`).

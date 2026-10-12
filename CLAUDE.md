@@ -61,6 +61,16 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-12 (session 19): Q15 IS CLOSED AND THE LATENCY MISS IS ACCEPTED — the owner
+delegated both ("do 1 and 2 according to you explain to me 3", `Memory.md` §2).** The
+paper leads with the fine-tuned null, held out, and reports the frozen result beside it
+as a validation-only finding with every qualifier; the online draft's Abstract and
+Section 1 were brought to that the same day (Section 3.10 already read so). Latency
+(p95 2.63 s against a recommended 2 s) is stated in `docs/MODEL_CARD.md` and nothing is
+tuned — **that card now differs from the copy in the bundle of record, which is not
+edited.** Still the owner's: the clean-clone box (explained, not decided) and the
+Phase 8 and 9 gates. The paragraphs below describe the state before this.
+
 **2026-10-12 (session 19): THE OWNER DEFERRED THE HUMAN EVALUATION IN WRITING ("then do
 1", `Memory.md` §2).** Three rating sheets the owner downloaded carried the same score in
 400 of 400 cells and were, by the owner's word, a language model's output — **never

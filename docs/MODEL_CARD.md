@@ -138,6 +138,15 @@ predicts 0.4–1.0) on bins of 9 to 39 lines each.
   The others say that a line was ranked highly and that no known pattern matched it. The
   vulnerability category is derived from the matching template; the model does not
   predict a type.
+- **No person has rated the explanations.** A rating protocol was defined
+  (`docs/HumanEvalProtocol.md`) and the evaluation was deferred; what is known of the
+  explanations' quality is the automatic verification and the share that names a cause.
+- **Slow on long functions.** On a laptop CPU, 200 `val` functions took a median of
+  0.30 s each and 2.63 s at the 95th percentile (run `3e91feba…`, `Memory.md` §1.33) —
+  over the 2 s this project set itself as a target. Functions of up to 250 lines stay
+  under it (95th percentile 1.96 s); the fifteen longer ones took a median of 3.4 s and
+  up to 18 s. Nothing was tuned towards the target, and the miss is accepted as a stated
+  limit of this release.
 - **The data-flow evidence is name-based**: no aliasing, no scoping (`CLAUDE.md` #19).
 - **Distribution.** Chrome and the Linux kernel are 65.8% of the corpus. Functions from
   projects unlike those were not evaluated separately.
