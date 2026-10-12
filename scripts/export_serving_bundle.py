@@ -168,6 +168,13 @@ def measured_block(
         )
     ranking = entry["ranking"][MEASURED_READING]
     source_order = entry["source_order"][MEASURED_READING]
+    # A ranking metric is stored under each of the three tie orders; the one the evaluation
+    # reports is named in the file, and that is the one quoted.
+    tie_order = str(payload["tie_order"])
+
+    def reported(metrics: Mapping[str, Mapping[str, float]], name: str) -> float:
+        return float(metrics[name][tie_order])
+
     return {
         "source": evaluation.as_posix(),
         "source_sha256": file_digest(evaluation),
@@ -175,12 +182,13 @@ def measured_block(
         "partition": str(payload["split"]),
         "held_out": bool(payload["held_out"]),
         "reading": MEASURED_READING,
+        "tie_order": tie_order,
         "units": int(ranking["units"]),
-        "top_1": float(ranking["metrics"]["top_1"]),
-        "top_3": float(ranking["metrics"]["top_3"]),
-        "top_5": float(ranking["metrics"]["top_5"]),
-        "top_10": float(ranking["metrics"]["top_10"]),
-        "source_order_top_5": float(source_order["metrics"]["top_5"]),
+        "top_1": reported(ranking["metrics"], "top_1"),
+        "top_3": reported(ranking["metrics"], "top_3"),
+        "top_5": reported(ranking["metrics"], "top_5"),
+        "top_10": reported(ranking["metrics"], "top_10"),
+        "source_order_top_5": reported(source_order["metrics"], "top_5"),
         "ifa_median": float(ranking["ifa_median"]),
         "line_precision": float(pooled["precision"]),
         "line_recall": float(pooled["recall"]),

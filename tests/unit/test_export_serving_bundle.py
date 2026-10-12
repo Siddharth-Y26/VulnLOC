@@ -39,11 +39,21 @@ def _load() -> Any:
 exporting = _load()
 
 
+def _metric(value: float) -> dict[str, float]:
+    """A ranking metric as the evaluation stores it: one value per tie order."""
+    return {"source": value, "best": value + 0.01, "worst": value - 0.01}
+
+
 def _reading(units: int, top_5: float) -> dict[str, Any]:
     return {
         "units": units,
         "ifa_median": 5.0,
-        "metrics": {"top_1": 0.25, "top_3": 0.4, "top_5": top_5, "top_10": 0.6},
+        "metrics": {
+            "top_1": _metric(0.25),
+            "top_3": _metric(0.4),
+            "top_5": _metric(top_5),
+            "top_10": _metric(0.6),
+        },
     }
 
 
@@ -53,6 +63,7 @@ def _evaluation(tmp_path: Path, **changes: Any) -> Path:
         "split": "test",
         "held_out": True,
         "strip_comments": True,
+        "tie_order": "source",
         "runs": {
             RUN: {
                 "ranking": {
@@ -86,6 +97,8 @@ def test_every_figure_is_the_evaluation_files_own(tmp_path: Path) -> None:
     # The service never ranks a blank line, so it quotes the reading that withholds them.
     assert block["reading"] == "blank_lines_withheld"
     assert block["units"] == 533
+    # ...and of the three tie orders, the one the evaluation itself reports.
+    assert block["tie_order"] == "source"
     assert block["top_5"] == 0.47
     assert block["source_order_top_5"] == 0.28
     assert block["top_1"] == 0.25
@@ -121,3 +134,24 @@ def test_a_missing_evaluation_file_is_an_error_not_an_empty_record(tmp_path: Pat
         exporting.measured_block(
             tmp_path / "absent.json", RUN, threshold=THRESHOLD, strip_comments=True
         )
+
+
+def test_the_shape_assumed_here_is_the_shape_of_the_evaluation_of_record() -> None:
+    """The fixture above is hand-made; this reads the real file when the tree has one."""
+    real = REPO_ROOT / "artifacts" / "phase8" / "evaluation_test.json"
+    if not real.is_file():
+        pytest.skip("no held-out evaluation in this tree (a fresh clone has none)")
+    payload = json.loads(real.read_text(encoding="utf-8"))
+    run_id, entry = next(iter(payload["runs"].items()))
+
+    block = exporting.measured_block(
+        real,
+        run_id,
+        threshold=float(entry["pooled"]["threshold"]),
+        strip_comments=bool(payload["strip_comments"]),
+    )
+
+    reading = entry["ranking"]["blank_lines_withheld"]
+    assert block["top_5"] == reading["metrics"]["top_5"][payload["tie_order"]]
+    assert block["units"] == reading["units"]
+    assert 0.0 <= block["line_recall"] <= 1.0
