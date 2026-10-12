@@ -28,7 +28,7 @@
 |-------|-------|
 | **Active phase** | **Phase 7 — Explanation (7a), since 2026-10-07: Phases 5 and 6 are SIGNED (§1.1c, §1.1d).** Ablation A6 (attention direction) is running on the frozen cache as queue group `a6`. Phase 5's record, kept: **A1's frozen screen is DONE (§1.21):** cross_attention 0.5408 ± 0.0181 vs concat 0.5394 ± 0.0198 Top-5 — **no resolvable difference**; every fusion arm beats frozen llm_only (0.4903) on every seed; none beats fine-tuned LLM-only (0.6141). **D9.7 (fine-tuned confirmation): the six runs ADR-009 specifies are FINISHED (§1.22) — cross_attention 0.6162 ± 0.0184 vs concat 0.6169 ± 0.0104 Top-5, again no resolvable difference.** The added scaffold control `llm_only` × 3 finished on 2026-10-07: **0.6169 ± 0.0048 Top-5 — no fused arm beats it (§1.22)** |
 | **Phase status** | ✅ **Phases 3 and 4 SIGNED by the owner, 2026-09-15; Phases 5 and 6 SIGNED 2026-10-07; Phase 7 SIGNED 2026-10-08 — Phase 8 is the current phase.** ADR-008 and ADR-009 accepted 2026-09-15, ADR-010 on 2026-10-08 |
-| **Last updated** | 2026-10-11 08:10 (session 18: held-out results §1.30; `a1r` and its replication §1.32; Phase 9 merged, bundle, latency and Docker §1.33; nothing is running — §6 item 0a) |
+| **Last updated** | 2026-10-12 16:10 (session 19: the clean-clone check §1.34; Phases 8 and 9 closed, §1.1f and §1.1g; the three-headline record §1.35; nothing is running — §6 item 0a). Before that: 2026-10-11 08:10 (session 18: held-out results §1.30; `a1r` and its replication §1.32; Phase 9 merged, bundle, latency and Docker §1.33; nothing is running — §6 item 0a) |
 | **Open decision** | **None blocking a measurement. On 2026-10-08 the owner accepted ADR-010 (Q14), signed the Phase 7 gate and confirmed `docs/EvaluationProtocol.md` (§2); the single held-out evaluation is authorised and is made on comment-stripped text with the nine `d97r` checkpoints.** Q13 answered and Q5 deferred by the owner (§2, §5). Still open, not blocking: ADR-006 and ADR-007 `Proposed` (ADR-007 blocks ablation A3's CPG arm); Q4 (explanation supervision) belongs to Phase 7; the paper's framing of the A1 null; scheduled defragmentation of D: (§7 #57) |
 | **Last commit** | Session 14's resume/queue commit on `phase-2/representation` (see `git log`). **`main` DOES exist** with an `origin` remote — CLAUDE.md §3 and §10 say otherwise and are wrong |
 | **Best model run ID** | **Models of record since 2026-10-08 (ADR-010 accepted, §2; `val` numbers in §1.28): cross_attention `ba7dcc5f…` / `8afbf7da…` / `ff980345…` (the full model), concat `9ac7a146…` / `7579bc33…` / `10b43ce5…`, `llm_only` `d82a6a70…` / `a1dce535…` / `9296a0e5…`.** Single-branch baselines, measured with comments in place: semantic `fc902107…` / `5b177450…` / `e82ff268…` (§1.14); structural A4 `77370d56…` / `0d324da8…` / `3c570cc1…` (§1.15). **`fc902107…` (seed 42) is the model the inspector's Findings tab scores with.** Run `1843412a…` remains void |
@@ -3415,6 +3415,60 @@ Whether Phase 8's "reproducible from a clean clone" box is ticked on this is the
 owner's, at the gate. **Ticked 2026-10-12 on the owner's words (§2), with the miss
 stated beside it** — `Phases.md` says what the tick claims and what it does not.
 
+## 1.35 Three headlines over one analysis — the released one says "flagged" about 93.5% of harmless functions; the pattern one fires on a quarter of both kinds (2026-10-12)
+
+**The record is `docs/VerdictComparison.md`; this section says what it found and what it
+is not.** The owner asked for the results so far to be kept in a file *"so we can compare
+all the three, the original the pattern and the screening gate later"* (§2). Kept, and —
+the session's addition, not asked for — both existing headlines were measured for the
+first time on functions that are **not** vulnerable, since a "nothing found" line cannot be
+compared on vulnerable functions alone. Nothing was trained; `val` only; the released
+system is unchanged.
+
+Run `6c942e6c…` (code `0af6ae2`, branch `phase-9/screening`, `scripts/compare_verdicts.py`),
+the bundle of record, one request a function: all 488 line-labelled vulnerable `val`
+functions (median 47.5 lines) and 1,000 of the 17,768 the corpus does not mark vulnerable,
+drawn by content hash, seed 1337 (median 18; the population's is 19). All 1,488 answered.
+
+| Headline | Raises a concern about a vulnerable function | About one that is not |
+|---|---|---|
+| Original (`/`): a line reaches the threshold | 415 of 488 (85.0%) | 935 of 1,000 (93.5%) |
+| Pattern (`/experimental/patterns`): a weakness pattern matches such a line | 135 of 488 (27.7%) | 210 of 1,000 (21.0%) |
+| Screening gate | not built | not built |
+
+- **The released headline raises a concern more often about harmless functions than about
+  vulnerable ones**, and at equal length the two kinds get nearly the same answer: up to
+  25 lines it flags 757 of 759 functions; at 51–100 lines 77.0% against 73.1%. It reads
+  length. The 73 vulnerable functions it misses have a median of 123 lines.
+- **The pattern headline's "No known vulnerability pattern found" appears for 79.0% of
+  harmless functions and 72.3% of vulnerable ones.** Overall it fires 6.7 points more
+  often on vulnerable functions; in the two largest length bands the rates agree to half a
+  point. Whether it carries anything beyond length is not resolved.
+- **How well one number separates the two kinds** (the chance a vulnerable function has
+  the higher value; 0.5 separates nothing): **length alone 0.7111; the checkpoint's highest
+  line score 0.3321 — the wrong way round** (harmless functions score higher, median 0.286
+  against 0.137); lines flagged 0.5189. Length alone is the bar a gate has to beat.
+- The served count is 415 where the stored explanations gave 417 (§1.33's correction): the
+  two functions that differ are the two in which every stored flagged line is blank, which
+  the service never offers. The pattern set is the same 135 functions either way.
+
+**What it is not:** a precision (one `val` function in 23 is vulnerable, and the two kinds
+were asked in chosen numbers); a statement about more than the one served checkpoint; a
+statement that the 1,000 are safe — "not vulnerable" is the corpus's label. And it is a
+different question from the project's results, which rank the lines inside a function
+already known to be vulnerable and stand as they were (§1.28–§1.30).
+
+**For the gate, written before it exists** (`docs/VerdictComparison.md` §6 — the session's
+rules, the owner's to change before a gate is run): the same 1,488 functions; no function
+answered by a gate fitted or thresholded on it (cross-fitted, folds by project); better
+than length alone on the whole record *and* within length bands; `val` only. **Fitting on
+`train` has a trap: the checkpoint has seen `train`'s vulnerable functions and none of its
+harmless ones, so a gate on its features can learn "seen before".** The gate is not
+started and still needs the owner's explicit yes.
+
+Per-function records: `artifacts/screening/verdicts_val.jsonl` (SHA-256 `8deca36a…`),
+also stored with the run. The script and its 15 tests are on the experiment branch only.
+
 ---
 
 ## 2. Decision Log
@@ -3423,6 +3477,7 @@ Append-only. Format: date · decision · alternatives considered · rationale ·
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-10-12 | **The results so far are kept in one record so the three headlines can be compared later: `docs/VerdictComparison.md`** (owner, after being told that the pattern page exists apart from the released system and asked whether the screening gate should be attempted the next day: ***"its fine save these results in a fle for later so we can compare all the three, the original the pattern and the screening gate later"***). Session 19 wrote the record and, **as its own addition**, measured both existing headlines on 1,000 `val` functions the corpus does not mark vulnerable (run `6c942e6c…`, §1.35). **"its fine" is not read as a yes to the gate: it is new training, the owner chose on 2026-10-11 to go on without any, and nothing was started** | Keep only the figures already reported (417 / 71 and 135 / 353 on vulnerable functions), the harmless side left "not measured" · read "its fine" as the go-ahead and start the gate | The owner asked for a record to compare against, and a "nothing found" line cannot be compared on vulnerable functions alone. The measurement trains nothing and touches no held-out partition and no file of record. The gate waits for words that name it | — |
 | 2026-10-12 | **Phase 9's Docker box is ticked as "a clean container on this laptop", the bundle of record becomes `artifacts/serving/ba7dcc5f-r2`, and the Phase 9 gate is closed** (owner: *"okay finish these two also so phase 8 and 9 done?"* — the same words as the Phase 8 row below; their first word answered the session's question whether to go ahead with the demo page). Session 19 finished the page on `POST /analyze/report`, added `export.measured_from`, re-exported the released checkpoint (`ef031969…`), rebuilt the image and checked the service in it against the host, then ticked the box and wrote §1.1g. **The Docker box had been left for the owner to say whether one laptop is what "clean" asks; the owner's words do not address that, and the tick's reading is the session's.** The owner has not read §1.1g | Leave the Docker box unticked and Phase 9 at 3 / 4 until the second laptop is tried; keep the first bundle as the bundle of record and treat the re-export as a second artefact | The owner's stated aim is both phases done. A container built from the repository alone, with only a bundle mounted and no network, is clean in everything but hardware; the second-machine check has a place of its own in Phase 10 (the independent reader). The new bundle has the same weights by digest and passed the same export check, so nothing measured on the first one is lost | — |
 | 2026-10-12 | **Phase 8's two remaining boxes are ticked and its gate is closed** (owner, after being told that two Phase 8 boxes and the Phase 8 and 9 gate signatures were what remained on the owner's side: *"okay finish these two also so phase 8 and 9 done?"*). Session 19 read those words as the instruction to finish both boxes and close both gates, and did the work first: a read-only trace of every run the Phase 8 tables name (`scripts/trace_phase8_tables.py` — 0 did not trace), and a verdict for each of the ten novelty claims written into `Phases.md`. **"Ablations confirm or refute each novelty claim" is ticked as "every claim has a written verdict", not as "every ablation was run": A3, A7 and A10 were not run and no claim is made about them.** The gate's three answers are §1.1f. **The owner has not read them and did not write "signed"; the reading is the session's and any part of it can be reversed** | Leave both boxes and the gate unsigned until the owner reads §1.1f; run A3, A7 and A10 first (A3 needs ADR-007 accepted and CPG graphs costed on the 4 GiB card; A7 needs the live encoder; A10 needs explainers that are not built) — new training, which the owner declined on 2026-10-11 | The owner's stated aim is both phases done, and each tick says in `Phases.md` what it claims and what it does not. The weakest of the four is the ablations box, and it is recorded as such | — |
 | 2026-10-12 | **Phase 8's "results reproducible from a clean clone" box is ticked, with the cross-attention miss stated beside it** (owner). Session 19 explained the check (§1.34) and offered two options — tick it with the miss stated, or leave it unticked; the owner asked *"what do you recommend"*, was told "tick it, with the cross-attention miss written beside it", and answered ***"okay then proceed"***. The claim is: the tests, split, shards and vocabularies reproduce exactly from a clean clone and the lock file, and a retrained frozen model lands within its arm's spread over seeds — not that a single run's number can be recovered. The online draft's reproducibility section says so, with both reruns' figures | Leave it unticked, holding to the criterion written before the check (each rerun within its arm's three-seed sd of one logged run) | That criterion was the session's and was too narrow: a same-seed rerun of this model moves more than the three-seed sd with every input equal (§7 #70), so a correct pipeline can fail it. Everything deterministic reproduced exactly. Kept in the record: one of two reruns missed the pre-stated band, the six-seed comparison was made after the run, the cause was not isolated, the corpora were verified and not downloaded, and it was one machine | — |
@@ -4331,6 +4386,7 @@ Every claim in a paper or doc must resolve to a row here.
 
 | Run ID | Date | Config | Seeds | Fusion | Branch | Function F1 | Top-5 Acc | IFA | Notes |
 |--------|------|--------|-------|--------|--------|-------------|-----------|-----|-------|
+| `6c942e6c…` | 2026-10-12 | `compare_verdicts.py +compare.bundle=…/serving/ba7dcc5f-r2`, run from the worktree of branch `phase-9/screening`, clean `0af6ae2`; the served checkpoint `ba7dcc5f…` through the serving path on CPU; trains nothing | 42 | cross_attention | fused (served) | — | — | — | **§1.35: what each headline says about 488 vulnerable and 1,000 not-vulnerable `val` functions — an experiment kept apart, not a number of record.** The released headline raises a concern about 85.0% / 93.5%; the pattern headline about 27.7% / 21.0%; length alone separates the two kinds at 0.7111, the checkpoint's highest line score at 0.3321. No figure is a precision. The six-function trial runs before it went to scratch stores (one of them the stray `D:\probe.db`) and are not in this ledger |
 | `52b9c998…` (of record) · `30aeff44…` (same numbers, earlier table wording) | 2026-10-08 | `evaluate_scores.py +representation.strip_comments=true +evaluate.scores_dir=./artifacts/phase6/scores_retrained +evaluate.calibration_dir=./artifacts/phase6/retrained` — clean `4281b3f` / `b875d70`; reads the nine `d97r` `val` score files and their three calibrations, loads no model | 42, 1, 2 | cross_attention / concat / llm_only | fused | *not reported — degenerate* | 0.5394 ± 0.0116 / 0.5546 ± 0.0084 / 0.5519 ± 0.0187 (the seed reports', reproduced); source order 0.3071 | 14.56 ± 0.43 / 14.06 ± 0.26 / 14.72 ± 1.27; source order 29.78 | **§1.29: Phase 8's full line-level suite on `val`.** PR-AUC **0.1713 ± 0.0143 / 0.1816 ± 0.0090 / 0.1610 ± 0.0097** against a positive rate of 0.0664; Top-10 0.667 / 0.680 / 0.676; Recall@20% LOC 0.470 for all three. **No per-unit metric separates the arms.** 93 comparisons, three at ≥ 2 pooled sd, all concat − `llm_only` (PR-AUC +0.0206 at 2.20; ECE) — a threshold chance crosses 7 times in 100 at three seeds, so a candidate for the held-out pass, not a finding (§7 #64). Bootstrap 95% over units ≈ ± 0.045 on Top-5 per checkpoint. Ties in source order; concat's Top-1 is 0.2614 here against 0.2621 logged — one tied unit. `val` only |
 | `96b04469…` `2e9a2edc…` `af8b025e…` / `fbcf8b73…` `df29e1e1…` `3ee81242…` / `8f32f39d…` `09a50662…` `b626975c…` (scores) · `513dd46e…` `79b8c8d1…` `8b7ac935…` (calibration) · `10319b01…` (score audit) · `9196a0e3…` `798f6ef3…` `a65aa282…` (explanations) | 2026-10-08 | `score_checkpoint.py +score.run_id=<run> +score.output_dir=./artifacts/phase6/scores_retrained` ×9, `calibrate.py` per arm, `audit_score_leakage.py +representation.strip_comments=true`, `explain_checkpoint.py` ×3 — clean `1686536` / `bbb3d94` | 42, 1, 2 | cross_attention / concat / llm_only | fused | — | *unchanged — calibration is monotone*; blank lines withheld (474 units): 0.5499 ± 0.0120 / 0.5633 ± 0.0084 / 0.5633 ± 0.0211 | *unchanged* | **§1.28: the retrained checkpoints calibrated, audited and explained on `val`.** Line F1 out of fold **0.2359 ± 0.0120 / 0.2408 ± 0.0074 / 0.2330 ± 0.0118** — a tie (largest gap 0.79 pooled sd), against 0.39 with the tell in view. ECE 0.0133 / 0.0076 / 0.0168 after calibration. No unit answered by a tell; 274 of 2,808 flagged lines blank. 13,080 of 13,080 flagged lines explained and verified. **`8afbf7da…` was refused by the reproduction check in four of six passes — a tie-order flip of one rank in one unit; the kept file reproduces at the default tolerance (§7 #63).** Void: `15fccf6d…` (audit at `n=2`), `e735045f…` (tolerance probe) |
 | `9ac7a146…` `7579bc33…` `10b43ce5…` · `f3d754eb…` (seed report) | 2026-10-08 | `run_queue.py --only d97r` — D9.7's constants plus `+representation.strip_comments=true`, concat; commits `fbc44e2` / `1686536` (docs only between them) | 42, 1, 2 | concat | fused | 1.000 *(degenerate)* | **0.5546 ± 0.0084** | 14.06 | **§1.28: concat retrained on comment-stripped text — the last arm, and A1 on text with no tell.** Top-1 0.2621 ± 0.0222. **Cross-attention does not beat it** (Top-5 −0.0152, 1.51 pooled sd; Top-1 +0.0062, 0.38) **and neither fused arm beats `llm_only`** (concat − `llm_only` Top-5 +0.0028, 0.19). Nothing between arms reaches 2 pooled sd. Seed 42 is a resumed run (`resumed_at: epoch=6,batch=6,step=3944`; paused by the owner 05:46–10:59) whose selected checkpoint predates the pause. Validation-selected, `val`. Pending Q14 |
@@ -4618,12 +4674,24 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
       headline would read "No known vulnerability pattern found" for 353 of 488 (72%)
       functions that do contain a vulnerability.** True as a statement about patterns;
       poor as a signal. How often it would fire on harmless functions is not measured.
+      *(Measured later the same day: 210 of 1,000 — §1.35.)*
     - *Not started, waiting for the owner's yes:* the screening gate — a small
       classifier on the released model's internal features, vulnerable against
       non-vulnerable at one to one, validation only, to be judged against a length-only
       rule. It is new training, which the owner declined on 2026-10-11; a day to a day
       and a half. It would go on the same branch, on a page of its own.
     - *Also corrected:* "the model flags a line in every function" (§1.33, §1.1g).
+    - *Later the same day — the record the owner asked for:*
+      **`docs/VerdictComparison.md`** (§1.35, run `6c942e6c…`). Both headlines were
+      asked about the same 1,488 `val` functions, harmless ones included for the first
+      time: the released headline raises a concern about 85.0% of vulnerable functions
+      and **93.5% of harmless ones**; the pattern headline about 27.7% and 21.0%;
+      length alone separates the two kinds at 0.7111 and the checkpoint's highest line
+      score at 0.3321. The script is on the experiment branch only (`0af6ae2`). **The
+      gate is still not started** — the owner's words ("its fine save these
+      results…", §2) were not read as a yes to training; ask by name. *Left for the
+      owner to delete:* `D:\probe.db`, an 880 KB tracking database a mis-typed trial
+      command made at the root of D: (a safety check refused the session's removal).
   - *What is left now is Phase 10* — Sections 4 to 6 of the paper, the public README
     (it must say "a ranker for a function already suspected" first, §1.1g), the
     reproducibility appendix, licences and citations, and the independent reader on the
@@ -5739,6 +5807,7 @@ Things that cost time once and should not cost time twice.
 | 71 | **A fixture written from memory of a file's shape passes against itself.** `measured_block`'s first tests fed it bare numbers; `evaluation_<split>.json` stores each ranking metric as one value per tie order, and the export died on the real file — before writing anything, only because the block is read first. | ✅ `b0afb75`: the fixture mirrors the file, and a test reads the real file when the tree has one. **When code reads an artefact another script wrote, one test must read a real one.** |
 | 72 | **From Git Bash the pre-commit `import-linter` hook runs the system Python and fails** (`No module named 'importlinter'`) on any commit that touches a `.py` file; docs-only commits skip the hook and hide it. | Commit with the environment first on the path — `PATH="/d/project/.venv/Scripts:$PATH" git commit …` — or from an activated PowerShell. Never `--no-verify`. |
 | 73 | **Docker Desktop starting or stopping makes a Hypothesis deadline fail.** `test_evaluation_localization.py`'s property took 2.0 s on its first call against a 200 ms deadline with D: busy, twice; it passes on a quiet machine. | Not changed — the evaluation layer and its tests stay as they are. **Run the suite with Docker closed, and read a `DeadlineExceeded` before reading it as a failure.** |
+| 74 | **The served headline tracks a function's length, not whether it is vulnerable.** Asked about 1,000 `val` functions the corpus does not mark vulnerable, "N lines flagged" appeared for 93.5% — against 85.0% of vulnerable ones — and at equal length the two kinds get the same answer. The checkpoint's highest line score ranks harmless functions *above* vulnerable ones (0.3321), where length alone gives 0.7111 (§1.35, `6c942e6c…`). Until then every reading of the headline had been taken on vulnerable functions only, where 85% looks like a detection rate. | Never present `is_vulnerable`, a flagged line or `risk_score` as detection. **Judge any "nothing found" line on harmless functions as well as vulnerable ones, and by length band**; a screen has to beat length alone. The record and the rules for a later gate: `docs/VerdictComparison.md`. |
 | 17 | The leakage check **counted `clean_eval`'s deliberate project overlap as leakage** | Every correct project-wise split reported `is_clean=False`, with a 55-project `shared_projects` list burying the 207 genuine duplicates | Fixed: project disjointness is checked over train/val/test only; the clean-eval overlap is reported separately and quantified (66.5%) | ✅ Fixed |
 
 **Anticipated, pre-recorded so they aren't rediscovered painfully:**

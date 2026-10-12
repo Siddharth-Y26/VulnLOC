@@ -61,6 +61,19 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-12 16:10 (session 19): THE THREE-HEADLINE RECORD IS `docs/VerdictComparison.md`
+(`Memory.md` §1.35) — kept at the owner's request ("save these results in a fle for
+later so we can compare all the three", `Memory.md` §2).** Both existing headlines were
+asked, for the first time, about `val` functions that are **not** vulnerable (run
+`6c942e6c…`, experiment branch `0af6ae2`, nothing trained): **the released headline
+raises a concern about 85.0% of vulnerable functions and 93.5% of harmless ones — it
+reads length; the pattern headline about 27.7% and 21.0%; length alone separates the
+two kinds at 0.7111 and the checkpoint's highest line score at 0.3321, the wrong way
+round** (landmine #74). An experiment, not a number of record; no figure is a precision.
+**The screening gate is not started and still needs the owner's explicit yes** — the
+rules for its row are written in that file, §6. `D:\probe.db` is a stray the owner may
+delete. The paragraphs below describe the state before this.
+
 **2026-10-12 afternoon (session 19): PHASES 8 AND 9 ARE CLOSED ON THE OWNER'S INSTRUCTION
 ("okay finish these two also so phase 8 and 9 done?", `Memory.md` §2) — both 4 / 4, gate answers in `Memory.md` §1.1f and §1.1g.
 THE OWNER HAS NOT READ THOSE ANSWERS, and each tick says in `docs/Phases.md` what it
@@ -824,6 +837,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 | 71 | **A fixture written from memory of a file's shape passes against itself.** `export.measured_from`'s first tests used bare numbers where `evaluation_<split>.json` stores one value per tie order; the export died on the real file. When code reads an artefact another script wrote, one test must read a real one. `Memory.md` §7 #71. |
 | 72 | **From Git Bash the pre-commit `import-linter` hook runs the system Python and fails** on any commit touching a `.py` file. Commit with `PATH="/d/project/.venv/Scripts:$PATH" git commit …`; never `--no-verify`. `Memory.md` §7 #72. |
 | 73 | **Docker Desktop starting or stopping makes a Hypothesis deadline fail** (`test_evaluation_localization.py`, 2.0 s against 200 ms, twice). Run the suite with Docker closed and read a `DeadlineExceeded` before calling it a failure. `Memory.md` §7 #73. |
+| 74 | **The served headline tracks a function's length, not whether it is vulnerable.** On `val` it raises a concern about 93.5% of functions the corpus does not mark vulnerable against 85.0% of vulnerable ones, and the checkpoint's highest line score ranks harmless functions above vulnerable ones (0.3321; length alone 0.7111). Never present `is_vulnerable` or a flagged line as detection; judge any "nothing found" line on harmless functions too, by length band. `docs/VerdictComparison.md`, `Memory.md` §1.35, §7 #74. |
 | 70 | **A run repeated at the same seed is not the same number.** The clean-clone check reran two frozen runs at seed 42 with every parameter and digest equal: concat −0.0145 Top-5, cross_attention +0.0228 — 2.2 times its arm's three-seed sd. Judge a rerun against the arm's distribution over seeds, stated beforehand; never promise one run's number. Cause not isolated. `Memory.md` §1.34, §7 #70. |
 | 69 | **An image whose work directory belongs to root starts no Hydra script** — Hydra writes `outputs/` beside the launch directory. The first image ever built here died on it (fixed `193f3ac`). The same build showed two things still open: **the image installs from `pyproject.toml`'s lower bounds, not the lock file, and it has no `.git` — a run inside logs `git_sha=unknown`.** `Memory.md` §7 #69. |
 
