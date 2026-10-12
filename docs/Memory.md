@@ -332,6 +332,11 @@ explanations give a reason and no remedy.
   a function already suspected*, first and in plain words — not as a detector with a
   caveat. The owner's "No known vulnerability found" wording is correct and almost
   never shown.
+  ***Corrected the same evening:*** "every function" was six short inputs. On `val`,
+  71 of 488 vulnerable functions get no flagged line — the long ones (median 117 lines
+  against 40) — so the wording *is* shown, to functions that contain a vulnerability,
+  while a four-line harmless one is flagged at 0.99 (§1.33). The conclusion is
+  unchanged and stronger: a ranker, not a detector.
 - **Host and container agree to 5.2e-7 across torch 2.13.0 and 2.14.1**, on one
   function. The unpinned image is not changing answers today; pinning is still owed for
   the day it does.
@@ -3273,6 +3278,16 @@ so `is_vulnerable` is close to always true and **the "No known vulnerability fou
 state could not be reached through the real model in this check; its wording is pinned
 by unit tests only.** This is the model card's "not a detector" seen from the page.
 
+***Corrected the same evening — the paragraph above generalised from six tiny inputs.***
+On `val`, from the stored explanations of `ba7dcc5f…` (`artifacts/phase7/explanations_retrained/`, 488 functions, all vulnerable): 417 have a flagged line and **71 (14.5%) have none** — and those are the long ones, a median of 117 lines against 40. So the unflagged state *is* reached —
+on long functions that do contain a vulnerability — while a four-line harmless function
+is flagged at 0.99: a function's highest calibrated score falls as the function gets
+longer. `is_vulnerable` is therefore not "close to always true"; it is wrong in both
+directions, by length. (Those counts are from the scoring pipeline, which can flag a
+blank line; the service withholds blank lines, so its counts can differ slightly.) What
+stands: the state was not reached in the browser check, and the model is a ranker for a
+function already suspected.
+
 **A bundle can carry what was measured for its checkpoint.**
 `scripts/export_serving_bundle.py +export.measured_from=<evaluation file>` quotes the
 checkpoint's own figures into the manifest's `measured` block, with the file's SHA-256
@@ -4579,6 +4594,36 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
     `/analyze/report`, `export.measured_from`, the bundle of record re-exported to
     `artifacts/serving/ba7dcc5f-r2`, the image rebuilt (`7283510c22c7`) — §1.33's last
     subsection. Docker Desktop is shut down; nothing is running; the tree is clean.
+  - **Evening — the owner asked what could be done about `int add(int a, int b)` being
+    flagged at 0.99, and has to show the project on 14–16 October.** Told: retraining
+    with non-vulnerable functions is the real fix and does not fit before the 14th (a
+    day of building, a trial, then one to two nights; `train` holds 5,457 line-labelled
+    vulnerable functions and 141,494 non-vulnerable ones, median 27 lines against 13 —
+    length is a ready shortcut). The owner then asked what is realistic *"if we do need
+    a 'no vulnerability line' even if it is not a hundered percent accurate"*, and
+    *"can we keep the current thing separate and these two things separate?"*
+    - *Built, separate:* **branch `phase-9/screening`, worktree `D:\vulnloc-wt\screening`,
+      commit `58cd313`, NOT merged.** One new page, `GET /experimental/patterns`: the
+      same `/analyze/report` under a headline that follows the weakness patterns —
+      "Known weakness pattern on line N" or **"No known vulnerability pattern found"**
+      (with "not a statement that the function is safe"). `/` does not link to it and
+      is unchanged; nothing the API returns changes; no training. Driven in a headless
+      browser: `int add` reads "No known vulnerability pattern found", the overrun
+      example reads "Known weakness pattern on line 6". Run it beside the released
+      demo with `PYTHONPATH=D:/vulnloc-wt/screening/src python scripts/serve.py
+      +serve.bundle=D:/project/artifacts/serving/ba7dcc5f-r2 +serve.port=8081` from
+      the worktree.
+    - *Measured for it, `val` only, from the stored explanations of `ba7dcc5f…`:* a
+      pattern matches some flagged line in 135 of 488 vulnerable functions, so **that
+      headline would read "No known vulnerability pattern found" for 353 of 488 (72%)
+      functions that do contain a vulnerability.** True as a statement about patterns;
+      poor as a signal. How often it would fire on harmless functions is not measured.
+    - *Not started, waiting for the owner's yes:* the screening gate — a small
+      classifier on the released model's internal features, vulnerable against
+      non-vulnerable at one to one, validation only, to be judged against a length-only
+      rule. It is new training, which the owner declined on 2026-10-11; a day to a day
+      and a half. It would go on the same branch, on a page of its own.
+    - *Also corrected:* "the model flags a line in every function" (§1.33, §1.1g).
   - *What is left now is Phase 10* — Sections 4 to 6 of the paper, the public README
     (it must say "a ranker for a function already suspected" first, §1.1g), the
     reproducibility appendix, licences and citations, and the independent reader on the

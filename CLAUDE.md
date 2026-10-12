@@ -74,8 +74,14 @@ figures from an evaluation file into its bundle (nothing is scored);
 **The bundle of record is now `artifacts/serving/ba7dcc5f-r2` (export `ef031969…`) — the
 same weights by digest as `ba7dcc5f`, which is kept.** The image `vulnloc:0.1.0` was
 rebuilt (`7283510c22c7`, unpinned: torch 2.14.1+cpu) and answers as the host does to
-5.2e-7. **The served model flags a line in every function it is given, `int add(int a,
-int b)` included — it is a ranker for a function already suspected, never a detector.**
+5.2e-7. **The served model flagged a line in each of six short functions tried, `int add(int a,
+int b)` at 0.99 included — while on `val` 71 of 488 vulnerable functions, the long ones,
+get no flagged line at all (`Memory.md` §1.33): its verdict is wrong in both directions,
+by length. It is a ranker for a function already suspected, never a detector.** **An
+experiment is kept apart on branch `phase-9/screening` (worktree
+`D:\vulnloc-wt\screening`, `58cd313`, not merged): `GET /experimental/patterns`, whose
+headline reads "No known vulnerability pattern found" when no weakness pattern matches
+— true as stated, and it would read so for 353 of 488 vulnerable `val` functions.**
 Docker Desktop is shut down; nothing is running. **What is left is Phase 10.** The
 paragraphs below describe the state before this.
 
