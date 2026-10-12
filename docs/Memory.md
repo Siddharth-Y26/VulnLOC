@@ -4372,6 +4372,11 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   themselves, for whoever did rate once: correctness 1 on 94 of 100, faithfulness 4–5,
   usefulness 1–2 on 97, clarity 3–4 on 97 — not a result, not to be quoted. **The
   human-evaluation criterion stays open; what happens next is the owner's.**
+  **Asked who filled the sheets in, the owner answered: *"gemini rated those"*.** So no
+  person has rated anything: the sheets are a language model's output and are never
+  reported as human evaluation, as raters, or as agreement. The owner also asked *"what
+  if we skip this?"*; the session recommended deferring the human evaluation in writing.
+  **Not yet decided — no deferral is recorded until the owner says so.**
 - **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
   `phase-8/tables`, `wt9` on `phase-9/serving`) are merged and no longer needed —
   `git worktree prune` once that directory is gone. `artifacts/serving/ba7dcc5f` (536 MB)
