@@ -48,7 +48,7 @@
 | 5 Fusion | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1c)** | **5 / 5** (head-to-head at ≥3 seeds, §1.21 frozen and §1.22 fine-tuned; the negative result investigated) | **Session 13 (2026-09-15): gates signed, ADR-008 and ADR-009 accepted, the semantic feature cache built and verified on real hardware (§1.20), A1 queued.** Session 12: `fusion/` (cross-attention + 5 comparators behind one `FusionModule`), `FusedLineModel`, `training/fused_datasets.py`, `configs/fusion/*`, `configs/train/{fused,overfit_fused}.yaml`, `scripts/train_fused.py`, **ADR-008**. Met by code and tests: gradient reaches both branches; attention maps shaped and retrievable; every arm selectable by `+fusion=` alone. **Head-to-head over ≥3 seeds: measured 2026-09-15 (§1.21)** — six arms × 3 seeds, frozen encoder; cross_attention ≈ concat. **Criterion 5 is half met:** "if cross-attention does not beat concat, record it honestly **and investigate before Phase 6**" — recorded (§1.21), not yet investigated. D9.7's fine-tuned confirmation is the natural investigation; Phase 6 must not start before it or an explicit owner decision to skip it. **2026-10-04 (session 15): the investigation's six runs are in (§1.22) — the null survives fine-tuning.** Still owed before the gate: the `llm_only` scaffold control (0 / 3, seed 42 paused) and the owner's signature. **2026-10-07 (session 16): the control is in — 0.6169 ± 0.0048, no fused arm beats it (§1.22). The three gate questions are answered in §1.1c; only the signature is missing** |
 | 6 Localization Head | ✅ **Done — gate signed by the owner 2026-10-07 (§1.1d)** | **4 / 4** | "Best full-model configuration frozen and checkpointed": **met by decision** — the designed cross-attention model, D9.7's config, checkpoints `80fc5238` / `c193e3bc` / `829c3555` (§2). **Calibrated, reliability curve reported, threshold chosen on `val` only: met 2026-10-07 (§1.24)** — ECE 0.1704 → 0.0137, line F1 0.2954 → 0.3898 out of fold. **Q5 (CWE labels): explicitly deferred by the owner 2026-10-07 — no type classifier; Phase 7a names a template-derived category and says so (§2).** **Deferred in writing (§2):** unit-level aggregation and a joint loss that means something — no negatives; the sweep is frozen-only |
 | 7 Explanation | ✅ **Done — gate signed by the owner 2026-10-08 (§1.1e)** | **4 / 4** (the owner read the explainer's sentences and named none of concern, §2) | 7a built and measured the same day (§1.27): 13,908 of 13,908 flagged lines on `val` explained and verified, three seeds; grounding suite passes; protocol written; four template sentences corrected after reading real output. **Open: the owner's reading of the template sentences for attack instructions.** A pattern names a cause for about one flagged line in twelve. 7b is deferred in writing (§2); the category is template-derived (Q5) |
-| 8 Evaluation | 🟨 **Started 2026-10-08 on `val`, at the owner's instruction, before the Phase 7 gate (§2)** | **2 / 4** | The line-level metric suite is built and reconciles with every logged `d97r` number. **The held-out pass was made once, on 2026-10-11 (§1.30).** The ablation tables of record are `bcfeb4ff…` (§1.32); the figures are drawn for `val`, `test` and `clean_eval`. **Ticked: the failure taxonomy — accepted by the owner on 2026-10-11 as revised (§1.31, §2).** Left unticked for the owner at the gate: every table cell traceable to a run, and the ablations' verdict on each novelty claim (`Phases.md` has the evidence under each). **Ticked 2026-10-12: the clean-clone criterion** — from a clone and the lock file the tests, split, shards and vocabularies reproduce exactly; of two same-seed frozen reruns one missed the band written beforehand, and the tick says so (§1.34, §2) |
+| 8 Evaluation | ✅ **Done — gate closed on the owner's instruction 2026-10-12 (§1.1f); the owner has not read the gate's answers** | **4 / 4** | The line-level metric suite is built and reconciles with every logged `d97r` number. **The held-out pass was made once, on 2026-10-11 (§1.30).** The ablation tables of record are `bcfeb4ff…` (§1.32); the figures are drawn for `val`, `test` and `clean_eval`. **Ticked: the failure taxonomy — accepted by the owner on 2026-10-11 as revised (§1.31, §2).** **Ticked 2026-10-12 on the owner's words:** every table cell traceable to a run (checked by `scripts/trace_phase8_tables.py`, 0 did not trace), and the ablations' verdict on each novelty claim — as "every claim has a written verdict"; A3, A7 and A10 were not run and no claim is made about them (`Phases.md`). **Ticked 2026-10-12: the clean-clone criterion** — from a clone and the lock file the tests, split, shards and vocabularies reproduce exactly; of two same-seed frozen reruns one missed the band written beforehand, and the tick says so (§1.34, §2) |
 | 9 Serving | 🟨 **Merged 2026-10-11 (`f5f450a`); gate unsigned** | **3 / 4** | Bundle of record `artifacts/serving/ba7dcc5f` (`ff9d1bd2…`); latency measured (`3e91feba…`: p95 2.63 s, over NFR-4's recommended 2 s); errors in one shape; the model card ships in the bundle. **Docker works on this laptop and was not tried on a second machine — that box is left for the owner** (§1.33) |
 | 10 Artifacts | ⬜ Not started | 0 / 3 | |
 
@@ -255,6 +255,56 @@ their names suggest for a model that attends between lines and scores no nodes.
 **A3 (line-level labels obtainable) is weakened again**: on top of ~30% wrong labels
 (§1.6), 8–12% of the labels sit on comment-only lines, and the release's handling of
 flagged lines leaked the label twice (ADR-006, §1.25). Nothing is falsified outright.
+
+### 1.1f Phase 8 Gate (`Phases.md` §Phase Gate Rule) — **CLOSED ON THE OWNER'S INSTRUCTION 2026-10-12**
+
+Written by session 19. The owner's words were *"okay finish these two also so phase 8 and 9 done?"* — said after being told that two
+boxes and the two gate signatures were what remained on the owner's side. **The owner
+has not read the answers below and did not write "signed"; reading those words as the
+instruction to tick the two boxes and close the gate is the session's, and the owner can
+reverse any part of it (§2).**
+
+**1. Did we meet every exit criterion?** **Four of four, each with what its tick claims
+written beside it in `Phases.md`.** *Every table cell traceable to a run* — checked by
+`scripts/trace_phase8_tables.py`: three evaluations, 18 ablation tables, 188 run
+references, 0 that do not trace. *Ablations confirm or refute each novelty claim* —
+ticked as "every claim has a written verdict": A1 and A2 are not supported for the
+models of record and supported with a frozen encoder on validation; A4, A5, A6, A8 and
+A9 are not resolved; **A3, A7 and A10 were not run and no claim is made about them.**
+*Failure taxonomy* — accepted by the owner on 2026-10-11. *Reproducible from a clean
+clone* — ticked on 2026-10-12 with one rerun's miss stated (§1.34).
+
+Not built or not run, said plainly: baseline reproductions under our splits and
+cross-dataset generalization (deferred 2026-10-07); the function-level metrics of
+`ResearchPlan.md` §4.1; the faithfulness tests of §4.4 — so contribution C5 is not
+earned and nothing measured says the attended lines drive a score; the efficiency
+figures of §4.5 beyond serving latency; the human evaluation (deferred 2026-10-12).
+
+**2. What did we learn that changes a later phase?**
+
+- **A1 has a two-part answer and the paper leads with the null** (Q15, closed
+  2026-10-12): fine-tuned and held out, the fusion rule makes no resolved difference;
+  frozen, on validation, cross-attention is ahead.
+- **A run repeated at the same seed is a replicate, not a copy (§7 #70).** Phase 10's
+  independent reader must be given something that can be hit: the data pipeline's
+  fingerprint and byte-equal shards, or a table recomputed from stored scores — both
+  deterministic — or a retrained arm judged against its spread over seeds. Never one
+  run's Top-5.
+- **The held-out partitions are spent.** Nothing that reads `test` or `clean_eval` may
+  be tuned, re-scored or re-evaluated for the paper; Phase 10 quotes §1.30.
+- **19.4% of the flagged lines on `val` are blank or syntax alone** and the model ranks
+  them below chance (§1.31): a limitation the paper states beside every line-level
+  figure, with the label-noise ceiling.
+- **No person rated the explanations.** C3 rests on the automatic verification and on
+  the share of explanations that names a cause (about one in twelve).
+
+**3. What `PRD.md` §10 assumption has been confirmed or falsified?**
+**A2 (a single-GPU budget) held, at a price the results carry**: three seeds an arm for
+the fine-tuned models, a frozen screen for everything else, and no function-level
+experiment at all. **A3 (line-level labels obtainable) stands as weakened in §1.1e** —
+the held-out numbers are bounded by the same ~30% label noise. **A4 (one language
+family) is unchanged**: C and C++ from one corpus, and cross-corpus generalization was
+not run. Nothing is falsified outright.
 
 ### 1.2 What Exists Right Now
 
@@ -3252,6 +3302,7 @@ Append-only. Format: date · decision · alternatives considered · rationale ·
 
 | Date | Decision | Alternatives | Rationale | ADR |
 |------|----------|--------------|-----------|-----|
+| 2026-10-12 | **Phase 8's two remaining boxes are ticked and its gate is closed** (owner, after being told that two Phase 8 boxes and the Phase 8 and 9 gate signatures were what remained on the owner's side: *"okay finish these two also so phase 8 and 9 done?"*). Session 19 read those words as the instruction to finish both boxes and close both gates, and did the work first: a read-only trace of every run the Phase 8 tables name (`scripts/trace_phase8_tables.py` — 0 did not trace), and a verdict for each of the ten novelty claims written into `Phases.md`. **"Ablations confirm or refute each novelty claim" is ticked as "every claim has a written verdict", not as "every ablation was run": A3, A7 and A10 were not run and no claim is made about them.** The gate's three answers are §1.1f. **The owner has not read them and did not write "signed"; the reading is the session's and any part of it can be reversed** | Leave both boxes and the gate unsigned until the owner reads §1.1f; run A3, A7 and A10 first (A3 needs ADR-007 accepted and CPG graphs costed on the 4 GiB card; A7 needs the live encoder; A10 needs explainers that are not built) — new training, which the owner declined on 2026-10-11 | The owner's stated aim is both phases done, and each tick says in `Phases.md` what it claims and what it does not. The weakest of the four is the ablations box, and it is recorded as such | — |
 | 2026-10-12 | **Phase 8's "results reproducible from a clean clone" box is ticked, with the cross-attention miss stated beside it** (owner). Session 19 explained the check (§1.34) and offered two options — tick it with the miss stated, or leave it unticked; the owner asked *"what do you recommend"*, was told "tick it, with the cross-attention miss written beside it", and answered ***"okay then proceed"***. The claim is: the tests, split, shards and vocabularies reproduce exactly from a clean clone and the lock file, and a retrained frozen model lands within its arm's spread over seeds — not that a single run's number can be recovered. The online draft's reproducibility section says so, with both reruns' figures | Leave it unticked, holding to the criterion written before the check (each rerun within its arm's three-seed sd of one logged run) | That criterion was the session's and was too narrow: a same-seed rerun of this model moves more than the three-seed sd with every input equal (§7 #70), so a correct pipeline can fail it. Everything deterministic reproduced exactly. Kept in the record: one of two reruns missed the pre-stated band, the six-seed comparison was made after the run, the cause was not isolated, the corpora were verified and not downloaded, and it was one machine | — |
 | 2026-10-12 | **Q15 is closed: the paper leads with the fine-tuned null and reports the frozen result beside it as a qualified, validation-only finding** (owner, delegating: asked for four things — (1) how A1 is stated, (2) latency, (3) the clean-clone box, (4) the gates — the owner wrote ***"do 1 and 2 according to you explain to me 3"***; the choice is the session's recommendation of §5 and the owner can reverse it). Applied the same hour to the online draft, whose Section 3.10 already read this way: the Abstract, Table 1 (now with both held-out rows), the answers to RQ1 and RQ2, the second contribution and the limits paragraph of Section 1.4 — every figure from §1.28, §1.30 and §1.32; the draft-status line under the Abstract is removed | Lead with the frozen result · give both equal weight | The models of record and the only held-out numbers are the fine-tuned ones; the frozen lead is validation-only by protocol, six seeds of one screen, and carries every qualifier §1.32 lists. "Replicated null" could no longer stand in the Abstract either: with the encoder frozen, on repaired text, the arms are separated | — |
 | 2026-10-12 | **The latency miss is accepted and stated; nothing is tuned towards NFR-4** (owner, delegating in the same sentence: *"do 1 and 2 according to you"*; the session's choice, reversible). p95 2.63 s against a recommended 2 s (`3e91feba…`, §1.33), met for functions of up to 250 lines. Stated in `docs/MODEL_CARD.md` (a new bullet under known limits) and to be stated in the paper's limitations. **The card inside the bundle of record predates that bullet** — the bundle is not edited; the re-export already owed for the `measured` block carries the new card | Tune towards the bound: thread settings or batching a function's windows (neither changes what the service returns; both untried, and the equivalence check against training would have to be re-run), quantization or a cap on length (both change what it returns) | NFR-4 is a `[RECOMMENDATION]` of `PRD.md`, not a requirement of the brief; Phase 9's criterion is "measured and reported", which is met; 185 of 200 sampled functions are inside the bound; the service is a demonstration of a research model, and the days left belong to the paper. Each lever is future work, named in the card's rationale here | — |

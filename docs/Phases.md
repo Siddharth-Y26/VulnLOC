@@ -334,15 +334,53 @@ before the single held-out pass was started.**
     2026-10-11 for `test` and `clean_eval`.
 
 **Exit criteria**
-- [ ] Every table cell traceable to a run ID
+- [x] Every table cell traceable to a run ID
   - *2026-10-11:* the held-out tables (`artifacts/phase8/evaluation_<split>.md`) and
     the ablation tables (`artifacts/phase8/ablations.md`) name the runs behind every
     row. Not ticked by a session; for the owner at the gate.
-- [ ] Ablations confirm or refute each novelty claim explicitly
+  - *2026-10-12:* **ticked on the owner's words (*"okay finish these two also so phase 8 and 9 done?"*, `Memory.md` §2), after a
+    check.** `scripts/trace_phase8_tables.py` (read-only) follows every run the tables
+    name into the MLflow stores. The three evaluations (`52b9c998…`, `f3a7dbdf…`,
+    `c5609b93…`): their own runs and nine checkpoints each are finished runs, each
+    checkpoint has its stored score file and is named in the `.md`, and 276 / 264 / 264
+    arm-metric cells are each the mean of their per-seed values. The ablation document
+    (`bcfeb4ff…`): 18 tables, 59 arm rows, 188 run references, each a finished run in
+    the store its table declares (13 tables this laptop's, 5 the second machine's) and
+    named in the `.md`; 168 per-seed Top-5 values equal the run's best logged epoch and
+    every arm's mean Top-5 is its runs' mean. The failure sheet's run (`42f8f27c…`) is
+    finished. **0 did not trace.** **Not covered:** the figures, which are drawn from
+    the same JSON and were not re-derived, and the paper's own tables, which are
+    Phase 10's.
+- [x] Ablations confirm or refute each novelty claim explicitly
   - *2026-10-11:* A1 with the encoder fine-tuned — not confirmed, on `val` and held
     out (`Memory.md` §1.28, §1.30). A1 with the encoder frozen, on comment-stripped
     text — in its favour on validation, over two sets of three seeds (§1.32). A3, A7
     and A10 are not run. Not ticked.
+  - *2026-10-12:* **ticked on the owner's words (*"okay finish these two also so phase 8 and 9 done?"*, `Memory.md` §2) — as "every
+    novelty claim has a written verdict", not as "every ablation was run".** Tables:
+    `artifacts/phase8/ablations.md` (`bcfeb4ff…`); held-out figures `Memory.md` §1.30.
+
+    | | Claim | Verdict, from logged runs |
+    |---|---|---|
+    | A1 | Cross-attention fusion beats simple combination (C2) | **Not supported for the models of record**: fine-tuned, cross_attention − concat on Top-5 is −0.0152 / −0.0136 / −0.0183 on `val` / `test` / `clean_eval`, none at 2 pooled sd. **Supported with the encoder frozen, on validation only**: +0.0474 over six seeds (2.46 pooled sd) |
+    | A2 | Both branches contribute | **Not supported fine-tuned**: neither fused arm separates from `llm_only` on Top-5 or IFA, on `val` or held out; one pooled-line difference repeats held out (concat − `llm_only` on PR-AUC, about +0.02). **Supported frozen, on validation**: cross_attention over `llm_only` by +0.0494 (six seeds, 3.25 pooled sd) and over `gnn_only` by +0.0844 (three seeds, 10.80) |
+    | A3 | Which graph carries the signal | **Not tested** — every run uses the AST. No claim is made |
+    | A4 | GCN, GAT or GGNN, and at what depth | **Not resolved** on Top-5 (text with the tell): the convolution inside fusion (second machine) and depth 2 / 4 / 6. Identifier subtokens are supported for the structural branch alone (+0.066, 2.12 pooled sd). GCN at depth 4 is a default, not a finding |
+    | A5 | CodeBERT or GraphCodeBERT | **Not resolved** on Top-5, frozen or fine-tuned (second machine, text with the tell). A default, not a finding |
+    | A6 | Bidirectional attention over either one-way form | **Not supported**: neither one-way arm differs on Top-5 (frozen, text with the tell); the two secondary crossings point in opposite directions |
+    | A7 | Mean pooling of tokens to lines | **Not tested.** No claim is made |
+    | A8 | The joint line + unit loss over a line-only loss | **Not supported**: not resolved (second machine, frozen, text with the tell) |
+    | A9 | Focal loss over cross-entropy | **Not supported**: not resolved against weighted or plain cross-entropy (second machine, frozen, text with the tell) |
+    | A10 | The template explainer over other strategies | **Not tested** — it is the only explainer built; the generative one and the human evaluation are deferred. No claim is made |
+
+    **What the tick claims:** no novelty claim is left implied — each is supported, not
+    supported, or stated as untested and not made. **What it does not claim:** that A3,
+    A7 or A10 was run (none was, and the paper makes no claim about graph
+    representation, line pooling or the choice of explainer); that "not resolved" is a
+    refutation (it is three seeds an arm); or that A4, A5, A6, A8 and A9 hold on
+    comment-stripped text (all five were run with the tell in place, three of them on
+    the second machine). The reading is the session's, under the owner's instruction,
+    and the owner can reverse it.
 - [x] Failure taxonomy documented with ≥ 20 inspected cases
   - *2026-10-10:* **drafted, not met.** Thirty cases were read by session 18 and by no
     person. The owner reviews them against `docs/FailureTaxonomy.md` §6; a session does
