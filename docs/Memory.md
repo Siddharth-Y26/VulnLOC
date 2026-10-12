@@ -4357,6 +4357,21 @@ cache.** A design that needs a tenth fine-tuned run needs an argument first.
   runs sit inside their arm's six-seed spread. The Phase 8 box is not ticked: the
   owner's, at the gate. `D:\vulnloc-cleanclone` (the clone, its environment and two
   checkpoints) is still on disk; nothing was deleted.
+- **2026-10-12 (session 19) — returned human-evaluation sheets were checked and are NOT
+  usable as three independent ratings; nothing was computed from them and nothing was
+  copied into the repo.** The owner downloaded `VulnLoc_human_eval.zip` (Downloads,
+  11:52): three folders, each with the `test` pack (`samples.md` and `README.md` equal
+  the pack of record by SHA-256) and a filled sheet. Each sheet is well-formed — 100
+  rows, every cell 1–5, no `0`, a comment on every low score. **But the three sheets
+  carry the same score in 400 of 400 cells**; only the comments differ in wording
+  (raters 1 and 2: 9 verbatim, mean similarity 0.83). Of three of rater 3's comments
+  checked against the samples (S042, S071, S100), all three describe code or a weakness
+  that is not in the sample. All three `about_you.txt` files are blank, so no rater
+  background is recorded (`docs/HumanEvalProtocol.md` §3). Krippendorff's α on these
+  would be 1.0 by construction and is not a measurement of agreement. The scores
+  themselves, for whoever did rate once: correctness 1 on 94 of 100, faithfulness 4–5,
+  usefulness 1–2 on 97, clarity 3–4 on 97 — not a result, not to be quoted. **The
+  human-evaluation criterion stays open; what happens next is the owner's.**
 - **Housekeeping left behind:** two worktrees in the session's scratchpad (`wt` on
   `phase-8/tables`, `wt9` on `phase-9/serving`) are merged and no longer needed —
   `git worktree prune` once that directory is gone. `artifacts/serving/ba7dcc5f` (536 MB)
