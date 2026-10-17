@@ -1,6 +1,6 @@
 # VulnLoc — the one site: Findings and the detailed report
 
-Paste a C or C++ function, or pick one of the 21 samples. Two tabs:
+Paste a C or C++ function, or pick one of the 24 samples. Two tabs:
 
 - **Findings** — the lines to review first, ranked by the **released model** (the serving
   bundle of record), with a reason and the usual fix on each line a known weakness pattern
@@ -28,6 +28,13 @@ onto a sample. `VULNLOC_BUNDLE` names another bundle directory.
 released model behind it (`docs/Memory.md` §1.36). Until that day Findings was the Phase 3
 semantic model alone and no fused score was shown anywhere.
 
+**The look (owner, 2026-10-17):** a warm, low-glare palette — walnut ground, parchment
+type, amber for the line under attention, sage for "matched / built", rust for errors —
+Atkinson Hyperlegible for prose and IBM Plex Mono for code. On wide screens the header
+stays fixed and the input column and the results each scroll on their own, with
+scrollbars in the palette; below 960 px the page scrolls and the header is sticky. The
+tokens are at the top of `static/styles.css`.
+
 It is **not the Phase 9 serving API.** That is `scripts/serve.py`, which answers the
 `PRD.md` §5.4 contract and is what the Docker image runs. This site calls the same
 `Analyzer` on the same bundle, so it shows the same scores, cut-off and explanations — but
@@ -43,9 +50,8 @@ panels read from every layer at once and the packaged service may not.
 | **It ranks lines. It cannot say a function is safe.** | The model trained on line-labelled functions only, and every one is vulnerable. |
 | **No count of flagged lines.** | Owner, 2026-10-12. Most lines of a short function reach the model's cut-off whether or not anything is wrong (`docs/VerdictComparison.md`), so a count reads as a verdict the model cannot give. |
 | **A card only where a known weakness pattern matches a line over the cut-off.** | Owner, 2026-10-12. A line over the cut-off that no pattern matches gets no card and no reason; it keeps its rank in "The model's highest-ranked lines" and in the whole-function view. |
-| **A pattern is a text match, and the page says how often it matches harmless code.** | Read from `artifacts/screening/verdicts_val.json` (run `6c942e6c…`, validation, an experiment) and quoted only for the bundle it was measured with: 135 of 488 vulnerable functions, 210 of 1,000 harmless ones. |
+| **No caveats box above the cards (owner, 2026-10-17).** | The box that led Findings — "Lines to review first", the held-out top-5 sentence (48% on 533 `test` functions) and three caveats, among them the pattern record (135 of 488 vulnerable, 210 of 1,000 harmless, run `6c942e6c…`) — was removed at the owner's request, as was the header's one-line description. `/api/findings` still returns `measured` and `pattern_record`; the Detailed report still shows the held-out record. A pattern is still a text match, never proof. |
 | **"No known weakness pattern matches…" is followed by "That is not a statement that the function is safe."** | It would read so for most vulnerable functions too. |
-| **The held-out sentence is the bundle's own record.** | Top five 48% on 533 `test` functions, all of them vulnerable — a ranking figure, not a detection rate. Read from the bundle's manifest, never typed in. |
 | **Rank first, score second.** | Scores are calibrated probabilities and are low by construction. |
 
 **The reason on a card is the released explainer's sentence, shown whole** — it was
@@ -56,11 +62,21 @@ index write, a pointer offset — are declared in `NO_ADVICE` and carry no fix: 
 lives somewhere else in the function, and a generic "check your bounds" would read like an
 explanation.
 
-**The samples** (`samples.py`) are written by hand, none from the corpus: ten with a
-weakness written into a named line, seven with none intended. For an unedited sample the
-page adds a "Sample check" — where the named line was ranked and whether a pattern matches
-it. That line is the author's intent, not a label; the model is sent only the code; and
-seventeen functions are an illustration, never a measurement.
+**The samples** (`samples.py`) are written by hand, none from the corpus: twelve with a
+weakness written into a named line, eight with none intended. Three were pasted by the
+owner on 2026-10-17 — a C++ `strcpy` into a 10-byte buffer, a Java copy loop, and a
+checked C++ age read; their comments were removed (the model never sees comments) and
+nothing else changed. **The Java one is outside what the model was trained on** (C/C++
+only); it is there to show what happens, not to be read as a result. The named line is
+the author's intent, not a label; the model is sent only the code; and twenty functions
+are an illustration, never a measurement. **The page no longer shows the "Sample check"
+box** that compared the named line with the ranking (removed at the owner's request,
+2026-10-17); the named lines stay in `samples.py`.
+
+**Detailed report navigation (owner, 2026-10-17):** the stage list is a sidebar on the
+right, one dot per stage in pipeline order; a click jumps to the stage and the stage being
+read is highlighted. Below 960 px it becomes a row of chips above the stages. Analysing new
+code always switches to Findings; only a `?tab=report` link keeps the report open.
 
 Run `1843412a…` remains void: it reported val line F1 0.9606 by learning a one-line
 whitespace rule (ADR-006, `docs/Memory.md` §1.10).
@@ -121,7 +137,7 @@ jumps across the function.
 | Path | Role |
 |---|---|
 | `released.py` | **Findings.** Loads the serving bundle through the service's `Analyzer`, keeps a card for each pattern-matched line over the cut-off, rebuilds every line's rank and refuses if it disagrees with the service's. Reads the pattern record. |
-| `samples.py` | The 17 hand-written examples, with the lines each weakness was written into. |
+| `samples.py` | The 20 hand-written examples (three are the owner's, 2026-10-17), with the lines each weakness was written into. |
 | `pipeline.py` | Runs the real stages (`analyse`), the semantic model's own ranking (`findings`, at `/api/semantic`) and the structural one (`structural_findings`), reads held-out numbers (`measured_results`), lists the samples. |
 | `scoring.py` | Loads the Phase 3 seed-42 checkpoint from its own logged config. Owns `IMPORT_LOCK` — see below. |
 | `structural.py` | Loads the Phase 4 seed-42 checkpoint (`77370d56…`) with pinned vocabularies. |

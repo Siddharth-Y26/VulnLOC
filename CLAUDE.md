@@ -61,6 +61,12 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-17 (session 21): the one site was restyled on the owner's words (`Memory.md` §2)
+— a warm amber/brown palette, a fixed header with each column scrolling on its own, and
+the Findings caveats box (held-out top-5 sentence, pattern record) and header description
+removed. Static files only; the 8080 service is unchanged. The paragraph below predates
+this: the page no longer quotes the pattern record on Findings.**
+
 **2026-10-12 late evening (session 20): THERE IS NOW ONE SITE — `python frontend/server.py`,
 `http://127.0.0.1:8000` (`Memory.md` §1.36) — built on the owner's words ("i like the 8000
 port one its format is exactly like what we want, but I want you to make one complete site
@@ -520,7 +526,7 @@ safe**. **Detailed report** runs every stage on the paste — normalize → pars
 tokenize → line axis, then the Phase 3 semantic model (`fc902107…`, trained with comments
 in place, and labelled so) and the Phase 4 structural model (`77370d56…`) each alone, the
 fused model, its calibrated scores, the patterns tested, the bundle's held-out record and
-what was not examined. Samples: four pipeline samples and 17 hand-written examples
+what was not examined. Samples: four pipeline samples and 20 hand-written examples (three pasted by the owner on 2026-10-17, one of them Java)
 (`frontend/samples.py`) — an example's named line is its author's intent, never a label.
 One sentence per stage; keep it that way (owner, 2026-09-15). Restart the server after any
 `.py` change — a stale one answers 405. It is **not** the Phase 9 serving API
@@ -688,7 +694,7 @@ python scripts/measure_latency.py +latency.bundle=./artifacts/serving/ba7dcc5f-r
 docker compose --profile serve up serve                     # the same service in the image (Docker Desktop must be running;
                                                             #   never beside training) -> http://localhost:8080
 
-python frontend/server.py                                   # the one site: Findings (released model) + Detailed report + 21 samples,
+python frontend/server.py                                   # the one site: Findings (released model) + Detailed report + 24 samples,
                                                             #   http://127.0.0.1:8000 — first paste waits for three models to load
 ```
 

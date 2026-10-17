@@ -1,8 +1,10 @@
 r"""Functions to try the Findings tab against — written by hand, none from the corpus.
 
 **Asked for by the project owner on 2026-10-12** ("examples of codes to test it against").
-Ten have a weakness written into a named line; seven have none intended, five of them the
-fixed twin of a vulnerable one. The second kind matters as much as the first: the model
+Twelve have a weakness written into a named line; eight have none intended, five of them the
+fixed twin of a vulnerable one. Three were pasted by the owner on 2026-10-17 (their notes begin
+"Owner's example"); their comments were removed and nothing else changed, and one is Java,
+which the model was never trained on. The second kind matters as much as the first: the model
 ranks lines in every function it is given and a pattern is a text match, so a harmless
 function is where a reader sees what neither can say.
 
@@ -12,8 +14,8 @@ Three things these are **not**:
   misreading ADR-006 came from (see :func:`frontend.pipeline.sample_functions`).
 - **Not labels.** ``lines`` is where the author wrote the weakness in. The model is sent
   only the code; the page compares its ranking with ``lines`` after the fact.
-- **Not a measurement.** Seventeen functions written by one author are an illustration.
-  "No weakness intended" is the claim — nobody audited the seven.
+- **Not a measurement.** Twenty hand-written functions are an illustration.
+  "No weakness intended" is the claim — nobody audited the eight.
 
 They carry no comments: the released model strips comments before it sees a line, so a
 comment would be a line the reader sees and the model does not.
@@ -216,6 +218,63 @@ std::string Packet::fieldAt(size_t index) const
         lines=(3,),
     ),
     _example(
+        "Name into a small buffer (C++)",
+        "Owner's example: strcpy copies a 100-byte name into a 10-byte destination. "
+        "std::cin >> source on line 8 is unbounded too.",
+        r"""
+#include <iostream>
+#include <cstring>
+
+int main() {
+    char source[100];
+
+    std::cout << "Enter your name: ";
+    std::cin >> source;
+
+    char destination[10];
+
+    strcpy(destination, source);
+
+    std::cout << "Name: " << destination << '\n';
+
+    return 0;
+}
+""",
+        lines=(12,),
+    ),
+    _example(
+        "Unchecked copy loop (Java)",
+        "Owner's example, in Java — a language the model never trained on. The loop copies "
+        "input.length() chars into a 10-char array.",
+        r"""
+import java.util.Scanner;
+
+public class VulnerableExample {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+
+        char[] source = new char[100];
+        char[] destination = new char[10];
+
+        System.out.print("Enter your name: ");
+        String input = sc.nextLine();
+
+        for (int i = 0; i < input.length() && i < 100; i++) {
+            source[i] = input.charAt(i);
+        }
+
+        for (int i = 0; i < input.length(); i++) {
+            destination[i] = source[i];
+        }
+
+        System.out.println("Name: " + new String(destination));
+        sc.close();
+    }
+}
+""",
+        lines=(18,),
+    ),
+    _example(
         "Bounded copy",
         "The buffer-overflow sample with a length check before anything is copied.",
         r"""
@@ -334,6 +393,35 @@ unsigned int checksum(const unsigned char *data, size_t len)
         b = (b + a) % 65521;
     }
     return (b << 16) | a;
+}
+""",
+    ),
+    _example(
+        "Checked age input (C++)",
+        "Owner's example: the read is checked and the age is range-checked before use.",
+        r"""
+#include <iostream>
+#include <string>
+#include <limits>
+
+int main() {
+    int age{};
+
+    std::cout << "Enter your age: ";
+
+    if (!(std::cin >> age)) {
+        std::cerr << "Error: Invalid input.\n";
+        return 1;
+    }
+
+    if (age < 0 || age > 150) {
+        std::cerr << "Error: Age out of range.\n";
+        return 1;
+    }
+
+    std::cout << "Your age is: " << age << '\n';
+
+    return 0;
 }
 """,
     ),

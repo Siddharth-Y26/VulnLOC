@@ -7,20 +7,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261012" />
+    <link rel="stylesheet" href="styles.css?v=20261017d" />
   </head>
   <body>
     <header class="masthead">
-      <div class="masthead-top">
-        <h1 class="wordmark">VulnLoc <span>line-level review</span></h1>
-        <p class="masthead-note">
-          Paste a C or C++ function. Findings: the lines to review first. Detailed report:
-          each step's output, each model's own ranking, and what was measured.
-        </p>
-      </div>
+      <h1 class="wordmark">VulnLoc <span>line-level review</span></h1>
 
       <div class="tabs" role="tablist" aria-label="Views">
         <button type="button" role="tab" id="tab-findings" aria-controls="panel-findings" aria-selected="true">
@@ -94,7 +88,7 @@
         </div>
       </section>
 
-      <section class="stage-column">
+      <section class="stage-column" id="results">
         <div role="tabpanel" id="panel-findings" aria-labelledby="tab-findings">
           <div id="findings">
             <p class="empty">Paste a function, or pick a sample, then choose Analyse.</p>
@@ -102,21 +96,24 @@
         </div>
 
         <div role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden>
-          <nav aria-label="Pipeline stages">
+          <div class="report-body">
+            <div id="error-slot"></div>
+            <div id="stages">
+              <p class="empty">
+                Paste a function, or pick a sample, then choose Analyse.
+              </p>
+            </div>
+          </div>
+
+          <nav class="report-nav" aria-label="Pipeline stages">
+            <h2>Stages</h2>
             <ol class="rail" id="rail"></ol>
           </nav>
-
-          <div id="error-slot"></div>
-          <div id="stages">
-            <p class="empty">
-              Paste a function, or pick a sample, then choose Analyse.
-            </p>
-          </div>
         </div>
       </section>
     </main>
 
     <!-- The query string retires copies cached before the server sent Cache-Control. -->
-    <script src="app.js?v=20261012"></script>
+    <script src="app.js?v=20261017d"></script>
   </body>
 </html>

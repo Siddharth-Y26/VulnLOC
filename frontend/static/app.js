@@ -31,6 +31,7 @@ const el = (tag, cls, text) => {
 
 let PHASES = [];
 let RESULTS = {};
+let refreshCurrentStage = () => {};
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const pct = (x) => `${Math.round(x * 100)}%`;
@@ -40,18 +41,20 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 async function boot() {
   setupTabs();
   await Promise.all([loadResults(), loadPhases(), loadSamples()]);
-  $("run").addEventListener("click", run);
+  refreshCurrentStage = trackCurrentStage();
+  $("run").addEventListener("click", () => run());
   $("code").addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run();
   });
 
   // `?sample=0&tab=report` opens straight onto a sample — for sharing a view, and for
-  // headless screenshots that cannot click.
+  // headless screenshots that cannot click. The tab named in the URL is kept.
   const params = new URLSearchParams(location.search);
-  if (TABS.includes(params.get("tab"))) selectTab(params.get("tab"));
+  const urlTab = TABS.includes(params.get("tab")) ? params.get("tab") : null;
+  if (urlTab) selectTab(urlTab);
   const index = Number(params.get("sample"));
   if (params.has("sample") && SAMPLES[index]) {
-    pickSample(SAMPLES[index]);
+    pickSample(SAMPLES[index], { keepTab: Boolean(urlTab) });
   }
 }
 
@@ -68,6 +71,7 @@ function selectTab(name, focus = false) {
     $(`panel-${tab}`).hidden = !selected;
     if (selected && focus) button.focus();
   }
+  if (name === "report") refreshCurrentStage();
   try {
     localStorage.setItem("vulnloc.tab", name);
   } catch {
@@ -105,25 +109,72 @@ async function loadPhases() {
   for (const stage of builtStages()) {
     const li = el("li");
     li.dataset.state = stage.state;
+    li.dataset.stage = stage.id;
     const button = el("button");
     button.type = "button";
     button.append(el("span", "rail-name", stage.name));
     button.addEventListener("click", () => {
       const target = document.getElementById(`stage-${stage.id}`);
-      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (!target) return;
+      const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+      target.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+      markCurrentStage(stage.id);
     });
     li.append(button);
     rail.append(li);
   }
 }
 
+/* The sidebar marks the stage being read: the last one whose top is within a short reach
+   of the results column's top. Recomputed on scroll, which is cheap at a dozen stages. */
+function markCurrentStage(id) {
+  for (const li of $("rail").children) {
+    const button = li.querySelector("button");
+    if (li.dataset.stage === id) button.setAttribute("aria-current", "true");
+    else button.removeAttribute("aria-current");
+  }
+}
+
+function trackCurrentStage() {
+  const column = $("results");
+  let queued = false;
+  const update = () => {
+    queued = false;
+    if ($("panel-report").hidden) return;
+    const sections = [...document.querySelectorAll("#stages > .stage[id]")];
+    if (!sections.length) return;
+    // Wide screens scroll the column; narrow ones scroll the page.
+    const scroller = column.scrollHeight > column.clientHeight ? column : null;
+    const top = scroller ? scroller.getBoundingClientRect().top : 0;
+    // Narrow screens: the sticky header covers the page's top edge.
+    const header = scroller ? 0 : document.querySelector(".masthead").offsetHeight;
+    const reach = header + 96;
+    let current = sections[0];
+    for (const section of sections) {
+      if (section.getBoundingClientRect().top - top <= reach) current = section;
+    }
+    // At the very end the last stages can never reach the top; mark the last one.
+    const end = scroller
+      ? scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2
+      : window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+    if (end && (scroller ? scroller.scrollTop : window.scrollY) > 0) current = sections.at(-1);
+    markCurrentStage(current.id.replace(/^stage-/, ""));
+  };
+  const queue = () => {
+    if (!queued) {
+      queued = true;
+      requestAnimationFrame(update);
+    }
+  };
+  column.addEventListener("scroll", queue, { passive: true });
+  window.addEventListener("scroll", queue, { passive: true });
+  return update;
+}
+
 const builtStages = () => PHASES.filter((s) => s.state !== "planned");
 const plannedStages = () => PHASES.filter((s) => s.state === "planned");
 
 let SAMPLES = [];
-/* The sample in the box. Its named lines are compared with the ranking only while the
-   text is exactly the sample's: an edited sample is somebody's own code. */
-let CURRENT_SAMPLE = null;
 
 const SAMPLE_GROUPS = [
   ["weakness", "A weakness was written in"],
@@ -131,10 +182,9 @@ const SAMPLE_GROUPS = [
   ["pipeline", "Pipeline samples"],
 ];
 
-function pickSample(sample) {
-  CURRENT_SAMPLE = sample;
+function pickSample(sample, opts = {}) {
   $("code").value = sample.code;
-  run();
+  run(opts);
 }
 
 async function loadSamples() {
@@ -184,7 +234,11 @@ async function postJson(url, body) {
   }
 }
 
-async function run() {
+/* New code always lands on Findings, at the top (owner, 2026-10-17); only a shared
+   `?tab=` link keeps the tab it names. */
+async function run({ keepTab = false } = {}) {
+  if (!keepTab) selectTab("findings");
+  $("results").scrollTop = 0;
   const button = $("run");
   button.disabled = true;
   button.textContent = "Analysing…";
@@ -193,14 +247,13 @@ async function run() {
   // Independent requests: the report is fast, the models are not on their first call, and
   // none should wait for another.
   const code = $("code").value;
-  const sample = CURRENT_SAMPLE && CURRENT_SAMPLE.code === code ? CURRENT_SAMPLE : null;
   const pending = {
     findings: postJson("/api/findings", { code }),
     semantic: postJson("/api/semantic", { code }),
     structural: postJson("/api/structural", { code }),
   };
   try {
-    await Promise.all([runReport(code, pending), runFindings(pending.findings, sample)]);
+    await Promise.all([runReport(code, pending), runFindings(pending.findings)]);
   } catch (err) {
     showError({ error: String(err), kind: "page" });
   } finally {
@@ -209,7 +262,7 @@ async function run() {
   }
 }
 
-async function runFindings(pending, sample) {
+async function runFindings(pending) {
   const host = $("findings");
   host.replaceChildren(el("p", "empty loading", "Ranking lines… the first run loads the model."));
   const { data, error } = await pending;
@@ -219,7 +272,7 @@ async function runFindings(pending, sample) {
     return;
   }
   try {
-    renderFindings(host, data, sample);
+    renderFindings(host, data);
   } catch (err) {
     // An answer in a shape this script cannot draw: a server and a page of different ages.
     host.replaceChildren(errorBox({ error: String(err), kind: "page" }));
@@ -281,15 +334,7 @@ function showError(data) {
 
 /* ── Findings ──────────────────────────────────────────────────────────────── */
 
-const lineList = (lines) => `line${lines.length === 1 ? "" : "s"} ${lines.join(" and ")}`;
-
-function renderFindings(host, data, sample) {
-  host.append(trustBox(data));
-  if (sample) {
-    const check = sampleCheck(data, sample);
-    if (check) host.append(check);
-  }
-
+function renderFindings(host, data) {
   // A card only where a known weakness pattern matches a line above the model's cut-off.
   if (data.cards.length) {
     const list = el("ol", "findings");
@@ -314,65 +359,6 @@ function renderFindings(host, data, sample) {
     foot.textContent += ` ${plural(data.coverage.lines_beyond_cap, "line", "lines")} past line ${data.coverage.line_cap} cannot be scored.`;
   }
   host.append(foot);
-}
-
-/* Read before the cards. Every figure in it is the bundle's own record or a logged run's. */
-function trustBox(data) {
-  const m = data.measured;
-  const trust = el("div", "trust");
-  const lead = el("p", "trust-lead");
-  lead.append(el("b", null, "Lines to review first. "));
-  if (m && typeof m.top_5 === "number") {
-    lead.append(
-      document.createTextNode(
-        `On ${m.units} held-out functions the real flawed line was in its top 5 ${pct(m.top_5)} of the time.`
-      )
-    );
-  }
-  trust.append(lead);
-
-  const caveats = el("ul", "trust-caveats");
-  caveats.append(
-    el("li", null, "It assumes there is a flaw and ranks where. It cannot tell you code is safe."),
-    el("li", null, "A reason is shown only where a known weakness pattern matches. Reasons and fixes come from templates, not from the model.")
-  );
-  const record = data.pattern_record;
-  if (record) {
-    const item = el(
-      "li",
-      null,
-      `A pattern is a text match, not proof: on validation one matched in ${record.vulnerable.raised} of ${record.vulnerable.n} vulnerable functions and ${record.not_vulnerable.raised.toLocaleString()} of ${record.not_vulnerable.n.toLocaleString()} harmless ones.`
-    );
-    item.title = `run ${record.run_id} — an experiment, validation only`;
-    caveats.append(item);
-  }
-  trust.append(caveats);
-  return trust;
-}
-
-/* Where a sample's author wrote the weakness in, against what came back. The model was
-   sent only the code; one function is an illustration, never a measurement. */
-function sampleCheck(data, sample) {
-  if (sample.group === "pipeline") return null;
-  const rankOf = new Map(data.scores.map((entry) => [entry.line, entry.rank]));
-  const cardLines = new Set(data.cards.map((card) => card.line));
-  const box = el("p", "note sample-check");
-  box.append(el("b", null, "Sample check. "));
-  let text;
-  if (sample.lines.length) {
-    const where = sample.lines.map((line) => {
-      const rank = rankOf.get(line);
-      const ranked = rank ? `ranked #${rank} of ${data.coverage.lines_scored}` : "not scored";
-      return `line ${line} is ${ranked}, ${cardLines.has(line) ? "and a pattern matches it" : "and no pattern matches it"}`;
-    });
-    text = `The weakness was written into ${lineList(sample.lines)}: ${where.join("; ")}.`;
-  } else if (data.cards.length) {
-    text = `No weakness was written into this function, and ${plural(data.cards.length, "line still matches", "lines still match")} a pattern. A pattern is a text match, not a finding.`;
-  } else {
-    text = "No weakness was written into this function, and no pattern matches. That agrees with the sample; it is still not evidence that a function is safe.";
-  }
-  box.append(document.createTextNode(`${text} Written by hand for this page; the model was sent only the code.`));
-  return box;
 }
 
 function findingCard(card) {
@@ -615,6 +601,7 @@ function renderStages(data, pending) {
   }
   // Every stage is built now; an empty "Not built yet" box would say otherwise.
   if (plannedStages().length) host.append(renderPlanned());
+  refreshCurrentStage();
 }
 
 function renderPlanned() {
