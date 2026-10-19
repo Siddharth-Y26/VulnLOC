@@ -164,3 +164,35 @@ result the script cannot draw is now an error box that says to reload.
 The samples are written for this tool rather than taken from the corpus: real Big-Vul
 text and its flaw labels on screen beside a ranker invite exactly the misreading ADR-006
 came from.
+
+## Running it in the cloud — a GitHub Codespace (owner, 2026-10-19)
+
+The site runs in a Codespace on this private repo, so no laptop needs to be on. **It does
+not wake on a visit:** start it from GitHub, wait for it to come up, share the link; it
+stops by itself when idle (30 minutes by default, settable up to 4 hours under GitHub ->
+Settings -> Codespaces).
+
+**The weights are not in git.** The 30 files below `artifacts/` that the site opens live in
+the private Hugging Face model repo `siddharth2665/vulnloc-weights` (1.07 GB: the bundle, the
+two branch checkpoints **without their optimizer state** — weights checked equal to the
+originals — their configs, the vocabularies and the reports). `deploy/hf_space/start.py`
+downloads them into `artifacts/` and starts `server.py` unchanged on port 7860.
+
+- **Once:** add a read-only Hugging Face token as the Codespaces secret `HF_TOKEN` for this
+  repo (GitHub -> Settings -> Codespaces -> Secrets).
+- **Each time:** on GitHub, switch to the branch that holds `.devcontainer/`, then Code ->
+  Codespaces -> Create codespace (2-core). The first creation installs everything
+  (`.devcontainer/setup.sh`, several minutes); every start downloads the weights and
+  loads three models (a few minutes more). Progress is in `/tmp/vulnloc-site.log`.
+- **To share it:** Ports tab -> port 7860 -> Port visibility -> **Public**, then copy the
+  forwarded address. A private port opens only for the codespace's owner.
+
+The pins are the lock file's with torch's CPU build and without the development tools
+(`deploy/hf_space/stage.py::requirements_from_lock`). Re-stage and re-upload the weights
+with `python deploy/hf_space/stage.py --upload --user siddharth2665` (resumable).
+
+**Why not a Hugging Face Space:** `deploy/hf_space/` also builds one, and its image was
+built and checked locally on 2026-10-19 (every endpoint answered with only the 30 staged
+files). On the same day Hugging Face refused to create it: a Docker Space on the free CPU
+now needs a PRO subscription. GitHub Pages cannot run it either — it serves static files,
+and every result here comes from PyTorch on a server.

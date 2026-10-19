@@ -696,6 +696,8 @@ docker compose --profile serve up serve                     # the same service i
 
 python frontend/server.py                                   # the one site: Findings (released model) + Detailed report + 24 samples,
                                                             #   http://127.0.0.1:8000 — first paste waits for three models to load
+python deploy/hf_space/stage.py --upload --user siddharth2665  # re-stage + upload the site's weights to the private HF repo (resumable);
+                                                            #   the site runs in a GitHub Codespace (.devcontainer/) — frontend/README.md
 ```
 
 **A fine-tuned run is 3–4 h and is expected to be interrupted.** `--until HH:MM`, `--stop`,

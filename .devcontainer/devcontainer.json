@@ -1,0 +1,23 @@
+// The one site (frontend/) in a GitHub Codespace — frontend/README.md, "Running it in a
+// Codespace". The weights are not in git: deploy/hf_space/start.py downloads them from the
+// private Hugging Face repo below with the Codespaces secret HF_TOKEN, then serves on 7860.
+{
+  "name": "VulnLoc site",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "hostRequirements": { "cpus": 2, "memory": "8gb" },
+  "containerEnv": {
+    "VULNLOC_WEIGHTS_REPO": "siddharth2665/vulnloc-weights",
+    "PIP_DEFAULT_TIMEOUT": "120"
+  },
+  "secrets": {
+    "HF_TOKEN": {
+      "description": "A read-only Hugging Face token that can read siddharth2665/vulnloc-weights."
+    }
+  },
+  "onCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "nohup bash -c 'python deploy/hf_space/start.py > /tmp/vulnloc-site.log 2>&1 &'",
+  "forwardPorts": [7860],
+  "portsAttributes": {
+    "7860": { "label": "VulnLoc site", "onAutoForward": "notify" }
+  }
+}

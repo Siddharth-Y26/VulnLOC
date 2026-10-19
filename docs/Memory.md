@@ -3539,6 +3539,19 @@ trained with comments in place, and its panel says so; the structural panel's he
 figure was measured on that text too and does not say so. The first request after a
 start waits for three models (about 80 s on a busy disk, 0.3–0.4 s afterwards).
 
+**2026-10-19: the site runs in a GitHub Codespace on this private repo (owner's choice:
+free, no laptop on, cold starts accepted).** The weights live in the private HF model repo
+`siddharth2665/vulnloc-weights` — 1.07 GB, the two branch checkpoints uploaded without
+`optimizer_state` (two-thirds of each; weights checked equal) — and
+`deploy/hf_space/start.py` downloads them at start. `.devcontainer/` installs the lock
+file's pins with torch `+cpu`. **A Docker Space was built and checked locally, then refused
+by Hugging Face (402: Docker Spaces on free CPU need PRO).** Azure Container Apps was
+chosen and dropped the same evening for Codespaces; the Azure CLI was uninstalled. The
+local branch shares no history with `origin/phase-2/representation` (which stops in
+August), so the Codespace branch was pushed under a new name, nothing forced. **A Codespace
+does not wake on a visit** — the owner starts it; port 7860 must be made Public to share.
+Two HF tokens were pasted into the chat that day; the write one is to be revoked.
+
 ---
 
 ## 2. Decision Log
