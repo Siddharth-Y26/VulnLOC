@@ -61,6 +61,15 @@ conditions. If cross-attention does not beat concat, that gets reported honestly
 
 ## 3. Current state (2026-09-15, session 13)
 
+**2026-10-19 (session 22): THE HISTORY WAS REWRITTEN AND `main` IS NOW THE PROJECT — every
+commit ID made before this day changed (messages only; every tree, author and date is the
+same). A commit ID quoted in this file, `Memory.md`, an MLflow run's `git_sha` or a bundle
+is an OLD ID: look it up in `docs/commit_map.tsv`. The old history is kept on this laptop
+under `backup/*` tags (never pushed) — `report_seeds.py`'s `git diff` between old IDs still
+works here because of them; do not delete those tags. **No commit or PR in this repo carries a
+Claude co-author line or any Claude/Anthropic attribution (owner).** The site also runs in a
+GitHub Codespace (`.devcontainer/`, `frontend/README.md`).**
+
 **2026-10-17 (session 21): the one site was restyled on the owner's words (`Memory.md` §2)
 — a warm amber/brown palette, a fixed header with each column scrolling on its own, and
 the Findings caveats box (held-out top-5 sentence, pattern record) and header description
@@ -455,7 +464,7 @@ DiverseVul generalization) needs the 148,983-function split and is out of reach 
 
 | | |
 |---|---|
-| Branch | `phase-2/representation` — **the name is two phases stale**, ~25 commits ahead of `main`. Branching model still undecided (§10 #1). |
+| Branch | **`main`** (2026-10-19) — the whole project, force-pushed over the August history; the old remote branches were deleted (kept locally as `backup/*` tags). Commit IDs before that day: `docs/commit_map.tsv`. |
 | Phase 0 | ✅ **4 / 4** (2026-10-11) — the Docker criterion, open since August, is met: the image builds and `docker run --rm vulnloc:0.1.0` runs `scripts/train.py train=debug` to completion (`Memory.md` §1.33; one fix first, `193f3ac`). |
 | Phase 1 | ✅ **DONE — 5 / 5** (2026-08-11). Dataset built, split, cached, leakage-checked and human-audited. |
 | Phase 2 | ✅ **DONE — 5 / 5** (2026-08-16). Parser, line map, AST/CFG/DFG/CPG builders, PyG conversion, corpus report. **Q8 closed by ADR-005.** |
@@ -892,7 +901,7 @@ functions in train. `clean_eval`, `excluded` and `duplicate` are withheld from t
 
 ## 10. Open questions needing a human
 
-1. **Branching model** — `main` does not exist.
+1. ~~**Branching model** — `main` does not exist.~~ **2026-10-19: `main` is the project; feature work branches `phase-N/<topic>` from it.**
 2. ~~**4 GiB VRAM** — decide the Phase 3 strategy.~~ **Resolved 2026-08-16 by
    measurement** (`Memory.md` §1.9, run `1904c295…`): AMP + gradient checkpointing at
    batch 16 windows, 2,456 MiB, 22.9 windows/s. Raise it again only if Phase 5 does not

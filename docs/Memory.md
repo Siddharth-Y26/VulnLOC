@@ -3552,6 +3552,19 @@ August), so the Codespace branch was pushed under a new name, nothing forced. **
 does not wake on a visit** — the owner starts it; port 7860 must be made Public to share.
 Two HF tokens were pasted into the chat that day; the write one is to be revoked.
 
+**2026-10-19, later: the history was rewritten and pushed to `main` (owner).** The owner
+asked that Claude appear nowhere in the commits or the contributors list. 163 of 185
+commits carried a `Co-Authored-By: Claude` line; every message was rewritten without it
+(`git filter-branch --msg-filter`), and each pair was checked to have the same tree, author
+and author date. **Every commit ID before this day changed: `docs/commit_map.tsv` maps old
+to new** — every ID in this file, in `CLAUDE.md`, in an MLflow `git_sha` and in a bundle
+manifest is an old one. The pre-rewrite history and the four deleted August branches are
+kept locally as `backup/*` tags, which is also what lets `report_seeds.py` still `git diff`
+between old IDs on this laptop. `main` on GitHub was replaced (it shared no history with
+this one); `phase-0/foundation`, `phase-2/representation`, `chore/transfer-to-new-machine`
+and `phase-9/codespace` were deleted there. The two Word files in `docs/paper/` were left
+out at the owner's choice.
+
 ---
 
 ## 2. Decision Log
