@@ -15,7 +15,7 @@
     }
   },
   "onCreateCommand": "bash .devcontainer/setup.sh",
-  "postStartCommand": "nohup bash -c 'python deploy/hf_space/start.py > /tmp/vulnloc-site.log 2>&1 &'",
+  "postStartCommand": "nohup bash -c 'python deploy/hf_space/start.py > /tmp/vulnloc-site.log 2>&1 &' > /dev/null 2>&1",
   "forwardPorts": [7860],
   "portsAttributes": {
     "7860": { "label": "VulnLoc site", "onAutoForward": "notify" }
