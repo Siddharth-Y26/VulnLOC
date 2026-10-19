@@ -3563,7 +3563,8 @@ kept locally as `backup/*` tags, which is also what lets `report_seeds.py` still
 between old IDs on this laptop. `main` on GitHub was replaced (it shared no history with
 this one); `phase-0/foundation`, `phase-2/representation`, `chore/transfer-to-new-machine`
 and `phase-9/codespace` were deleted there. The two Word files in `docs/paper/` were left
-out at the owner's choice.
+out at the owner's choice. **`CLAUDE.md` was then taken out of the repo at the owner's request — it
+stays on this laptop, untracked and in `.gitignore`; it remains in commits before that day.**
 
 ---
 
