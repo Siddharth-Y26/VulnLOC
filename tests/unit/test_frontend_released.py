@@ -208,6 +208,21 @@ def test_every_explainer_pattern_has_a_fix_or_is_declared_without_one():
     assert advice_for("a-pattern-nobody-wrote") is None
 
 
+def test_the_cwe_659_reference_rides_along_and_names_only_what_the_cards_name(
+    monkeypatch, tmp_path
+):
+    report = run(monkeypatch, {3: 4.0, 5: 3.0, 4: 2.0}, tmp_path)
+    reference = report["cwe_659"]
+
+    # Cards on lines 5 (CWE-134) and 4 (CWE-120); line 3 is ranked first and has none.
+    assert reference["named_here"] == ["CWE-134", "CWE-120"]
+    checked = {member["cwe"] for member in reference["members"] if member["checked"]}
+    assert checked == {p["cwe"] for p in report["patterns"]["checked"]} & {
+        member["cwe"] for member in reference["members"]
+    }
+    assert reference["note"].startswith("Reference list, not detection.")
+
+
 def test_attention_that_rounds_to_nothing_is_not_listed(monkeypatch, tmp_path):
     report = run(monkeypatch, {5: 4.0}, tmp_path)
 

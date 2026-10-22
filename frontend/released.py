@@ -219,11 +219,13 @@ def released_findings(code: str) -> dict[str, Any]:
     Returns:
         A JSON-serializable report. ``cards`` holds one entry per line that is above the
         model's cut-off **and** matched by a known weakness pattern, most suspicious first;
-        ``scores`` holds every line's score and rank.
+        ``scores`` holds every line's score and rank; ``cwe_659`` holds MITRE's CWE-659 view
+        as reference data, which the page does not draw (:mod:`frontend.cwe_659`).
 
     Raises:
         ValueError: If ``code`` is empty.
     """
+    from frontend.cwe_659 import reference as cwe_659_reference
     from frontend.fix_templates import advice_for
     from vulnloc.representation.units import CodeUnit
 
@@ -289,4 +291,6 @@ def released_findings(code: str) -> dict[str, Any]:
         "pattern_record": pattern_record(),
         "model": version(),
         "seconds": analysis.diagnostics["seconds"],
+        # Reference data only: no pattern comes from it, and the page does not draw it.
+        "cwe_659": cwe_659_reference(report["patterns"]["checked"], cards),
     }

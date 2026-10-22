@@ -3566,6 +3566,18 @@ and `phase-9/codespace` were deleted there. The two Word files in `docs/paper/` 
 out at the owner's choice. **`CLAUDE.md` was then taken out of the repo at the owner's request — it
 stays on this laptop, untracked and in `.gitignore`; it remains in commits before that day.**
 
+**2026-10-22: MITRE's CWE-659 view rides in the Findings response as reference data
+(`frontend/cwe_659.py`).** Asked whether the site detects every weakness in CWE-659
+("Weaknesses in Software Written in C++", 97 entries), the answer was no: the explainer's
+19 patterns are filed under 14 CWE IDs, 11 of them in the view (119, 120, 125, 134, 170,
+242, 401, 415, 416, 476, 787), all written for C library calls — nothing for `new` /
+`delete`, exceptions or threads. The list was then asked for in the backend, returned and
+not drawn: `/api/findings` carries `cwe_659` — the 97 IDs and names copied from MITRE's CSV
+(retrieved that day and checked equal to it), each `checked` only when a pattern the
+service tested carries that exact ID, `named_here` for this paste's cards, and a note in
+the JSON that it is not detection. The page draws none of it (`test_frontend_cwe_659.py`
+reads `static/`). **It adds no detection: never quote it as coverage of CWE-659.**
+
 ---
 
 ## 2. Decision Log

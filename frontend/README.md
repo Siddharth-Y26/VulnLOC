@@ -137,6 +137,7 @@ jumps across the function.
 | Path | Role |
 |---|---|
 | `released.py` | **Findings.** Loads the serving bundle through the service's `Analyzer`, keeps a card for each pattern-matched line over the cut-off, rebuilds every line's rank and refuses if it disagrees with the service's. Reads the pattern record. |
+| `cwe_659.py` | MITRE's CWE-659 view (97 C++ weaknesses, from MITRE's CSV, 2026-10-22) as **reference data**, returned by `/api/findings` under `cwe_659` and **drawn nowhere on the page** (asked for 2026-10-22). It adds no detection: an entry is `checked` only when a pattern the service tested carries its exact ID (11 of 97), and the JSON carries a note saying so. |
 | `samples.py` | The 20 hand-written examples (three are the owner's, 2026-10-17), with the lines each weakness was written into. |
 | `pipeline.py` | Runs the real stages (`analyse`), the semantic model's own ranking (`findings`, at `/api/semantic`) and the structural one (`structural_findings`), reads held-out numbers (`measured_results`), lists the samples. |
 | `scoring.py` | Loads the Phase 3 seed-42 checkpoint from its own logged config. Owns `IMPORT_LOCK` — see below. |
